@@ -15,13 +15,15 @@ homeR.use(express.urlencoded({ extended: true }));
 
 const {
   getHomeController,
-  getFixtureController,
+  getTournamentsController,
   getFixtureByTournamentIdController,
   getFixtureByTournamentIdAndTeamOrPlayerIdController,
   getStandingsController,
+  getMatchesController,
   postUploadGameController,
   putModifyGameController,
   deleteGameController,
+  getWinsController
 } = require("./../controller/controller.js");
 
 // HOME
@@ -32,22 +34,27 @@ homeR.get("/", getHomeController);
 
 homeR.get("/standings", getStandingsController);
 
+// /MATCHES
+
+homeR.get("/matches", getMatchesController);
+
 // /FIXTURE
 
-homeR.get("/fixture", getFixtureController);
+homeR.get("/tournaments", getTournamentsController);
 
-homeR.get("/fixture/:id", getFixtureByTournamentIdController);
+homeR.get("/tournaments/:id/fixture", getFixtureByTournamentIdController);
 
-homeR.get(
-  "/fixture/:tournamentId/:teamIdOrPlayerName",
-  getFixtureByTournamentIdAndTeamOrPlayerIdController
-);
+// homeR.get("/fixture/:tournamentId/:teamIdOrPlayerName",
+//   getFixtureByTournamentIdAndTeamOrPlayerIdController
+// );
 
-homeR.post("/upload-game/:id", postUploadGameController);
+homeR.post("/tournaments/:id/upload-game", postUploadGameController);
 
-homeR.put("/update-game/:id/:matchId", putModifyGameController);
+homeR.put("/tournaments/:id/update-game/:match", putModifyGameController);
 
-homeR.delete("/delete-game/:id/:matchId", deleteGameController);
+homeR.delete("/tournaments/:id/delete-game/:match", deleteGameController);
+
+homeR.get("/statistics", getWinsController)
 
 module.exports = {
   homeR,

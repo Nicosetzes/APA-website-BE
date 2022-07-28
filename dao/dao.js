@@ -23,6 +23,17 @@ const playersModel = require("./models/players.js"); // Modelo mongoose para la 
 
 /* -------------- playersModel -------------- */
 
+const findAllPlayers = async () => {
+	const players = await playersModel
+		.find({}, "name");
+	return players;
+}
+
+const findPlayer = async (playerQuery) => {
+	const player = await playersModel.findOne({ name: playerQuery });
+	return player;
+};
+
 const sortPlayersByLongestWinningStreak = async () => {
 	const players = await playersModel
 		.find({}, "name longestWinningStreak")
@@ -50,11 +61,6 @@ const sortPlayersByLongestLosingStreak = async () => {
 			longestDrawStreak: -1,
 		});
 	return players;
-};
-
-const findPlayer = async (playerQuery) => {
-	const player = await playersModel.findOne({ name: playerQuery });
-	return player;
 };
 
 /* -------------- matchesModel -------------- */
@@ -128,7 +134,10 @@ const countTotalWinsFromPlayer = async (playerQuery) => {
 		"outcome.playerThatWon": playerQuery,
 		"outcome.draw": false,
 	});
-	return wins;
+	return {
+		player: playerQuery,
+		wins
+	};
 };
 
 const countTotalLossesFromPlayer = async (playerQuery) => {
@@ -136,7 +145,7 @@ const countTotalLossesFromPlayer = async (playerQuery) => {
 		"outcome.playerThatLost": playerQuery,
 		"outcome.draw": false,
 	});
-	return wins;
+	return losses;
 };
 
 const sortMatchesByScoringDifference = async () => {
@@ -157,13 +166,6 @@ const sortMatchesFromTournamentById = async (tournamentId) => {
 	return matches;
 }
 
-// ROUTES FOR FACE-TO-FACE //
-
-// const findMatchesFromTournamentForFaceToFace = async (tournamentId) => {
-// 	const matches = await matchesModel.find({ "tournament.id": tournamentId }, "playerP1 teamP1 scoreP1 playerP2 teamP2 scoreP2");
-// 	return matches;
-// }
-
 const createMatch = async (match) => {
 	const newMatch = await matchesModel.create(match);
 	return newMatch;
@@ -177,6 +179,21 @@ const findMatchById = async (id) => {
 const removeMatchById = async (id) => {
 	const deletedMatch = await matchesModel.findByIdAndRemove(id);
 	return deletedMatch;
+}
+
+const findMatchesByQuery = async (query) => {
+	let matches = await matchesModel
+		.find({ $or: [{ teamP1: { $regex: query, $options: "i" } }, { teamP2: { $regex: query, $options: "i" } }] })
+		.sort({ _id: -1 });
+	return matches;
+}
+
+const findMatches = async () => {
+	let matches = await matchesModel
+		.find({})
+		.sort({ _id: -1 })
+		.limit(10);
+	return matches;
 }
 
 /* -------------- tournamentsModel -------------- */
@@ -206,48 +223,56 @@ const findTournaments = async () => {
 	return tournaments;
 };
 
-const updateFixtureFromTournamentVersionOne = async (tournamentId, teamThatWon, teamThatLost, scoreFromTeamThatWon, scoreFromTeamThatLost, matchId) => {
-	const updatedTournament = await tournamentsModel.updateOne({
+const updateFixtureFromTournamentVersionOne = async (tournamentId, firstTeamByUser, secondTeamByUser, firstScoreByUser, secondScoreByUser, matchId) => {
+	const isUpdated = await tournamentsModel.updateOne({
 		_id: tournamentId,
 		fixture: {
 			$elemMatch: {
-				teamP1: teamThatWon,
-				teamP2: teamThatLost,
+				teamP1: firstTeamByUser,
+				teamP2: secondTeamByUser,
 			},
 		},
 	}, {
 		$set: {
-			"fixture.$.scoreP1": Number(scoreFromTeamThatWon),
-			"fixture.$.scoreP2": Number(scoreFromTeamThatLost),
+			"fixture.$.scoreP1": Number(firstScoreByUser),
+			"fixture.$.scoreP2": Number(secondScoreByUser),
 			"fixture.$.matchId": matchId,
 		},
 	}
 	);
-	return updatedTournament;
+
+	const updatedTournament = await tournamentsModel.findById(tournamentId);
+
+	return { isUpdated, updatedTournament };
 };
 
-const updateFixtureFromTournamentVersionTwo = async (tournamentId, teamThatWon, teamThatLost, scoreFromTeamThatWon, scoreFromTeamThatLost, matchId) => {
-	const updatedTournament = await tournamentsModel.updateOne({
+const updateFixtureFromTournamentVersionTwo = async (tournamentId, firstTeamByUser, secondTeamByUser, firstScoreByUser, secondScoreByUser, matchId) => {
+	const isUpdated = await tournamentsModel.updateOne({
 		_id: tournamentId,
 		fixture: {
 			$elemMatch: {
-				teamP1: teamThatLost,
-				teamP2: teamThatWon,
+				teamP1: secondTeamByUser,
+				teamP2: firstTeamByUser,
 			},
 		},
 	}, {
 		$set: {
-			"fixture.$.scoreP1": Number(scoreFromTeamThatLost),
-			"fixture.$.scoreP2": Number(scoreFromTeamThatWon),
+			"fixture.$.scoreP1": Number(secondScoreByUser),
+			"fixture.$.scoreP2": Number(firstScoreByUser),
 			"fixture.$.matchId": matchId,
 		},
 	}
 	);
-	return updatedTournament;
+
+	const updatedTournament = await tournamentsModel.findById(tournamentId);
+
+	return { isUpdated, updatedTournament };
+
 };
 
 const updateFixtureFromTournamentWhenEditing = async (tournamentId, teamP1, teamP2, scoreP1, scoreP2) => {
-	const updatedTournament = await tournamentsModel.updateOne(
+
+	const isUpdated = await tournamentsModel.updateOne(
 		{
 			_id: tournamentId,
 			fixture: {
@@ -264,11 +289,15 @@ const updateFixtureFromTournamentWhenEditing = async (tournamentId, teamP1, team
 			},
 		}
 	);
-	return updatedTournament;
+
+	const updatedTournament = await tournamentsModel.findById(tournamentId);
+
+	return { isUpdated, updatedTournament };
 };
 
 const updateFixtureFromTournamentWhenRemoving = async (tournamentId, matchId) => {
-	const updatedTournament = await tournamentsModel.updateOne(
+
+	const isDeleted = await tournamentsModel.updateOne(
 		{
 			_id: tournamentId,
 			fixture: {
@@ -281,10 +310,14 @@ const updateFixtureFromTournamentWhenRemoving = async (tournamentId, matchId) =>
 			$unset: {
 				"fixture.$.scoreP1": "",
 				"fixture.$.scoreP2": "",
+				"fixture.$.matchId": "",
 			},
 		}
 	);
-	return updatedTournament;
+
+	const updatedTournament = await tournamentsModel.findById(tournamentId);
+
+	return { isDeleted, updatedTournament };
 };
 
 const updateTeamsFromTournament = async (tournamentId, team, player) => {
@@ -308,10 +341,11 @@ const updateFixtureFromTournamentWhenCreated = async (tournamentId, fixture) => 
 };
 
 module.exports = {
+	findAllPlayers,
+	findPlayer,
 	sortPlayersByLongestWinningStreak,
 	sortPlayersByLongestDrawStreak,
 	sortPlayersByLongestLosingStreak,
-	findPlayer,
 	findRecentMatchesFromPlayer,
 	findWonMatchesFromPlayer,
 	countTotalMatchesFromAPlayerTeam,
@@ -326,6 +360,8 @@ module.exports = {
 	createMatch,
 	findMatchById,
 	removeMatchById,
+	findMatchesByQuery,
+	findMatches,
 	findTournamentNames,
 	findOngoingTournaments,
 	findTournamentById,

@@ -1,8 +1,9 @@
 const {
+	retrieveAllPlayers,
+	retrievePlayer,
 	orderPlayersByLongestWinningStreak,
 	orderPlayersByLongestDrawStreak,
 	orderPlayersByLongestLosingStreak,
-	retrievePlayer,
 	retrieveRecentMatchesFromPlayer,
 	retrieveWonMatchesFromPlayer,
 	totalMatchesFromAPlayerTeam,
@@ -17,6 +18,8 @@ const {
 	originateMatch,
 	retrieveMatchById,
 	deleteMatchById,
+	retrieveMatchesByQuery,
+	retrieveMatches,
 	retrieveTournamentNames,
 	retrieveOngoingTournaments,
 	retrieveTournamentById,
@@ -44,7 +47,7 @@ const getHomeController = async (req, res) => {
 	}
 };
 
-const getFixtureController = async (req, res) => {
+const getTournamentsController = async (req, res) => {
 	try {
 		const tournaments = await retrieveOngoingTournaments({ ongoing: true });
 		res.status(200).json(tournaments);
@@ -227,6 +230,27 @@ const getStandingsController = async (req, res) => {
 	}
 };
 
+const getMatchesController = async (req, res) => {
+
+	const { query } = req.query;
+
+	if (query) {
+		const matches = await retrieveMatchesByQuery(query);
+		res.json(matches);
+	}
+	else {
+		const matches = await retrieveMatches();
+		res.json(matches);
+	}
+
+	// const search = (matches) => {
+	// 	matches.filter((match) => match.teamP1.toLowerCase().includes(query) || match.teamP2.toLowerCase().includes(query));
+	// }
+
+	// query ? res.json(search(matches).slice(0, 10)) : res.json(matches.slice(0, 10))
+
+}
+
 const postUploadGameController = async (req, res) => {
 	const tournamentId = req.params.id;
 	try {
@@ -347,8 +371,10 @@ const postUploadGameController = async (req, res) => {
 				);
 			});
 
+			let response;
+
 			if (index !== -1) {
-				await modifyFixtureFromTournamentVersionOne(
+				response = await modifyFixtureFromTournamentVersionOne(
 					tournamentId,
 					match.outcome.teamThatWon,
 					match.outcome.teamThatLost,
@@ -359,7 +385,7 @@ const postUploadGameController = async (req, res) => {
 			}
 
 			if (index === -1) {
-				await modifyFixtureFromTournamentVersionTwo(
+				response = await modifyFixtureFromTournamentVersionTwo(
 					tournamentId,
 					match.outcome.teamThatWon,
 					match.outcome.teamThatLost,
@@ -371,27 +397,28 @@ const postUploadGameController = async (req, res) => {
 
 			// ACTUALIZO RACHAS //
 
-			let winner = await retrievePlayer(match.outcome.playerThatWon);
-			let loser = await retrievePlayer(match.outcome.playerThatWon);
+			// let winner = await retrievePlayer(match.outcome.playerThatWon);
+			// let loser = await retrievePlayer(match.outcome.playerThatWon);
 
-			winner.losingStreak = 0;
-			winner.drawStreak = 0;
-			winner.winningStreak++;
+			// winner.losingStreak = 0;
+			// winner.drawStreak = 0;
+			// winner.winningStreak++;
 
-			if (winner.winningStreak > winner.longestWinningStreak) {
-				winner.longestWinningStreak++;
-			}
+			// if (winner.winningStreak > winner.longestWinningStreak) {
+			// 	winner.longestWinningStreak++;
+			// }
 
-			loser.winningStreak = 0;
-			loser.drawStreak = 0;
-			loser.losingStreak++;
+			// loser.winningStreak = 0;
+			// loser.drawStreak = 0;
+			// loser.losingStreak++;
 
-			if (loser.losingStreak > loser.longestLosingStreak) {
-				loser.longestLosingStreak++;
-			}
+			// if (loser.losingStreak > loser.longestLosingStreak) {
+			// 	loser.longestLosingStreak++;
+			// }
 
-			await winner.save();
-			await loser.save();
+			// await winner.save();
+			// await loser.save();
+			res.status(200).json(response);
 		}
 		// SI EMPATAN //
 		else {
@@ -405,56 +432,61 @@ const postUploadGameController = async (req, res) => {
 			// ACTUALIZO EL FIXTURE //
 
 			let index = fixture.findIndex((element) => {
-				return element.teamP1 === teamP1 && element.teamP2 === teamP2;
+				return (
+					element.teamP1 === teamP1 &&
+					element.teamP2 === teamP2
+				)
 			});
 
+			let response;
+
 			if (index !== -1) {
-				await modifyFixtureFromTournamentVersionOne(
+				response = await modifyFixtureFromTournamentVersionOne(
 					tournamentId,
-					match.outcome.teamThatWon,
-					match.outcome.teamThatLost,
-					match.outcome.scoreFromTeamThatWon,
-					match.outcome.scoreFromTeamThatLost,
+					teamP1,
+					teamP2,
+					scoreP1,
+					scoreP2,
 					matchId
 				)
 			}
 
 			if (index === -1) {
-				await modifyFixtureFromTournamentVersionTwo(
+				response = await modifyFixtureFromTournamentVersionTwo(
 					tournamentId,
-					match.outcome.teamThatWon,
-					match.outcome.teamThatLost,
-					match.outcome.scoreFromTeamThatWon,
-					match.outcome.scoreFromTeamThatLost,
+					teamP1,
+					teamP2,
+					scoreP1,
+					scoreP2,
 					matchId
 				)
 			}
 
 			// ACTUALIZO RACHAS //
 
-			let playerOne = await retrievePlayer(playerP1);
-			let playerTwo = await retrievePlayer(playerP2);
+			// let playerOne = await retrievePlayer(playerP1);
+			// let playerTwo = await retrievePlayer(playerP2);
 
-			playerOne.winningStreak = 0;
-			playerOne.losingStreak = 0;
-			playerOne.drawStreak++;
+			// playerOne.winningStreak = 0;
+			// playerOne.losingStreak = 0;
+			// playerOne.drawStreak++;
 
-			playerTwo.winningStreak = 0;
-			playerTwo.losingStreak = 0;
-			playerTwo.drawStreak++;
+			// playerTwo.winningStreak = 0;
+			// playerTwo.losingStreak = 0;
+			// playerTwo.drawStreak++;
 
-			if (playerOne.drawStreak > playerOne.longestDrawStreak) {
-				playerOne.longestDrawStreak++;
-			}
+			// if (playerOne.drawStreak > playerOne.longestDrawStreak) {
+			// 	playerOne.longestDrawStreak++;
+			// }
 
-			if (playerTwo.drawStreak > playerTwo.longestDrawStreak) {
-				playerTwo.longestDrawStreak++;
-			}
+			// if (playerTwo.drawStreak > playerTwo.longestDrawStreak) {
+			// 	playerTwo.longestDrawStreak++;
+			// }
 
-			await playerOne.save();
-			await playerTwo.save();
+			// await playerOne.save();
+			// await playerTwo.save();
+			res.status(200).json(response);
 		}
-		res.status(200).json(createdMatch);
 	}
 	catch (err) {
 		return res.status(500).send("Something went wrong!" + err);
@@ -463,7 +495,7 @@ const postUploadGameController = async (req, res) => {
 
 const putModifyGameController = async (req, res) => {
 	const tournamentId = req.params.id;
-	const matchId = req.params.matchId;
+	const matchId = req.params.match;
 	const { teamP1, teamP2, scoreP1, scoreP2, playerP1, playerP2 } = req.body;
 	try {
 		// Actualizo face-to-face //
@@ -523,9 +555,9 @@ const putModifyGameController = async (req, res) => {
 
 		// Actualizo fixture //
 
-		await modifyFixtureFromTournamentWhenEditing(tournamentId, teamP1, teamP2, scoreP1, scoreP2);
+		const response = await modifyFixtureFromTournamentWhenEditing(tournamentId, teamP1, teamP2, scoreP1, scoreP2);
 
-		// res.status(200).json(match);
+		res.status(200).json(response);
 	}
 	catch (err) {
 		return res.status(500).send("Something went wrong!" + err);
@@ -535,15 +567,15 @@ const putModifyGameController = async (req, res) => {
 const deleteGameController = async (req, res) => {
 
 	const tournamentId = req.params.id;
-	const matchId = req.params.matchId;
+	const matchId = req.params.match;
 
 	try {
 
 		await deleteMatchById(matchId); // Borro el partido de la colección face-to-face //
 
-		await modifyFixtureFromTournamentWhenRemoving(tournamentId, matchId); // Actualizo fixture //
+		const response = await modifyFixtureFromTournamentWhenRemoving(tournamentId, matchId); // Actualizo fixture //
 
-		// res.status(200).json()
+		res.status(200).json(response)
 
 	}
 	catch (err) {
@@ -551,13 +583,32 @@ const deleteGameController = async (req, res) => {
 	}
 };
 
+const getWinsController = async (req, res) => {
+
+	try {
+		const players = await retrieveAllPlayers();
+		const response = [];
+		let count = 0;
+		players.forEach(async (player) => {
+			response.push(await totalWinsFromPlayer(player.name))
+			count++;
+			if (count === players.length) res.status(200).send(response);
+		});
+	}
+	catch (err) {
+		return res.status(500).send("Something went wrong!" + err);
+	}
+}
+
 module.exports = ({
 	getHomeController,
-	getFixtureController,
+	getTournamentsController,
 	getFixtureByTournamentIdController,
 	getFixtureByTournamentIdAndTeamOrPlayerIdController,
 	getStandingsController,
+	getMatchesController,
 	postUploadGameController,
 	putModifyGameController,
-	deleteGameController
+	deleteGameController,
+	getWinsController
 });

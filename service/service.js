@@ -1,8 +1,9 @@
 const {
+	findAllPlayers,
+	findPlayer,
 	sortPlayersByLongestWinningStreak,
 	sortPlayersByLongestDrawStreak,
 	sortPlayersByLongestLosingStreak,
-	findPlayer,
 	findRecentMatchesFromPlayer,
 	findWonMatchesFromPlayer,
 	countTotalMatchesFromAPlayerTeam,
@@ -17,6 +18,8 @@ const {
 	createMatch,
 	findMatchById,
 	removeMatchById,
+	findMatchesByQuery,
+	findMatches,
 	findTournamentNames,
 	findOngoingTournaments,
 	findTournamentById,
@@ -30,6 +33,14 @@ const {
 	updateFixtureFromTournamentWhenCreated
 } = require("./../dao/dao.js");
 
+const retrieveAllPlayers = async () => {
+	return await findAllPlayers();
+}
+
+const retrievePlayer = async (player) => {
+	return await findPlayer(player);
+}
+
 const orderPlayersByLongestWinningStreak = async () => {
 	return await sortPlayersByLongestWinningStreak();
 }
@@ -40,10 +51,6 @@ const orderPlayersByLongestDrawStreak = async () => {
 
 const orderPlayersByLongestLosingStreak = async () => {
 	return await sortPlayersByLongestLosingStreak();
-}
-
-const retrievePlayer = async (player) => {
-	return await findPlayer(player);
 }
 
 const retrieveRecentMatchesFromPlayer = async (player) => {
@@ -102,6 +109,14 @@ const deleteMatchById = async (id) => {
 	return await removeMatchById(id);
 }
 
+const retrieveMatchesByQuery = async (query) => {
+	return await findMatchesByQuery(query);
+}
+
+const retrieveMatches = async () => {
+	return await findMatches();
+}
+
 const retrieveTournamentNames = async () => {
 	return await findTournamentNames();
 }
@@ -147,10 +162,11 @@ const modifyFixtureFromTournamentWhenCreated = async (tournamentId, fixture) => 
 }
 
 module.exports = {
+	retrieveAllPlayers,
+	retrievePlayer,
 	orderPlayersByLongestWinningStreak,
 	orderPlayersByLongestDrawStreak,
 	orderPlayersByLongestLosingStreak,
-	retrievePlayer,
 	retrieveRecentMatchesFromPlayer,
 	retrieveWonMatchesFromPlayer,
 	totalMatchesFromAPlayerTeam,
@@ -165,6 +181,8 @@ module.exports = {
 	originateMatch,
 	retrieveMatchById,
 	deleteMatchById,
+	retrieveMatchesByQuery,
+	retrieveMatches,
 	retrieveTournamentNames,
 	retrieveOngoingTournaments,
 	retrieveTournamentById,
