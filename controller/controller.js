@@ -486,7 +486,7 @@ const deleteGameController = async (req, res) => {
 const getStatisticsController = async (req, res) => {
   try {
     const players = await retrieveAllPlayers();
-    const response = { playerStats: [], recentMatches: [] };
+    const response = { playerStats: [], recentMatches: [], accolades: {} };
     let count = 0;
 
     let recentMatches = await retrieveMatches(4);
@@ -505,21 +505,67 @@ const getStatisticsController = async (req, res) => {
       });
     });
 
+    const playerWins = [];
+    const playerDraws = [];
+    const playerLosses = [];
+
     players.forEach(async (player) => {
       let totalMatches = await totalMatchesFromPlayer(player.name);
       let wins = await totalWinsFromPlayer(player.name);
       let draws = await totalDrawsFromPlayer(player.name);
+      let losses = await totalLossesFromPlayer(player.name);
+
+      playerWins.push({
+        player: player.name,
+        wins,
+      });
+
+      playerDraws.push({
+        player: player.name,
+        draws,
+      });
+
+      playerLosses.push({
+        player: player.name,
+        losses,
+      });
 
       response.playerStats.push({
         player: player.name,
         wins,
+        draws,
+        losses,
         totalMatches,
         effectiveness: Number(
           (((wins * 3 + draws) / (totalMatches * 3)) * 100).toFixed(2)
         ),
       });
+
       count++;
-      if (count === players.length) res.status(200).send(response);
+      if (count === players.length) {
+        sortedPlayerWins = playerWins.sort((a, b) =>
+          a.wins > b.wins ? -1 : 1
+        );
+        sortedPlayerDraws = playerDraws.sort((a, b) =>
+          a.draws > b.draws ? -1 : 1
+        );
+        sortedPlayerLosses = playerLosses.sort((a, b) =>
+          a.losses > b.losses ? -1 : 1
+        );
+        response.accolades.mostWins = {
+          player: sortedPlayerWins[0].player,
+          wins: sortedPlayerWins[0].wins,
+        };
+        response.accolades.mostDraws = {
+          player: sortedPlayerDraws[0].player,
+          draws: sortedPlayerDraws[0].draws,
+        };
+        response.accolades.mostLosses = {
+          player: sortedPlayerLosses[0].player,
+          losses: sortedPlayerLosses[0].losses,
+        };
+        res.status(200).send(response);
+      }
     });
   } catch (err) {
     return res.status(500).send("Something went wrong!" + err);
