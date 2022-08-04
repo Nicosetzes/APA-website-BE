@@ -1,9 +1,6 @@
 const {
   retrieveAllPlayers,
   retrievePlayer,
-  orderPlayersByLongestWinningStreak,
-  orderPlayersByLongestDrawStreak,
-  orderPlayersByLongestLosingStreak,
   retrieveRecentMatchesFromPlayer,
   retrieveWonMatchesFromPlayer,
   totalMatchesFromAPlayerTeam,
@@ -12,6 +9,7 @@ const {
   totalMatchesFromPlayer,
   retrieveTeamsWithAtLeastOneWinFromPlayer,
   totalWinsFromPlayer,
+  totalDrawsFromPlayer,
   totalLossesFromPlayer,
   orderMatchesByScoringDifference,
   orderMatchesFromTournamentById,
@@ -21,6 +19,7 @@ const {
   retrieveMatchesByQuery,
   retrieveMatches,
   retrieveTournamentNames,
+  retrieveRecentTournamentNames,
   retrieveOngoingTournaments,
   retrieveTournamentById,
   originateTournament,
@@ -36,10 +35,8 @@ const {
 /* -------------------- HOME -------------------- */
 
 const getHomeController = async (req, res) => {
-  console.log("LLEGUÉ A GETHOMECONTROLLER");
   try {
     const tournaments = await retrieveTournaments({});
-    console.log(tournaments);
     res.status(200).json(tournaments);
   } catch (err) {
     return res.status(500).send("Something went wrong!" + err);
@@ -58,9 +55,6 @@ const getTournamentsController = async (req, res) => {
 const getFixtureByTournamentIdController = async (req, res) => {
   const tournamentId = req.params.id;
   const { player, team } = req.query;
-  console.log(req.query);
-  console.log(player);
-  console.log(team);
   try {
     if (player) {
       const tournament = await retrieveTournamentById(tournamentId);
@@ -72,7 +66,8 @@ const getFixtureByTournamentIdController = async (req, res) => {
     if (team) {
       const tournament = await retrieveTournamentById(tournamentId);
       const filteredFixture = tournament.fixture.filter(
-        (match) => match.teamIdP1 === team || match.teamIdP2 === team
+        (match) =>
+          match.teamIdP1 === Number(team) || match.teamIdP2 === Number(team)
       );
       res.status(200).json({ ...tournament, fixture: filteredFixture });
     }
@@ -81,70 +76,6 @@ const getFixtureByTournamentIdController = async (req, res) => {
       res.status(200).json(tournament);
     }
     // Agregar excepción en caso de error
-  } catch (err) {
-    return res.status(500).send("Something went wrong!" + err);
-  }
-};
-
-const getFixtureByTournamentIdAndTeamOrPlayerIdController = async (
-  req,
-  res
-) => {
-  const { tournamentId, teamIdOrPlayerName } = req.params;
-  try {
-    const tournament = await retrieveTournamentById(tournamentId);
-    if (!tournament) {
-      res.send("ERROR");
-      return;
-    }
-
-    const tournamentName = tournament.name;
-
-    if (isNaN(teamIdOrPlayerName)) {
-      // El param es el playerName
-
-      const playerName = teamIdOrPlayerName;
-
-      const filteredFixtureFromTournament = tournament.fixture.filter(
-        (element) => {
-          return (
-            element.playerP1 === playerName || element.playerP2 === playerName
-          );
-        }
-      );
-
-      res.status(200).json({
-        playerName,
-        tournamentName,
-        tournamentId,
-        filteredFixtureFromTournament,
-      });
-    } else {
-      // El param es el teamId
-
-      const teamId = teamIdOrPlayerName;
-
-      const filteredFixtureFromTournament = tournament.fixture.filter(
-        (element) => {
-          return element.teamIdP1 == teamId || element.teamIdP2 == teamId;
-        }
-      );
-
-      let teamName;
-
-      if (filteredFixtureFromTournament[0].teamIdP1 == teamId) {
-        teamName = filteredFixtureFromTournament[0].teamP1;
-      } else {
-        teamName = filteredFixtureFromTournament[0].teamP2;
-      }
-
-      res.status(200).json({
-        teamName,
-        tournamentName,
-        tournamentId,
-        filteredFixtureFromTournament,
-      });
-    }
   } catch (err) {
     return res.status(500).send("Something went wrong!" + err);
   }
@@ -255,20 +186,17 @@ const getStandingsController = async (req, res) => {
 
 const getMatchesController = async (req, res) => {
   const { query } = req.query;
-
-  if (query) {
-    const matches = await retrieveMatchesByQuery(query);
-    res.json(matches);
-  } else {
-    const matches = await retrieveMatches();
-    res.json(matches);
+  try {
+    if (query) {
+      const matches = await retrieveMatchesByQuery(query);
+      res.json(matches);
+    } else {
+      const matches = await retrieveMatches();
+      res.json(matches);
+    }
+  } catch (err) {
+    return res.status(500).send("Something went wrong!" + err);
   }
-
-  // const search = (matches) => {
-  // 	matches.filter((match) => match.teamP1.toLowerCase().includes(query) || match.teamP2.toLowerCase().includes(query));
-  // }
-
-  // query ? res.json(search(matches).slice(0, 10)) : res.json(matches.slice(0, 10))
 };
 
 const postUploadGameController = async (req, res) => {
@@ -415,30 +343,6 @@ const postUploadGameController = async (req, res) => {
           matchId
         );
       }
-
-      // ACTUALIZO RACHAS //
-
-      // let winner = await retrievePlayer(match.outcome.playerThatWon);
-      // let loser = await retrievePlayer(match.outcome.playerThatWon);
-
-      // winner.losingStreak = 0;
-      // winner.drawStreak = 0;
-      // winner.winningStreak++;
-
-      // if (winner.winningStreak > winner.longestWinningStreak) {
-      // 	winner.longestWinningStreak++;
-      // }
-
-      // loser.winningStreak = 0;
-      // loser.drawStreak = 0;
-      // loser.losingStreak++;
-
-      // if (loser.losingStreak > loser.longestLosingStreak) {
-      // 	loser.longestLosingStreak++;
-      // }
-
-      // await winner.save();
-      // await loser.save();
       res.status(200).json(response);
     }
     // SI EMPATAN //
@@ -478,30 +382,6 @@ const postUploadGameController = async (req, res) => {
           matchId
         );
       }
-
-      // ACTUALIZO RACHAS //
-
-      // let playerOne = await retrievePlayer(playerP1);
-      // let playerTwo = await retrievePlayer(playerP2);
-
-      // playerOne.winningStreak = 0;
-      // playerOne.losingStreak = 0;
-      // playerOne.drawStreak++;
-
-      // playerTwo.winningStreak = 0;
-      // playerTwo.losingStreak = 0;
-      // playerTwo.drawStreak++;
-
-      // if (playerOne.drawStreak > playerOne.longestDrawStreak) {
-      // 	playerOne.longestDrawStreak++;
-      // }
-
-      // if (playerTwo.drawStreak > playerTwo.longestDrawStreak) {
-      // 	playerTwo.longestDrawStreak++;
-      // }
-
-      // await playerOne.save();
-      // await playerTwo.save();
       res.status(200).json(response);
     }
   } catch (err) {
@@ -603,13 +483,41 @@ const deleteGameController = async (req, res) => {
   }
 };
 
-const getWinsController = async (req, res) => {
+const getStatisticsController = async (req, res) => {
   try {
     const players = await retrieveAllPlayers();
-    const response = [];
+    const response = { playerStats: [], recentMatches: [] };
     let count = 0;
+
+    let recentMatches = await retrieveMatches(4);
+    recentMatches.forEach((match) => {
+      response.recentMatches.push({
+        playerP1: match.playerP1,
+        playerP2: match.playerP2,
+        teamP1: match.teamP1,
+        teamP2: match.teamP2,
+        scoreP1: match.scoreP1,
+        scoreP2: match.scoreP2,
+        tournament: match.tournament.name,
+        date: new Date(
+          parseInt(match.id.substring(0, 8), 16) * 1000
+        ).toLocaleDateString(),
+      });
+    });
+
     players.forEach(async (player) => {
-      response.push(await totalWinsFromPlayer(player.name));
+      let totalMatches = await totalMatchesFromPlayer(player.name);
+      let wins = await totalWinsFromPlayer(player.name);
+      let draws = await totalDrawsFromPlayer(player.name);
+
+      response.playerStats.push({
+        player: player.name,
+        wins,
+        totalMatches,
+        effectiveness: Number(
+          (((wins * 3 + draws) / (totalMatches * 3)) * 100).toFixed(2)
+        ),
+      });
       count++;
       if (count === players.length) res.status(200).send(response);
     });
@@ -618,15 +526,70 @@ const getWinsController = async (req, res) => {
   }
 };
 
+// const getStatisticsByIdController = async (req, res) => {
+
+//   try {
+
+//     const players = await retrieveAllPlayers();
+//     const response = { playerStats: [], recentMatches: [] };
+//     let count = 0;
+
+//     players.forEach(async (player) => {
+//       let totalMatches = await totalMatchesFromPlayer(player.name);
+//       let wins = await totalWinsFromPlayer(player.name);
+//       let draws = await totalDrawsFromPlayer(player.name);
+
+//       response.playerStats.push({
+//         player: player.name,
+//         wins,
+//         totalMatches,
+//         effectiveness: Number(((((wins * 3) + draws) / (totalMatches * 3)) * 100).toFixed(2)),
+//       })
+//       let recentMatches = await retrieveRecentMatchesFromPlayer(player.name);
+//       let matches = recentMatches.map(match => {
+//         return {
+//           playerP1: match.playerP1,
+//           playerP2: match.playerP2,
+//           teamP1: match.teamP1,
+//           teamP2: match.teamP2,
+//           scoreP1: match.scoreP1,
+//           scoreP2: match.scoreP2,
+//           tournament: match.tournament.name,
+//           date: new Date(parseInt(match.id.substring(0, 8), 16) * 1000).toLocaleDateString()
+//         }
+//       })
+//       let streak = recentMatches.map(match => {
+//         if (match.outcome.playerThatWon === player.name) return "w";
+//         if (match.outcome.playerThatLost === player.name) return "l";
+//         if (match.outcome.draw) return "d";
+//       });
+//       let goalsFor = recentMatches.map(match => {
+//         if (match.playerP1 === player.name) return match.scoreP1;
+//         if (match.playerP2 === player.name) return match.scoreP2;
+//       });
+//       response.recentMatches.push({
+//         player: player.name,
+//         matches,
+//         streak,
+//         goalsFor
+//       })
+//       count++;
+//       if (count === players.length) res.status(200).send(response);
+//     });
+
+//   } catch (err) {
+//     return res.status(500).send("Something went wrong!" + err);
+//   }
+// };
+
 module.exports = {
   getHomeController,
   getTournamentsController,
   getFixtureByTournamentIdController,
-  getFixtureByTournamentIdAndTeamOrPlayerIdController,
   getStandingsController,
   getMatchesController,
   postUploadGameController,
   putModifyGameController,
   deleteGameController,
-  getWinsController,
+  getStatisticsController,
 };
