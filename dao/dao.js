@@ -120,6 +120,18 @@ const countTotalWinsFromPlayerByTournament = async (
   return matches;
 };
 
+const countTotalLossesFromPlayerByTournament = async (
+  tournamentId,
+  playerQuery
+) => {
+  let matches = await matchesModel.countDocuments({
+    "tournament.id": tournamentId,
+    "outcome.playerThatLost": playerQuery,
+    "outcome.draw": false,
+  });
+  return matches;
+};
+
 const countTotalMatchesFromPlayer = async (playerQuery) => {
   const matches = await matchesModel.countDocuments({
     $or: [{ playerP1: playerQuery }, { playerP2: playerQuery }],
@@ -238,7 +250,7 @@ const findRecentTournamentNames = async () => {
 const findOngoingTournaments = async () => {
   const tournaments = await tournamentsModel.find(
     { ongoing: true },
-    "name teams"
+    "name teams players"
   );
   return tournaments;
 };
@@ -416,6 +428,7 @@ module.exports = {
   countTotalMatchesFromAPlayerTeam,
   countTotalMatchesFromPlayerByTournament,
   countTotalWinsFromPlayerByTournament,
+  countTotalLossesFromPlayerByTournament,
   countTotalMatchesFromPlayer,
   findTeamsWithAtLeastOneWinFromPlayer,
   countTotalWinsFromPlayer,

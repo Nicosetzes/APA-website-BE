@@ -6,6 +6,7 @@ const {
   totalMatchesFromAPlayerTeam,
   totalMatchesFromPlayerByTournament,
   totalWinsFromPlayerByTournament,
+  totalLossesFromPlayerByTournament,
   totalMatchesFromPlayer,
   retrieveTeamsWithAtLeastOneWinFromPlayer,
   totalWinsFromPlayer,
@@ -46,7 +47,77 @@ const getHomeController = async (req, res) => {
 const getTournamentsController = async (req, res) => {
   try {
     const tournaments = await retrieveOngoingTournaments({ ongoing: true });
-    res.status(200).json(tournaments);
+
+    res.status(200).json({ tournaments });
+  } catch (err) {
+    // res.status(200).json(tournaments);
+    return res.status(500).send("Something went wrong!" + err);
+  }
+};
+
+const getPlayerInfoFromTournamentsController = async (req, res) => {
+  try {
+    const tournaments = await retrieveOngoingTournaments({ ongoing: true });
+
+    let playerStatsByTournament = [];
+
+    tournaments.forEach(async (tournament) => {
+      let playersFromTournament = tournament.players;
+
+      playersFromTournament.forEach(async (player) => {
+        let totalMatchesCount = await totalMatchesFromPlayerByTournament(
+          tournament.id,
+          player
+        );
+
+        let totalWinCount = await totalWinsFromPlayerByTournament(
+          tournament.id,
+          player
+        );
+
+        let totalLossCount = await totalLossesFromPlayerByTournament(
+          tournament.id,
+          player
+        );
+
+        let totalDrawCount = totalMatchesCount - totalWinCount - totalLossCount;
+
+        let totalPointsCount = totalWinCount * 3 + totalDrawCount;
+
+        Promise.all([
+          totalMatchesCount,
+          totalWinCount,
+          totalLossCount,
+          totalDrawCount,
+          totalPointsCount,
+        ])
+          .then((values) => {
+            let totalMatches = values[0];
+            let totalWins = values[1];
+            let totalLosses = values[2];
+            let totalDraws = values[3];
+            let totalPoints = values[4];
+            return {
+              player,
+              tournament: tournament.name,
+              totalMatches,
+              totalWins,
+              totalDraws,
+              totalLosses,
+              totalPoints,
+            };
+          })
+          .then((object) => {
+            playerStatsByTournament.push(object);
+            if (
+              playerStatsByTournament.length ===
+              playersFromTournament.length * tournaments.length
+            )
+              // REVISAR //
+              res.send(playerStatsByTournament);
+          });
+      });
+    });
   } catch (err) {
     return res.status(500).send("Something went wrong!" + err);
   }
@@ -84,6 +155,7 @@ const getFixtureByTournamentIdController = async (req, res) => {
 const getStandingsController = async (req, res) => {
   try {
     const tournaments = await retrieveOngoingTournaments({ ongoing: true });
+
     const standingsArray = [];
 
     let counter = 0;
@@ -191,7 +263,7 @@ const getMatchesController = async (req, res) => {
       const matches = await retrieveMatchesByQuery(query);
       res.json(matches);
     } else {
-      const matches = await retrieveMatches();
+      const matches = await retrieveMatches(10);
       res.json(matches);
     }
   } catch (err) {
@@ -631,6 +703,7 @@ const getStatisticsController = async (req, res) => {
 module.exports = {
   getHomeController,
   getTournamentsController,
+  getPlayerInfoFromTournamentsController,
   getFixtureByTournamentIdController,
   getStandingsController,
   getMatchesController,

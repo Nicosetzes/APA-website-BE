@@ -18,11 +18,12 @@ const {
   getTournamentsController,
   getFixtureByTournamentIdController,
   getStandingsController,
+  getPlayerInfoFromTournamentsController,
   getMatchesController,
   postUploadGameController,
   putModifyGameController,
   deleteGameController,
-  getStatisticsController
+  getStatisticsController,
 } = require("./../controller/controller.js");
 
 // HOME
@@ -32,6 +33,8 @@ homeR.get("/", getHomeController);
 // /STANDINGS
 
 homeR.get("/standings", getStandingsController);
+
+homeR.get("/standings/player-info", getPlayerInfoFromTournamentsController);
 
 // /MATCHES
 
@@ -49,7 +52,7 @@ homeR.put("/tournaments/:id/update-game/:match", putModifyGameController);
 
 homeR.delete("/tournaments/:id/delete-game/:match", deleteGameController);
 
-homeR.get("/statistics", getStatisticsController)
+homeR.get("/statistics", getStatisticsController);
 
 module.exports = {
   homeR,

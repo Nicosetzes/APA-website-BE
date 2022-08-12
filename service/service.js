@@ -6,6 +6,7 @@ const {
   countTotalMatchesFromAPlayerTeam,
   countTotalMatchesFromPlayerByTournament,
   countTotalWinsFromPlayerByTournament,
+  countTotalLossesFromPlayerByTournament,
   countTotalMatchesFromPlayer,
   findTeamsWithAtLeastOneWinFromPlayer,
   countTotalWinsFromPlayer,
@@ -70,6 +71,13 @@ const totalMatchesFromPlayerByTournament = async (tournamentId, teamQuery) => {
 
 const totalWinsFromPlayerByTournament = async (tournamentId, playerQuery) => {
   return await countTotalWinsFromPlayerByTournament(tournamentId, playerQuery);
+};
+
+const totalLossesFromPlayerByTournament = async (tournamentId, playerQuery) => {
+  return await countTotalLossesFromPlayerByTournament(
+    tournamentId,
+    playerQuery
+  );
 };
 
 const totalMatchesFromPlayer = async (playerQuery) => {
@@ -222,6 +230,7 @@ module.exports = {
   totalMatchesFromAPlayerTeam,
   totalMatchesFromPlayerByTournament,
   totalWinsFromPlayerByTournament,
+  totalLossesFromPlayerByTournament,
   totalMatchesFromPlayer,
   retrieveTeamsWithAtLeastOneWinFromPlayer,
   totalWinsFromPlayer,
