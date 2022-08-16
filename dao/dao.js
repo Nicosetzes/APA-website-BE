@@ -21,6 +21,18 @@ const playersModel = require("./models/players.js"); // Modelo mongoose para la 
 
 /* -------------- METHODS -------------- */
 
+/* -------------- usersModel -------------- */
+
+const createUser = async (user) => {
+  const newUser = await usersModel.create(user);
+  return newUser;
+};
+
+const findUser = async (email) => {
+  const foundUser = await usersModel.findOne({ email });
+  return foundUser;
+};
+
 /* -------------- playersModel -------------- */
 
 const findAllPlayers = async () => {
@@ -421,6 +433,8 @@ const updateFixtureFromTournamentWhenCreated = async (
 };
 
 module.exports = {
+  createUser,
+  findUser,
   findAllPlayers,
   findPlayer,
   findRecentMatchesFromPlayer,

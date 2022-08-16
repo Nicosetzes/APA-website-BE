@@ -1,4 +1,6 @@
 const {
+  createUser,
+  findUser,
   findAllPlayers,
   findPlayer,
   findRecentMatchesFromPlayer,
@@ -32,6 +34,14 @@ const {
   updateTeamsFromTournament,
   updateFixtureFromTournamentWhenCreated,
 } = require("./../dao/dao.js");
+
+const originateUser = async (user) => {
+  return await createUser(user);
+};
+
+const retrieveUser = async (email) => {
+  return await findUser(email);
+};
 
 const retrieveAllPlayers = async () => {
   return await findAllPlayers();
@@ -223,6 +233,8 @@ const modifyFixtureFromTournamentWhenCreated = async (
 };
 
 module.exports = {
+  originateUser,
+  retrieveUser,
   retrieveAllPlayers,
   retrievePlayer,
   retrieveRecentMatchesFromPlayer,

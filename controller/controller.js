@@ -1,4 +1,6 @@
 const {
+  originateUser,
+  retrieveUser,
   retrieveAllPlayers,
   retrievePlayer,
   retrieveRecentMatchesFromPlayer,
@@ -37,10 +39,162 @@ const {
 
 const getHomeController = async (req, res) => {
   try {
-    const tournaments = await retrieveTournaments({});
-    res.status(200).json(tournaments);
+    req.userId
+      ? res.status(200).json({
+          user: {
+            id: req.userId,
+            name: req.userEmail,
+            nickname: req.userNickname,
+          },
+        })
+      : res.status(200).json({ data: "El usuario aun no ha iniciado sesión" });
   } catch (err) {
     return res.status(500).send("Something went wrong!" + err);
+  }
+};
+
+/* -------------------- REGISTER -------------------- */
+
+const Joi = require("@hapi/joi");
+
+const schemaRegister = Joi.object({
+  email: Joi.string().min(6).max(255).required().email(),
+  password: Joi.string().min(6).max(1024).required(),
+  nickname: Joi.string().min(1).max(255).required(),
+});
+
+const bcrypt = require("bcrypt");
+
+const postRegisterController = async (req, res) => {
+  try {
+    const { error } = schemaRegister.validate(req.body);
+
+    if (error) return res.status(400).json({ error: error.details[0].message });
+
+    let { email, password, nickname } = req.body;
+
+    const doesUserExist = await retrieveUser(email);
+    if (doesUserExist)
+      return res
+        .status(400)
+        .json({ error: "Email ya registrado", user: doesUserExist });
+
+    const salt = await bcrypt.genSalt(10);
+    const hiddenPassword = await bcrypt.hash(password, salt);
+
+    const user = { email, password: hiddenPassword, nickname };
+
+    const newUser = await originateUser(user);
+    res.json(newUser);
+  } catch (err) {
+    return res.status(500).send("Something went wrong!" + err);
+  }
+};
+
+const schemaLogin = Joi.object({
+  email: Joi.string().min(6).max(255).required().email(),
+  password: Joi.string().min(6).max(1024).required(),
+});
+
+const jwt = require("jsonwebtoken");
+
+const jwtKey = process.env.TOKEN_SECRET;
+
+const postLoginController = async (req, res) => {
+  try {
+    const { error } = schemaLogin.validate(req.body);
+    if (error)
+      return res
+        .status(400)
+        .json({ auth: false, message: error.details[0].message });
+
+    let { email, password } = req.body;
+
+    const user = await retrieveUser(email);
+
+    if (!user)
+      return res.status(400).json({
+        auth: false,
+        message: "Usuario no existe",
+      });
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid)
+      return res.status(400).json({
+        auth: false,
+        message: "Contraseña incorrecta",
+      });
+
+    const token = jwt.sign(
+      {
+        id: user._id,
+        email: user.email,
+      },
+      jwtKey
+      // {
+      //   algorithm: "HS256",
+      //   expiresIn: jwtExpiration,
+      // }
+    );
+
+    res
+      .cookie("jwt", token, {
+        // withCredentials: true,
+        maxAge: 1000 * 60,
+        httpOnly: true,
+        // secure: process.env.NODE_ENV === "production",
+      })
+      .status(200)
+      .json({
+        auth: true,
+        result: { userId: user._id, nickname: user.nickname },
+        token,
+      });
+  } catch (err) {
+    return res.status(500).json({
+      auth: false,
+      message: "Something went wrong",
+    });
+  }
+};
+
+const postLogoutController = async (req, res) => {
+  console.log(req.cookies);
+  const token = req.cookies.jwt;
+  // console.log(token);
+  if (!token) return res.status(200).json({ auth: false }); // Revisar código de error //
+  let decodedToken;
+  try {
+    decodedToken = jwt.verify(token, process.env.TOKEN_SECRET);
+  } catch (error) {
+    res
+      .status(400)
+      .json({ error: "Sesión no válida, error en las credenciales" });
+  }
+  const { email } = decodedToken;
+  try {
+    const user = await retrieveUser(email); // Podría obtener la info directamente de la cookie si en ella guardara lo que necesito (además del ID) //
+    return res.clearCookie("jwt").status(200).json({ auth: false, user });
+  } catch (err) {
+    return res.status(500).json({ auth: false }); // Revisar código de error //
+  }
+};
+
+const getIsUserAuthenticatedController = async (req, res) => {
+  const token = req.cookies.jwt;
+  if (!token) return res.status(200).json({ auth: false }); // Revisar código de error //
+  let decodedToken;
+  try {
+    decodedToken = jwt.verify(token, process.env.TOKEN_SECRET);
+  } catch (error) {
+    res.status(400).json({ error: "Token de acceso no es válido" });
+  }
+  const { email } = decodedToken;
+  try {
+    const user = await retrieveUser(email); // Podría obtener la info directamente de la cookie si en ella guardara lo que necesito (además del ID) //
+    return res.status(200).json({ auth: true, user });
+  } catch (err) {
+    return res.status(500).json({ auth: false }); // Revisar código de error //
   }
 };
 
@@ -48,7 +202,7 @@ const getTournamentsController = async (req, res) => {
   try {
     const tournaments = await retrieveOngoingTournaments({ ongoing: true });
 
-    res.status(200).json({ tournaments });
+    res.status(200).json(tournaments);
   } catch (err) {
     // res.status(200).json(tournaments);
     return res.status(500).send("Something went wrong!" + err);
@@ -702,6 +856,10 @@ const getStatisticsController = async (req, res) => {
 
 module.exports = {
   getHomeController,
+  postRegisterController,
+  postLoginController,
+  postLogoutController,
+  getIsUserAuthenticatedController,
   getTournamentsController,
   getPlayerInfoFromTournamentsController,
   getFixtureByTournamentIdController,

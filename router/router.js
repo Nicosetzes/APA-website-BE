@@ -15,6 +15,10 @@ homeR.use(express.urlencoded({ extended: true }));
 
 const {
   getHomeController,
+  postRegisterController,
+  postLoginController,
+  postLogoutController,
+  getIsUserAuthenticatedController,
   getTournamentsController,
   getFixtureByTournamentIdController,
   getStandingsController,
@@ -26,9 +30,23 @@ const {
   getStatisticsController,
 } = require("./../controller/controller.js");
 
+/* -------------------- isAUTH -------------------- */
+
+const { isAuth } = require("./auth");
+
 // HOME
 
 homeR.get("/", getHomeController);
+
+// LOGIN, LOGOUT, REGISTER, ISUSERAUTHENTICATED
+
+homeR.post("/register", postRegisterController);
+
+homeR.post("/login", postLoginController);
+
+homeR.post("/logout", postLogoutController);
+
+homeR.get("/isUserAuthenticated", getIsUserAuthenticatedController);
 
 // /STANDINGS
 
@@ -38,7 +56,7 @@ homeR.get("/standings/player-info", getPlayerInfoFromTournamentsController);
 
 // /MATCHES
 
-homeR.get("/matches", getMatchesController);
+homeR.get("/matches", isAuth, getMatchesController);
 
 // /FIXTURE
 
