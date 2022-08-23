@@ -11,6 +11,8 @@ mongoose
 
 /* -------------- MODELS FOR MONGOOSE -------------- */
 
+// const tokensModel = require("./models/tokens.js"); // Modelo mongoose para la carga de torneos!
+
 const tournamentsModel = require("./models/tournaments.js"); // Modelo mongoose para la carga de torneos!
 
 const matchesModel = require("./models/matches.js"); // Modelo mongoose para la carga de los mano a mano!
@@ -20,6 +22,18 @@ const usersModel = require("./models/users.js"); // Modelo mongoose para la carg
 const playersModel = require("./models/players.js"); // Modelo mongoose para la carga de información de jugadores humanos!
 
 /* -------------- METHODS -------------- */
+
+/* -------------- tokensModel -------------- */
+
+// const createInvalidToken = async (token) => {
+//   const newToken = await tokensModel.create(token);
+//   return newToken;
+// };
+
+// const findInvalidToken = async (token) => {
+//   const foundToken = await tokensModel.findOne({ token });
+//   return foundToken;
+// };
 
 /* -------------- usersModel -------------- */
 
@@ -433,6 +447,8 @@ const updateFixtureFromTournamentWhenCreated = async (
 };
 
 module.exports = {
+  // createInvalidToken,
+  // findInvalidToken,
   createUser,
   findUser,
   findAllPlayers,

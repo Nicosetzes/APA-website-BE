@@ -1,4 +1,6 @@
 const {
+  // createInvalidToken,
+  // findInvalidToken,
   createUser,
   findUser,
   findAllPlayers,
@@ -34,6 +36,14 @@ const {
   updateTeamsFromTournament,
   updateFixtureFromTournamentWhenCreated,
 } = require("./../dao/dao.js");
+
+// const originateInvalidToken = async (token) => {
+//   return await createInvalidToken(token);
+// };
+
+// const retrieveInvalidToken = async (token) => {
+//   return await findInvalidToken(token);
+// };
 
 const originateUser = async (user) => {
   return await createUser(user);
@@ -233,6 +243,8 @@ const modifyFixtureFromTournamentWhenCreated = async (
 };
 
 module.exports = {
+  // originateInvalidToken,
+  // retrieveInvalidToken,
   originateUser,
   retrieveUser,
   retrieveAllPlayers,

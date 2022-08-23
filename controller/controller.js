@@ -1,4 +1,6 @@
 const {
+  // originateInvalidToken,
+  // retrieveInvalidToken,
   originateUser,
   retrieveUser,
   retrieveAllPlayers,
@@ -55,21 +57,28 @@ const getHomeController = async (req, res) => {
 
 /* -------------------- REGISTER -------------------- */
 
-const Joi = require("@hapi/joi");
+// const Joi = require("@hapi/joi");
 
-const schemaRegister = Joi.object({
-  email: Joi.string().min(6).max(255).required().email(),
-  password: Joi.string().min(6).max(1024).required(),
-  nickname: Joi.string().min(1).max(255).required(),
-});
+// const schemaRegister = Joi.object({
+//   email: Joi.string()
+//     .min(6)
+//     .messages({ "string.min": "El email debe tener al menos 6 caracteres" })
+//     .max(255)
+//     .required()
+//     .email(),
+//   password: Joi.string().min(8).max(1024).required().messages({
+//     "string.min": "La contraseña debe tener al menos 8 caracteres",
+//   }),
+//   nickname: Joi.string().min(1).max(255).required(),
+// });
 
 const bcrypt = require("bcrypt");
 
 const postRegisterController = async (req, res) => {
   try {
-    const { error } = schemaRegister.validate(req.body);
+    // const { error } = schemaRegister.validate(req.body);
 
-    if (error) return res.status(400).json({ error: error.details[0].message });
+    // if (error) return res.status(400).json({ error: error.details[0].message });
 
     let { email, password, nickname } = req.body;
 
@@ -91,22 +100,35 @@ const postRegisterController = async (req, res) => {
   }
 };
 
-const schemaLogin = Joi.object({
-  email: Joi.string().min(6).max(255).required().email(),
-  password: Joi.string().min(6).max(1024).required(),
-});
-
 const jwt = require("jsonwebtoken");
 
 const jwtKey = process.env.TOKEN_SECRET;
 
+const Joi = require("@hapi/joi");
+
 const postLoginController = async (req, res) => {
+  // Validation with custom messages //
+  const schemaLogin = Joi.object({
+    email: Joi.string().max(255).required().email().messages({
+      "string.empty": `Ingrese un email`,
+      "any.required": `El email es requerido`,
+      "string.email": `Debe ingresar un email válido`,
+    }),
+    password: Joi.string().min(6).max(1024).required().messages({
+      "string.min": `La contraseña debe tener un mínimo de {#limit} caracteres`,
+      "string.empty": `Ingrese una contraseña`,
+      "any.required": `La contraseña es requerida`,
+    }),
+  });
+
   try {
     const { error } = schemaLogin.validate(req.body);
+
     if (error)
-      return res
-        .status(400)
-        .json({ auth: false, message: error.details[0].message });
+      return res.status(400).json({
+        auth: false,
+        message: error.details[0].message,
+      });
 
     let { email, password } = req.body;
 
@@ -115,14 +137,14 @@ const postLoginController = async (req, res) => {
     if (!user)
       return res.status(400).json({
         auth: false,
-        message: "Usuario no existe",
+        message: "El usuario ingresado no existe",
       });
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid)
       return res.status(400).json({
         auth: false,
-        message: "Contraseña incorrecta",
+        message: "La contraseña ingresada no es correcta",
       });
 
     const token = jwt.sign(
@@ -130,71 +152,109 @@ const postLoginController = async (req, res) => {
         id: user._id,
         email: user.email,
       },
-      jwtKey
-      // {
-      //   algorithm: "HS256",
-      //   expiresIn: jwtExpiration,
-      // }
+      jwtKey,
+      {
+        //   algorithm: "HS256",
+        expiresIn: "12h",
+      }
     );
 
     res
       .cookie("jwt", token, {
         // withCredentials: true,
-        maxAge: 1000 * 60,
+        maxAge: 1000 * 60 * 60 * 12, // 12 horas //
         httpOnly: true,
         // secure: process.env.NODE_ENV === "production",
       })
       .status(200)
       .json({
         auth: true,
-        result: { userId: user._id, nickname: user.nickname },
+        message: `Bienvenid@ ${user.nickname}`,
         token,
       });
   } catch (err) {
     return res.status(500).json({
       auth: false,
-      message: "Something went wrong",
+      message: `Error inesperado, intente más tarde`,
     });
   }
 };
 
 const postLogoutController = async (req, res) => {
-  console.log(req.cookies);
   const token = req.cookies.jwt;
-  // console.log(token);
-  if (!token) return res.status(200).json({ auth: false }); // Revisar código de error //
+  if (!token)
+    return res
+      .status(400)
+      .json({ auth: false, message: "Primero debe iniciar sesión" }); // Revisar código de error //
   let decodedToken;
   try {
     decodedToken = jwt.verify(token, process.env.TOKEN_SECRET);
   } catch (error) {
-    res
-      .status(400)
-      .json({ error: "Sesión no válida, error en las credenciales" });
+    res.status(400).json({
+      auth: false,
+      message: "Sesión no válida, error en las credenciales",
+    });
   }
   const { email } = decodedToken;
   try {
-    const user = await retrieveUser(email); // Podría obtener la info directamente de la cookie si en ella guardara lo que necesito (además del ID) //
-    return res.clearCookie("jwt").status(200).json({ auth: false, user });
+    // console.log(token);
+    // const invalidToken = await originateInvalidToken(token); // Creo el token inválido en la BD
+    const { nickname } = await retrieveUser(email); // Podría obtener la info directamente de la cookie si en ella guardara lo que necesito (además del ID) //
+    return res
+      .clearCookie("jwt")
+      .status(200)
+      .json({ auth: false, message: `Adiós ${nickname}` });
   } catch (err) {
-    return res.status(500).json({ auth: false }); // Revisar código de error //
+    return res
+      .status(500)
+      .json({ auth: false, message: `Error inesperado, intente más tarde` }); // Revisar código de error //
   }
 };
 
 const getIsUserAuthenticatedController = async (req, res) => {
   const token = req.cookies.jwt;
+  console.log(token);
   if (!token) return res.status(200).json({ auth: false }); // Revisar código de error //
   let decodedToken;
   try {
     decodedToken = jwt.verify(token, process.env.TOKEN_SECRET);
   } catch (error) {
-    res.status(400).json({ error: "Token de acceso no es válido" });
+    res.status(400).json({
+      auth: false,
+      message: "Sesión no válida, error en las credenciales",
+    });
   }
   const { email } = decodedToken;
+  console.log(email);
   try {
+    // const invalidToken = await retrieveInvalidToken(token); // Busco por el token presentado en la colección de tokens inválidos //
+    // if (invalidToken) return res.status(500).json({ auth: false }); // Agregar mensaje;
     const user = await retrieveUser(email); // Podría obtener la info directamente de la cookie si en ella guardara lo que necesito (además del ID) //
-    return res.status(200).json({ auth: true, user });
+    const { nickname } = user;
+    const newToken = jwt.sign(
+      {
+        id: user._id,
+        email: user.email,
+      },
+      jwtKey,
+      {
+        //   algorithm: "HS256",
+        expiresIn: "12h",
+      }
+    );
+    return res
+      .cookie("jwt", newToken, {
+        // withCredentials: true,
+        maxAge: 1000 * 60 * 60 * 12, // 12 horas //
+        httpOnly: true,
+        // secure: process.env.NODE_ENV === "production",
+      })
+      .status(200)
+      .json({ auth: true, message: `Hola ${nickname}, bienvenid@` });
   } catch (err) {
-    return res.status(500).json({ auth: false }); // Revisar código de error //
+    return res
+      .status(500)
+      .json({ auth: false, message: `Error inesperado, intente más tarde` }); // Revisar código de error //
   }
 };
 

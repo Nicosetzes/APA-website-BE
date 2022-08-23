@@ -6,14 +6,15 @@ const usersSchema = new mongoose.Schema(
   {
     email: {
       type: String,
-      required: true,
+      required: [true, "{VALUE} no es un email válido, intente nuevamente"],
       min: 6,
       max: 1024,
+      message: "{VALUE} no es un email válido, intente nuevamente",
     },
     password: {
       type: String,
       required: true,
-      minlength: 6,
+      min: [8, "La contraseña debe tener 8 caracteres como mínimo"],
     },
     nickname: {
       type: String,
