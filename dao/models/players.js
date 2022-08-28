@@ -1,6 +1,6 @@
-const mongoose = require("mongoose");
+const mongoose = require("mongoose")
 
-const collection = "human-players";
+const collection = "human-players"
 
 const playersSchema = new mongoose.Schema(
     {
@@ -14,6 +14,6 @@ const playersSchema = new mongoose.Schema(
         longestLosingStreak: { type: Number, require: true, max: 100 },
     },
     { collection: collection }
-);
+)
 
-module.exports = mongoose.model(collection, playersSchema);
+module.exports = mongoose.model(collection, playersSchema)
