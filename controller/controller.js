@@ -168,11 +168,11 @@ const postLoginController = async (req, res) => {
         )
 
         res.cookie("jwt", token, {
-            // withCredentials: true,
-            maxAge: 1000 * 60 * 60 * 12, // 12 horas //
+            withCredentials: true,
+            maxAge: 1000 * 60 * 60 * 8, // 8 horas //
             sameSite: "none",
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production" ? true : false,
+            secure: process.env.NODE_ENV === "development" ? false : true,
         })
             .status(200)
             .json({
