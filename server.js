@@ -13,7 +13,11 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 app.use(express.static("public"))
 app.use(cookieParser())
-app.use(cors({ origin: "http://localhost:3000", credentials: true })) // IMPORTANTE
+app.use(
+    cors({ origin: "https://apa-website-be.onrender.com", credentials: true })
+) // IMPORTANTE
+
+// app.use(cors({ origin: "http://localhost:3000", credentials: true })) // IMPORTANTE
 
 const { homeR } = require("./router/router.js")
 
