@@ -170,8 +170,9 @@ const postLoginController = async (req, res) => {
         res.cookie("jwt", token, {
             // withCredentials: true,
             maxAge: 1000 * 60 * 60 * 12, // 12 horas //
+            sameSite: "none",
             httpOnly: true,
-            // secure: process.env.NODE_ENV === "production",
+            secure: process.env.NODE_ENV === "production" ? true : false,
         })
             .status(200)
             .json({
@@ -255,7 +256,8 @@ const getIsUserAuthenticatedController = async (req, res) => {
                 // withCredentials: true,
                 maxAge: 1000 * 60 * 60 * 12, // 12 horas //
                 httpOnly: true,
-                // secure: process.env.NODE_ENV === "production",
+                sameSite: "none",
+                secure: process.env.NODE_ENV === "production" ? true : false,
             })
             .status(200)
             .json({ auth: true, message: `Hola ${nickname}, bienvenid@` })
