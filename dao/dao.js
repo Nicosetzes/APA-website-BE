@@ -42,7 +42,12 @@ const createUser = async (user) => {
     return newUser
 }
 
-const findUser = async (email) => {
+const findUserById = async (id) => {
+    const foundUser = await usersModel.findById(id)
+    return foundUser
+}
+
+const findUserByUserName = async (email) => {
     const foundUser = await usersModel.findOne({ email })
     return foundUser
 }
@@ -452,7 +457,8 @@ module.exports = {
     // createInvalidToken,
     // findInvalidToken,
     createUser,
-    findUser,
+    findUserById,
+    findUserByUserName,
     findAllPlayers,
     findPlayer,
     findRecentMatchesFromPlayer,

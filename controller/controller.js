@@ -2,7 +2,8 @@ const {
     // originateInvalidToken,
     // retrieveInvalidToken,
     originateUser,
-    retrieveUser,
+    retrieveUserById,
+    retrieveUserByUserName,
     retrieveAllPlayers,
     // retrievePlayer,
     // retrieveRecentMatchesFromPlayer,
@@ -84,7 +85,7 @@ const postRegisterController = async (req, res) => {
 
         let { email, password, nickname } = req.body
 
-        const doesUserExist = await retrieveUser(email)
+        const doesUserExist = await retrieveUserByUserName(email)
         if (doesUserExist)
             return res.status(400).json({
                 message: `Ya existe un usuario con el email ${doesUserExist.email}`,
@@ -140,7 +141,7 @@ const postLoginController = async (req, res) => {
 
         let { email, password } = req.body
 
-        const user = await retrieveUser(email)
+        const user = await retrieveUserByUserName(email)
 
         if (!user)
             return res.status(400).json({
@@ -158,27 +159,32 @@ const postLoginController = async (req, res) => {
         const token = jwt.sign(
             {
                 id: user._id,
-                email: user.email,
             },
             jwtKey,
             {
                 //   algorithm: "HS256",
-                expiresIn: "8h",
+                expiresIn: "4h",
             }
         )
 
-        res.cookie("jwt", token, {
-            withCredentials: true,
-            maxAge: 1000 * 60 * 60 * 8, // 8 horas //
-            sameSite: "none",
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "development" ? false : true,
-        })
+        const userInfo = {
+            email: user.email,
+            nickname: user.nickname,
+        }
+
+        return res
+            .cookie("jwt", token, {
+                withCredentials: true,
+                maxAge: 1000 * 60 * 60 * 4, // 4 horas //
+                sameSite: "none",
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "development" ? false : true,
+            })
             .status(200)
             .json({
                 auth: true,
+                userInfo,
                 message: `Bienvenid@ ${user.nickname}`,
-                token,
             })
     } catch (err) {
         return res.status(500).json({
@@ -203,13 +209,18 @@ const postLogoutController = async (req, res) => {
             message: "Sesión no válida, error en las credenciales",
         })
     }
-    const { email } = decodedToken
+    const { id } = decodedToken
     try {
         // console.log(token);
         // const invalidToken = await originateInvalidToken(token); // Creo el token inválido en la BD
-        const { nickname } = await retrieveUser(email) // Podría obtener la info directamente de la cookie si en ella guardara lo que necesito (además del ID) //
+        const { nickname } = await retrieveUserById(id)
         return res
-            .clearCookie("jwt")
+            .clearCookie("jwt", {
+                withCredentials: true,
+                sameSite: "none",
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "development" ? false : true,
+            })
             .status(200)
             .json({ auth: false, message: `Adiós ${nickname}` })
     } catch (err) {
@@ -233,34 +244,41 @@ const getIsUserAuthenticatedController = async (req, res) => {
             message: "Sesión no válida, error en las credenciales",
         })
     }
-    const { email } = decodedToken
+    const { id } = decodedToken
 
     try {
         // const invalidToken = await retrieveInvalidToken(token); // Busco por el token presentado en la colección de tokens inválidos //
         // if (invalidToken) return res.status(500).json({ auth: false }); // Agregar mensaje;
-        const user = await retrieveUser(email) // Podría obtener la info directamente de la cookie si en ella guardara lo que necesito (además del ID) //
-        const { nickname } = user
+        const user = await retrieveUserById(id)
         const newToken = jwt.sign(
             {
                 id: user._id,
-                email: user.email,
             },
             jwtKey,
             {
                 //   algorithm: "HS256",
-                expiresIn: "12h",
+                expiresIn: "4h",
             }
         )
+        const { email, nickname } = user // TODO: Add user roles
+        const userInfo = {
+            email,
+            nickname,
+        }
         return res
             .cookie("jwt", newToken, {
-                // withCredentials: true,
-                maxAge: 1000 * 60 * 60 * 12, // 12 horas //
-                httpOnly: true,
+                withCredentials: true,
+                maxAge: 1000 * 60 * 60 * 4, // 4 horas //
                 sameSite: "none",
-                secure: process.env.NODE_ENV === "production" ? true : false,
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "development" ? false : true,
             })
             .status(200)
-            .json({ auth: true, message: `Hola ${nickname}, bienvenid@` })
+            .json({
+                auth: true,
+                user: userInfo,
+                message: `Hola ${nickname}, bienvenid@`,
+            })
     } catch (err) {
         return res.status(500).json({
             auth: false,

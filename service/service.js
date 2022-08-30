@@ -2,7 +2,8 @@ const {
     // createInvalidToken,
     // findInvalidToken,
     createUser,
-    findUser,
+    findUserById,
+    findUserByUserName,
     findAllPlayers,
     findPlayer,
     findRecentMatchesFromPlayer,
@@ -49,8 +50,12 @@ const originateUser = async (user) => {
     return await createUser(user)
 }
 
-const retrieveUser = async (email) => {
-    return await findUser(email)
+const retrieveUserById = async (id) => {
+    return await findUserById(id)
+}
+
+const retrieveUserByUserName = async (email) => {
+    return await findUserByUserName(email)
 }
 
 const retrieveAllPlayers = async () => {
@@ -249,7 +254,8 @@ module.exports = {
     // originateInvalidToken,
     // retrieveInvalidToken,
     originateUser,
-    retrieveUser,
+    retrieveUserById,
+    retrieveUserByUserName,
     retrieveAllPlayers,
     retrievePlayer,
     retrieveRecentMatchesFromPlayer,
