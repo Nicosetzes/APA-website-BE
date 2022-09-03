@@ -11,8 +11,6 @@ mongoose
 
 /* -------------- MODELS FOR MONGOOSE -------------- */
 
-// const tokensModel = require("./models/tokens.js"); // Modelo mongoose para la carga de torneos!
-
 const tournamentsModel = require("./models/tournaments.js") // Modelo mongoose para la carga de torneos!
 
 const matchesModel = require("./models/matches.js") // Modelo mongoose para la carga de los mano a mano!
@@ -22,18 +20,6 @@ const usersModel = require("./models/users.js") // Modelo mongoose para la carga
 const playersModel = require("./models/players.js") // Modelo mongoose para la carga de información de jugadores humanos!
 
 /* -------------- METHODS -------------- */
-
-/* -------------- tokensModel -------------- */
-
-// const createInvalidToken = async (token) => {
-//   const newToken = await tokensModel.create(token);
-//   return newToken;
-// };
-
-// const findInvalidToken = async (token) => {
-//   const foundToken = await tokensModel.findOne({ token });
-//   return foundToken;
-// };
 
 /* -------------- usersModel -------------- */
 
@@ -225,7 +211,7 @@ const sortMatchesFromTournamentById = async (tournamentId) => {
     let matches = await matchesModel
         .find(
             { "tournament.id": tournamentId },
-            "teamP1 scoreP1 teamP2 scoreP2 outcome"
+            "playerP1 teamP1 scoreP1 playerP2 teamP2 scoreP2 outcome"
         )
         .sort({ _id: -1 })
     return matches
@@ -454,8 +440,6 @@ const updateFixtureFromTournamentWhenCreated = async (
 }
 
 module.exports = {
-    // createInvalidToken,
-    // findInvalidToken,
     createUser,
     findUserById,
     findUserByUserName,

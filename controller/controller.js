@@ -1,17 +1,15 @@
 const {
-    // originateInvalidToken,
-    // retrieveInvalidToken,
     originateUser,
     retrieveUserById,
     retrieveUserByUserName,
     retrieveAllPlayers,
     // retrievePlayer,
-    // retrieveRecentMatchesFromPlayer,
+    retrieveRecentMatchesFromPlayer,
     // retrieveWonMatchesFromPlayer,
     // totalMatchesFromAPlayerTeam,
-    totalMatchesFromPlayerByTournament,
-    totalWinsFromPlayerByTournament,
-    totalLossesFromPlayerByTournament,
+    // totalMatchesFromPlayerByTournament,
+    // totalWinsFromPlayerByTournament,
+    // totalLossesFromPlayerByTournament,
     totalMatchesFromPlayer,
     // retrieveTeamsWithAtLeastOneWinFromPlayer,
     totalWinsFromPlayer,
@@ -211,8 +209,6 @@ const postLogoutController = async (req, res) => {
     }
     const { id } = decodedToken
     try {
-        // console.log(token);
-        // const invalidToken = await originateInvalidToken(token); // Creo el token inválido en la BD
         const { nickname } = await retrieveUserById(id)
         return res
             .clearCookie("jwt", {
@@ -247,8 +243,6 @@ const getIsUserAuthenticatedController = async (req, res) => {
     const { id } = decodedToken
 
     try {
-        // const invalidToken = await retrieveInvalidToken(token); // Busco por el token presentado en la colección de tokens inválidos //
-        // if (invalidToken) return res.status(500).json({ auth: false }); // Agregar mensaje;
         const user = await retrieveUserById(id)
         const newToken = jwt.sign(
             {
@@ -293,7 +287,6 @@ const getTournamentsController = async (req, res) => {
 
         res.status(200).json(tournaments)
     } catch (err) {
-        // res.status(200).json(tournaments);
         return res.status(500).send("Something went wrong!" + err)
     }
 }
@@ -305,62 +298,41 @@ const getPlayerInfoFromTournamentsController = async (req, res) => {
         let playerStatsByTournament = []
 
         tournaments.forEach(async (tournament) => {
-            let playersFromTournament = tournament.players
+            let { players, id } = tournament
+            let matches = await orderMatchesFromTournamentById(id)
 
-            playersFromTournament.forEach(async (player) => {
-                let totalMatchesCount =
-                    await totalMatchesFromPlayerByTournament(
-                        tournament.id,
-                        player
-                    )
+            players.forEach((player) => {
+                let totalMatches = matches.filter(
+                    (match) =>
+                        match.playerP1 === player || match.playerP2 === player
+                ).length
 
-                let totalWinCount = await totalWinsFromPlayerByTournament(
-                    tournament.id,
-                    player
+                let totalWins = matches.filter(
+                    (match) => match.outcome.playerThatWon === player
+                ).length
+
+                let totalLosses = matches.filter(
+                    (match) => match.outcome.playerThatLost === player
+                ).length
+
+                let totalDraws = totalMatches - totalWins - totalLosses
+
+                let totalPoints = totalWins * 3 + totalDraws
+
+                playerStatsByTournament.push({
+                    player,
+                    tournament: tournament.name,
+                    totalMatches,
+                    totalWins,
+                    totalDraws,
+                    totalLosses,
+                    totalPoints,
+                })
+                if (
+                    playerStatsByTournament.length ===
+                    players.length * tournaments.length
                 )
-
-                let totalLossCount = await totalLossesFromPlayerByTournament(
-                    tournament.id,
-                    player
-                )
-
-                let totalDrawCount =
-                    totalMatchesCount - totalWinCount - totalLossCount
-
-                let totalPointsCount = totalWinCount * 3 + totalDrawCount
-
-                Promise.all([
-                    totalMatchesCount,
-                    totalWinCount,
-                    totalLossCount,
-                    totalDrawCount,
-                    totalPointsCount,
-                ])
-                    .then((values) => {
-                        let totalMatches = values[0]
-                        let totalWins = values[1]
-                        let totalLosses = values[2]
-                        let totalDraws = values[3]
-                        let totalPoints = values[4]
-                        return {
-                            player,
-                            tournament: tournament.name,
-                            totalMatches,
-                            totalWins,
-                            totalDraws,
-                            totalLosses,
-                            totalPoints,
-                        }
-                    })
-                    .then((object) => {
-                        playerStatsByTournament.push(object)
-                        if (
-                            playerStatsByTournament.length ===
-                            playersFromTournament.length * tournaments.length
-                        )
-                            // REVISAR //
-                            res.send(playerStatsByTournament)
-                    })
+                    res.send(playerStatsByTournament)
             })
         })
     } catch (err) {
@@ -810,10 +782,14 @@ const deleteGameController = async (req, res) => {
 const getStatisticsController = async (req, res) => {
     try {
         const players = await retrieveAllPlayers()
-        const response = { playerStats: [], recentMatches: [], accolades: {} }
+        const response = {
+            playerStats: [],
+            recentMatches: [],
+            accolades: {},
+        }
         let count = 0
 
-        let recentMatches = await retrieveMatches(4)
+        const recentMatches = await retrieveMatches(8)
         recentMatches.forEach((match) => {
             response.recentMatches.push({
                 playerP1: match.playerP1,
@@ -833,11 +809,24 @@ const getStatisticsController = async (req, res) => {
         const playerDraws = []
         const playerLosses = []
 
+        const matches = await retrieveMatches({})
+
         players.forEach(async (player) => {
-            let totalMatches = await totalMatchesFromPlayer(player.name)
-            let wins = await totalWinsFromPlayer(player.name)
-            let draws = await totalDrawsFromPlayer(player.name)
-            let losses = await totalLossesFromPlayer(player.name)
+            let totalMatches = matches.filter(
+                (match) =>
+                    match.playerP1 === player.name ||
+                    match.playerP2 === player.name
+            ).length
+
+            let wins = matches.filter(
+                (match) => match.outcome.playerThatWon === player.name
+            ).length
+
+            let losses = matches.filter(
+                (match) => match.outcome.playerThatLost === player.name
+            ).length
+
+            let draws = totalMatches - wins - losses
 
             playerWins.push({
                 player: player.name,
@@ -888,6 +877,81 @@ const getStatisticsController = async (req, res) => {
                     player: sortedPlayerLosses[0].player,
                     losses: sortedPlayerLosses[0].losses,
                 }
+                res.status(200).send(response)
+            }
+        })
+    } catch (err) {
+        return res.status(500).send("Something went wrong!" + err)
+    }
+}
+
+const getStreaksController = async (req, res) => {
+    try {
+        const players = await retrieveAllPlayers()
+        const response = {
+            playerStreaks: [],
+        }
+
+        let count = 0
+
+        players.forEach(async (player) => {
+            let recentMatches = await retrieveRecentMatchesFromPlayer(
+                player.name
+            )
+
+            let streak = recentMatches.map((match) => {
+                if (match.outcome.playerThatWon === player.name)
+                    return {
+                        outcome: "w",
+                        playerP1: match.playerP1,
+                        teamP1: match.teamP1,
+                        scoreP1: match.scoreP1,
+                        playerP2: match.playerP2,
+                        teamP2: match.teamP2,
+                        scoreP2: match.scoreP2,
+                        date: new Date(
+                            parseInt(match.id.substring(0, 8), 16) * 1000
+                        ).toLocaleDateString(),
+                        tournament: match.tournament.name,
+                    }
+                else if (match.outcome.playerThatLost === player.name)
+                    return {
+                        outcome: "l",
+                        playerP1: match.playerP1,
+                        teamP1: match.teamP1,
+                        scoreP1: match.scoreP1,
+                        playerP2: match.playerP2,
+                        teamP2: match.teamP2,
+                        scoreP2: match.scoreP2,
+                        date: new Date(
+                            parseInt(match.id.substring(0, 8), 16) * 1000
+                        ).toLocaleDateString(),
+                        tournament: match.tournament.name,
+                    }
+                else
+                    return {
+                        outcome: "d",
+                        playerP1: match.playerP1,
+                        teamP1: match.teamP1,
+                        scoreP1: match.scoreP1,
+                        playerP2: match.playerP2,
+                        teamP2: match.teamP2,
+                        scoreP2: match.scoreP2,
+                        date: new Date(
+                            parseInt(match.id.substring(0, 8), 16) * 1000
+                        ).toLocaleDateString(),
+                        tournament: match.tournament.name,
+                    }
+            })
+
+            response.playerStreaks.push({
+                player: player.name,
+                streak,
+            })
+
+            count++
+
+            if (count === players.length) {
                 res.status(200).send(response)
             }
         })
@@ -1068,5 +1132,6 @@ module.exports = {
     putModifyGameController,
     deleteGameController,
     getStatisticsController,
+    getStreaksController,
     achievements,
 }

@@ -28,6 +28,7 @@ const {
     putModifyGameController,
     deleteGameController,
     getStatisticsController,
+    getStreaksController,
     achievements,
 } = require("./../controller/controller.js")
 
@@ -57,7 +58,7 @@ homeR.get("/standings/player-info", getPlayerInfoFromTournamentsController)
 
 // /MATCHES
 
-homeR.get("/matches", isAuth, getMatchesController)
+homeR.get("/matches", getMatchesController)
 
 // /FIXTURE
 
@@ -84,6 +85,8 @@ homeR.delete(
 )
 
 homeR.get("/statistics", getStatisticsController)
+
+homeR.get("/streaks", getStreaksController)
 
 homeR.get("/achievements", achievements)
 
