@@ -22,6 +22,8 @@ const {
     getTournamentsController,
     getFixtureByTournamentIdController,
     getStandingsController,
+    getPlayoffsTableController,
+    getPlayoffsBracketController,
     getPlayerInfoFromTournamentsController,
     getMatchesController,
     postUploadGameController,
@@ -56,6 +58,12 @@ homeR.get("/standings", getStandingsController)
 
 homeR.get("/standings/player-info", getPlayerInfoFromTournamentsController)
 
+// /PLAYOFFS
+
+homeR.get("/playoffs/table", getPlayoffsTableController)
+
+homeR.get("/playoffs/bracket", getPlayoffsBracketController)
+
 // /MATCHES
 
 homeR.get("/matches", getMatchesController)
@@ -64,11 +72,7 @@ homeR.get("/matches", getMatchesController)
 
 homeR.get("/tournaments", getTournamentsController)
 
-homeR.get(
-    "/tournaments/:id/fixture",
-    isAuth,
-    getFixtureByTournamentIdController
-)
+homeR.get("/tournaments/:id/fixture", getFixtureByTournamentIdController)
 
 homeR.post("/tournaments/:id/upload-game", isAuth, postUploadGameController)
 
