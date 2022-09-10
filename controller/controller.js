@@ -17,7 +17,9 @@ const {
     totalLossesFromPlayer,
     // orderMatchesByScoringDifference,
     orderMatchesFromTournamentById,
-    originateMatch,
+    originateManyMatches,
+    modifyMatchResult,
+    modifyMatchResultToRemoveIt,
     retrieveMatchById,
     deleteMatchById,
     retrieveMatchesByQuery,
@@ -32,7 +34,7 @@ const {
     modifyFixtureFromTournamentVersionTwo,
     modifyFixtureFromTournamentWhenEditing,
     modifyFixtureFromTournamentWhenRemoving,
-    // modifyTeamsFromTournament,
+    modifyTeamsFromTournament,
     // modifyFixtureFromTournamentWhenCreated,
 } = require("./../service/service.js")
 
@@ -291,7 +293,15 @@ const getTournamentsController = async (req, res) => {
     }
 }
 
-const getPlayerInfoFromTournamentsController = async (req, res) => {
+const postTournamentsController = async (req, res) => {
+    try {
+        res.status(200).json(req.body)
+    } catch (err) {
+        return res.status(500).send("Something went wrong!" + err)
+    }
+}
+
+const getStandingsPlayerInfoController = async (req, res) => {
     try {
         const tournaments = await retrieveOngoingTournaments({ ongoing: true })
 
@@ -304,15 +314,16 @@ const getPlayerInfoFromTournamentsController = async (req, res) => {
             players.forEach((player) => {
                 let totalMatches = matches.filter(
                     (match) =>
-                        match.playerP1 === player || match.playerP2 === player
+                        match.playerP1 === player.name ||
+                        match.playerP2 === player.name
                 ).length
 
                 let totalWins = matches.filter(
-                    (match) => match.outcome.playerThatWon === player
+                    (match) => match.outcome?.playerThatWon === player.name
                 ).length
 
                 let totalLosses = matches.filter(
-                    (match) => match.outcome.playerThatLost === player
+                    (match) => match.outcome?.playerThatLost === player.name
                 ).length
 
                 let totalDraws = totalMatches - totalWins - totalLosses
@@ -366,6 +377,193 @@ const getFixtureByTournamentIdController = async (req, res) => {
             res.status(200).json(tournament)
         }
         // Agregar excepción en caso de error
+    } catch (err) {
+        return res.status(500).send("Something went wrong!" + err)
+    }
+}
+
+const { fixture } = require("./../fixture-generation")
+
+const postFixtureController = async (req, res) => {
+    try {
+        const { players, teams } = req.body
+        const tournamentId = req.params.id
+        const assignmentArray = []
+
+        const tournament = await retrieveTournamentById(tournamentId)
+
+        const teamsFromTournament = tournament.teams
+
+        teams.forEach(async (element, index) => {
+            let { id, team, logo } = teamsFromTournament.filter(
+                (filtered) => filtered.id == element.split("|")[0]
+            )[0] // Me quedo el único elemento de la lista
+
+            let assignment = {
+                id,
+                player: players[index],
+                team,
+                logo,
+            }
+
+            assignmentArray.push(assignment)
+        })
+
+        // Actualizo "teams" dentro del torneo, para sumar la info de qué jugadores juegan con qué equipos. Es necesario para los standings //
+
+        assignmentArray.forEach(async (assignment) => {
+            let team = assignment.team
+            let player = assignment.player
+
+            await modifyTeamsFromTournament(tournamentId, team, player)
+        })
+
+        const updatedTournament = await retrieveTournamentById(tournamentId)
+
+        const playersForFixtureGeneration = updatedTournament.players.map(
+            ({ name }) => {
+                return name
+            }
+        ) // REVISAR
+
+        const definitiveFixture = fixture(
+            assignmentArray,
+            playersForFixtureGeneration // REVISAR
+        ) // GENERO EL FIXTURE
+
+        if (!definitiveFixture.error) {
+            const matchesToBePlayed = definitiveFixture.map((match) => {
+                return {
+                    playerP1: match.playerP1,
+                    playerP2: match.playerP2,
+                    teamP1: match.teamP1,
+                    teamP2: match.teamP2,
+                    teamIdP1: match.teamIdP1,
+                    teamIdP2: match.teamIdP2,
+                    scoreP1: null,
+                    scoreP2: null,
+                    tournament: {
+                        name: tournament.name,
+                        id: tournament.id,
+                    },
+                }
+            })
+
+            await originateManyMatches(matchesToBePlayed)
+
+            res.status(200).send({ status: "ok" })
+        }
+    } catch (err) {
+        res.status(500).send("Something went wrong" + err)
+    }
+}
+
+const putModifyGameController = async (req, res) => {
+    //TODO: Accomodate matches inside each tournament, maybe?
+    // const tournamentId = req.params.id
+    const matchId = req.params.match
+    try {
+        // const tournament = await retrieveTournamentById(tournamentId)
+
+        let {
+            playerP1,
+            teamP1,
+            scoreP1,
+            playerP2,
+            teamP2,
+            scoreP2,
+            penaltyScoreP1,
+            penaltyScoreP2,
+        } = req.body
+
+        let outcome
+
+        if (scoreP1 - scoreP2 !== 0) {
+            scoreP1 > scoreP2
+                ? (outcome = {
+                      playerThatWon: playerP1,
+                      teamThatWon: teamP1,
+                      scoreFromTeamThatWon: scoreP1,
+                      playerThatLost: playerP2,
+                      teamThatLost: teamP2,
+                      scoreFromTeamThatLost: scoreP2,
+                      draw: false,
+                      scoringDifference: Math.abs(scoreP1 - scoreP2), // Es indistinto el orden, pues calculo valor absoluto.
+                  })
+                : (outcome = {
+                      playerThatWon: playerP2,
+                      teamThatWon: teamP2,
+                      scoreFromTeamThatWon: scoreP2,
+                      playerThatLost: playerP1,
+                      teamThatLost: teamP1,
+                      scoreFromTeamThatLost: scoreP1,
+                      draw: false,
+                      scoringDifference: Math.abs(scoreP1 - scoreP2), // Es indistinto el orden, pues calculo valor absoluto.
+                  })
+        } else if (
+            scoreP1 - scoreP2 === 0 &&
+            penaltyScoreP1 &&
+            penaltyScoreP2
+        ) {
+            // Empate, y hubo penales
+            penaltyScoreP1 > penaltyScoreP2
+                ? (outcome = {
+                      playerThatWon: playerP1,
+                      teamThatWon: teamP1,
+                      scoreFromTeamThatWon: penaltyScoreP1,
+                      playerThatLost: playerP2,
+                      teamThatLost: teamP2,
+                      scoreFromTeamThatLost: penaltyScoreP2,
+                      draw: true,
+                      penalties: true,
+                      scoringDifference: 0,
+                  })
+                : (outcome = {
+                      playerThatWon: playerP2,
+                      teamThatWon: teamP2,
+                      scoreFromTeamThatWon: penaltyScoreP2,
+                      playerThatLost: playerP1,
+                      teamThatLost: teamP1,
+                      scoreFromTeamThatLost: penaltyScoreP1,
+                      draw: true,
+                      penalties: true,
+                      scoringDifference: 0,
+                  })
+        } else {
+            // Empate, pero no hubo penales!
+            outcome = {
+                draw: true,
+                penalties: false,
+            }
+        }
+
+        const uploadedMatch = await modifyMatchResult(
+            matchId,
+            scoreP1,
+            scoreP2,
+            outcome
+        )
+
+        uploadedMatch
+            ? res.status(200).send(uploadedMatch)
+            : res.status(500).send({ error: "Match wasn't found in the DB" })
+    } catch (err) {
+        return res.status(500).send("Something went wrong!" + err)
+    }
+}
+
+const putRemoveGameController = async (req, res) => {
+    // const tournamentId = req.params.id
+    const matchId = req.params.match
+
+    try {
+        const deletedResult = await modifyMatchResultToRemoveIt(matchId) // I make an update on the result in "face-to-face" collection
+
+        deletedResult
+            ? res.status(200).json(deletedResult)
+            : res.status(500).json({
+                  err: "Match couldn't be deleted because it wasn't found",
+              })
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
     }
@@ -432,7 +630,7 @@ const getStandingsController = async (req, res) => {
                 standings.push({
                     id,
                     team: team.team,
-                    player,
+                    player, // REVISAR
                     logo,
                     teamCode,
                     played,
@@ -574,6 +772,71 @@ const getPlayoffsTableController = async (req, res) => {
     }
 }
 
+const getPlayoffsPlayerInfoController = async (req, res) => {
+    try {
+        const tournaments = await retrieveOngoingTournaments({ ongoing: true })
+
+        let allMatches = []
+
+        let matchesFromOngoingTournaments = []
+
+        let counter = 0
+
+        tournaments.forEach(async ({ id }) => {
+            let matches = await orderMatchesFromTournamentById(id)
+            if (!allMatches.length) {
+                allMatches = matches
+            } else {
+                matchesFromOngoingTournaments = allMatches.concat(matches)
+            }
+            counter++
+            if (counter === tournaments.length) {
+                // REVISAR
+
+                const playoffsPlayerStats = []
+
+                const players = await retrieveAllPlayers()
+
+                players.forEach((player) => {
+                    let totalMatches = matchesFromOngoingTournaments.filter(
+                        (match) =>
+                            match.playerP1 == player.name ||
+                            match.playerP2 == player.name
+                    ).length
+
+                    let totalWins = matchesFromOngoingTournaments.filter(
+                        (match) => match.outcome?.playerThatWon == player.name
+                    ).length
+
+                    let totalLosses = matchesFromOngoingTournaments.filter(
+                        (match) => match.outcome?.playerThatLost == player.name
+                    ).length
+
+                    let totalDraws = totalMatches - totalWins - totalLosses
+
+                    let totalPoints = totalWins * 3 + totalDraws
+
+                    playoffsPlayerStats.push({
+                        player: {
+                            name: player.name,
+                            id: player._id,
+                        },
+                        totalMatches,
+                        totalWins,
+                        totalDraws,
+                        totalLosses,
+                        totalPoints,
+                    })
+                    if (playoffsPlayerStats.length === players.length)
+                        res.send(playoffsPlayerStats)
+                })
+            }
+        })
+    } catch (err) {
+        return res.status(500).send("Something went wrong!" + err)
+    }
+}
+
 const getPlayoffsBracketController = async (req, res) => {
     try {
         const tournaments = await retrieveOngoingTournaments({ ongoing: true })
@@ -701,293 +964,6 @@ const getMatchesController = async (req, res) => {
             const matches = await retrieveMatches(10)
             res.json(matches)
         }
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
-    }
-}
-
-const postUploadGameController = async (req, res) => {
-    const tournamentId = req.params.id
-    try {
-        const { id, name, format, origin, fixture } =
-            await retrieveTournamentById(tournamentId)
-
-        let {
-            playerP1,
-            teamP1,
-            scoreP1,
-            penaltyScoreP1,
-            playerP2,
-            teamP2,
-            scoreP2,
-            penaltyScoreP2,
-        } = req.body
-
-        let rivalOfP1 = playerP2
-        let rivalOfP2 = playerP1
-        let outcome
-
-        if (scoreP1 - scoreP2 !== 0) {
-            scoreP1 > scoreP2
-                ? (outcome = {
-                      playerThatWon: playerP1,
-                      teamThatWon: teamP1,
-                      scoreFromTeamThatWon: scoreP1,
-                      playerThatLost: playerP2,
-                      teamThatLost: teamP2,
-                      scoreFromTeamThatLost: scoreP2,
-                      draw: false,
-                      penalties: false,
-                      scoringDifference: Math.abs(scoreP1 - scoreP2), // Es indistinto el orden, pues calculo valor absoluto.
-                  })
-                : (outcome = {
-                      playerThatWon: playerP2,
-                      teamThatWon: teamP2,
-                      scoreFromTeamThatWon: scoreP2,
-                      playerThatLost: playerP1,
-                      teamThatLost: teamP1,
-                      scoreFromTeamThatLost: scoreP1,
-                      draw: false,
-                      penalties: false,
-                      scoringDifference: Math.abs(scoreP1 - scoreP2), // Es indistinto el orden, pues calculo valor absoluto.
-                  })
-        } else if (
-            scoreP1 - scoreP2 === 0 &&
-            penaltyScoreP1 &&
-            penaltyScoreP2
-        ) {
-            // Empate, y hubo penales
-            penaltyScoreP1 > penaltyScoreP2
-                ? (outcome = {
-                      playerThatWon: playerP1,
-                      teamThatWon: teamP1,
-                      scoreFromTeamThatWon: penaltyScoreP1,
-                      playerThatLost: playerP2,
-                      teamThatLost: teamP2,
-                      scoreFromTeamThatLost: penaltyScoreP2,
-                      draw: true,
-                      penalties: true,
-                      scoringDifference: 0,
-                  })
-                : (outcome = {
-                      playerThatWon: playerP2,
-                      teamThatWon: teamP2,
-                      scoreFromTeamThatWon: penaltyScoreP2,
-                      playerThatLost: playerP1,
-                      teamThatLost: teamP1,
-                      scoreFromTeamThatLost: penaltyScoreP1,
-                      draw: true,
-                      penalties: true,
-                      scoringDifference: 0,
-                  })
-        } else {
-            // Empate, pero no hubo penales!
-            outcome = {
-                playerThatWon: "none",
-                teamThatWon: "none",
-                scoreFromTeamThatWon: "none",
-                playerThatLost: "none",
-                teamThatLost: "none",
-                scoreFromTeamThatLost: "none",
-                draw: true,
-                penalties: false,
-                scoringDifference: 0,
-            }
-        }
-
-        const match = {
-            playerP1,
-            teamP1,
-            scoreP1,
-            rivalOfP1,
-            playerP2,
-            teamP2,
-            scoreP2,
-            rivalOfP2,
-            outcome,
-            tournament: {
-                name,
-                id,
-                format,
-                origin,
-            },
-        }
-        if (!match.outcome.draw) {
-            // Para actualizar las rachas y la tabla, SI NO EMPATAN
-
-            // CREO EL PARTIDO Y LO SUBO A LA BD, TAMBIÉN OBTENGO SU ID //
-
-            const createdMatch = await originateMatch(match)
-
-            const matchId = createdMatch.id
-
-            // ACTUALIZO EL FIXTURE //
-
-            let index = fixture.findIndex((element) => {
-                return (
-                    element.teamP1 === match.outcome.teamThatWon &&
-                    element.teamP2 === match.outcome.teamThatLost
-                )
-            })
-
-            let response
-
-            if (index !== -1) {
-                response = await modifyFixtureFromTournamentVersionOne(
-                    tournamentId,
-                    match.outcome.teamThatWon,
-                    match.outcome.teamThatLost,
-                    match.outcome.scoreFromTeamThatWon,
-                    match.outcome.scoreFromTeamThatLost,
-                    matchId
-                )
-            }
-
-            if (index === -1) {
-                response = await modifyFixtureFromTournamentVersionTwo(
-                    tournamentId,
-                    match.outcome.teamThatWon,
-                    match.outcome.teamThatLost,
-                    match.outcome.scoreFromTeamThatWon,
-                    match.outcome.scoreFromTeamThatLost,
-                    matchId
-                )
-            }
-            res.status(200).json(response)
-        }
-        // SI EMPATAN //
-        else {
-            // CREO EL PARTIDO Y LO SUBO A LA BD, TAMBIÉN OBTENGO SU ID //
-
-            const createdMatch = await originateMatch(match)
-
-            const matchId = createdMatch.id
-
-            // ACTUALIZO EL FIXTURE //
-
-            let index = fixture.findIndex((element) => {
-                return element.teamP1 === teamP1 && element.teamP2 === teamP2
-            })
-
-            let response
-
-            if (index !== -1) {
-                response = await modifyFixtureFromTournamentVersionOne(
-                    tournamentId,
-                    teamP1,
-                    teamP2,
-                    scoreP1,
-                    scoreP2,
-                    matchId
-                )
-            }
-
-            if (index === -1) {
-                response = await modifyFixtureFromTournamentVersionTwo(
-                    tournamentId,
-                    teamP1,
-                    teamP2,
-                    scoreP1,
-                    scoreP2,
-                    matchId
-                )
-            }
-            res.status(200).json(response)
-        }
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
-    }
-}
-
-const putModifyGameController = async (req, res) => {
-    const tournamentId = req.params.id
-    const matchId = req.params.match
-    const { teamP1, teamP2, scoreP1, scoreP2, playerP1, playerP2 } = req.body
-    try {
-        // Actualizo face-to-face //
-
-        const match = await retrieveMatchById(matchId)
-
-        let outcome
-
-        if (scoreP1 - scoreP2 !== 0) {
-            scoreP1 > scoreP2
-                ? (outcome = {
-                      playerThatWon: playerP1,
-                      teamThatWon: teamP1,
-                      scoreFromTeamThatWon: Number(scoreP1),
-                      playerThatLost: playerP2,
-                      teamThatLost: teamP2,
-                      scoreFromTeamThatLost: Number(scoreP2),
-                      draw: false,
-                      penalties: false,
-                      scoringDifference: Math.abs(scoreP1 - scoreP2),
-                  })
-                : (outcome = {
-                      playerThatWon: playerP2,
-                      teamThatWon: teamP2,
-                      scoreFromTeamThatWon: Number(scoreP2),
-                      playerThatLost: playerP1,
-                      teamThatLost: teamP1,
-                      scoreFromTeamThatLost: Number(scoreP1),
-                      draw: false,
-                      penalties: false,
-                      scoringDifference: Math.abs(scoreP1 - scoreP2),
-                  })
-        } else {
-            // Empate
-            outcome = {
-                playerThatWon: "none",
-                teamThatWon: "none",
-                scoreFromTeamThatWon: "none",
-                playerThatLost: "none",
-                teamThatLost: "none",
-                scoreFromTeamThatLost: "none",
-                draw: true,
-                penalties: false,
-                scoringDifference: 0,
-            }
-        }
-
-        if (match) {
-            match.teamP1 === teamP1
-                ? await match.updateOne({ scoreP1, scoreP2, outcome })
-                : await match.updateOne({
-                      scoreP1: scoreP2,
-                      scoreP2: scoreP1,
-                      outcome,
-                  })
-        }
-
-        // Actualizo fixture //
-
-        const response = await modifyFixtureFromTournamentWhenEditing(
-            tournamentId,
-            teamP1,
-            teamP2,
-            scoreP1,
-            scoreP2
-        )
-
-        res.status(200).json(response)
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
-    }
-}
-
-const deleteGameController = async (req, res) => {
-    const tournamentId = req.params.id
-    const matchId = req.params.match
-
-    try {
-        await deleteMatchById(matchId) // Borro el partido de la colección face-to-face //
-
-        const response = await modifyFixtureFromTournamentWhenRemoving(
-            tournamentId,
-            matchId
-        ) // Actualizo fixture //
-
-        res.status(200).json(response)
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
     }
@@ -1338,15 +1314,17 @@ module.exports = {
     postLogoutController,
     getIsUserAuthenticatedController,
     getTournamentsController,
-    getPlayerInfoFromTournamentsController,
+    postTournamentsController,
+    getStandingsPlayerInfoController,
     getFixtureByTournamentIdController,
+    postFixtureController,
     getStandingsController,
     getPlayoffsTableController,
+    getPlayoffsPlayerInfoController,
     getPlayoffsBracketController,
     getMatchesController,
-    postUploadGameController,
     putModifyGameController,
-    deleteGameController,
+    putRemoveGameController,
     getStatisticsController,
     getStreaksController,
     achievements,

@@ -20,15 +20,17 @@ const {
     postLogoutController,
     getIsUserAuthenticatedController,
     getTournamentsController,
+    postTournamentsController,
     getFixtureByTournamentIdController,
+    postFixtureController,
     getStandingsController,
     getPlayoffsTableController,
+    getPlayoffsPlayerInfoController,
     getPlayoffsBracketController,
-    getPlayerInfoFromTournamentsController,
+    getStandingsPlayerInfoController,
     getMatchesController,
-    postUploadGameController,
     putModifyGameController,
-    deleteGameController,
+    putRemoveGameController,
     getStatisticsController,
     getStreaksController,
     achievements,
@@ -56,11 +58,13 @@ homeR.get("/isUserAuthenticated", getIsUserAuthenticatedController)
 
 homeR.get("/standings", getStandingsController)
 
-homeR.get("/standings/player-info", getPlayerInfoFromTournamentsController)
+homeR.get("/standings/player-info", getStandingsPlayerInfoController)
 
 // /PLAYOFFS
 
 homeR.get("/playoffs/table", getPlayoffsTableController)
+
+homeR.get("/playoffs/player-info", getPlayoffsPlayerInfoController)
 
 homeR.get("/playoffs/bracket", getPlayoffsBracketController)
 
@@ -72,21 +76,15 @@ homeR.get("/matches", getMatchesController)
 
 homeR.get("/tournaments", getTournamentsController)
 
+homeR.post("/tournaments", postTournamentsController)
+
 homeR.get("/tournaments/:id/fixture", getFixtureByTournamentIdController)
 
-homeR.post("/tournaments/:id/upload-game", isAuth, postUploadGameController)
+homeR.post("/tournaments/:id/fixture", postFixtureController)
 
-homeR.put(
-    "/tournaments/:id/update-game/:match",
-    isAuth,
-    putModifyGameController
-)
+homeR.put("/tournaments/:id/update-game/:match", putModifyGameController)
 
-homeR.delete(
-    "/tournaments/:id/delete-game/:match",
-    isAuth,
-    deleteGameController
-)
+homeR.put("/tournaments/:id/delete-game/:match", putRemoveGameController)
 
 homeR.get("/statistics", getStatisticsController)
 

@@ -217,9 +217,44 @@ const sortMatchesFromTournamentById = async (tournamentId) => {
     return matches
 }
 
-const createMatch = async (match) => {
-    const newMatch = await matchesModel.create(match)
-    return newMatch
+// const sortMatchesFromOngoingTournaments = async () => {
+
+//     const tournaments = await tournamentsModel.find()
+
+//     const matches = await matchesModel.find({
+
+//     })
+// }
+
+const createManyMatches = async (matchesToBePlayed) => {
+    const newMatches = await matchesModel.insertMany(matchesToBePlayed)
+    return newMatches
+}
+
+const updateMatchResult = async (matchId, scoreP1, scoreP2, outcome) => {
+    const uploadedMatch = await matchesModel.findByIdAndUpdate(
+        matchId,
+        {
+            scoreP1,
+            scoreP2,
+            outcome,
+        },
+        { new: true } // Returns the updated document, not the original
+    )
+    return uploadedMatch
+}
+
+const updateMatchResultToRemoveIt = async (matchId) => {
+    const removedMatchResult = await matchesModel.findByIdAndUpdate(
+        matchId,
+        {
+            scoreP1: null,
+            scoreP2: null,
+            outcome: {},
+        },
+        { new: true } // Returns the updated document, not the original
+    )
+    return removedMatchResult
 }
 
 const findMatchById = async (id) => {
@@ -458,7 +493,9 @@ module.exports = {
     countTotalLossesFromPlayer,
     sortMatchesByScoringDifference,
     sortMatchesFromTournamentById,
-    createMatch,
+    createManyMatches,
+    updateMatchResult,
+    updateMatchResultToRemoveIt,
     findMatchById,
     removeMatchById,
     findMatchesByQuery,

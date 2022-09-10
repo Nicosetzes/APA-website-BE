@@ -17,7 +17,9 @@ const {
     countTotalLossesFromPlayer,
     sortMatchesByScoringDifference,
     sortMatchesFromTournamentById,
-    createMatch,
+    createManyMatches,
+    updateMatchResult,
+    updateMatchResultToRemoveIt,
     findMatchById,
     removeMatchById,
     findMatchesByQuery,
@@ -126,8 +128,20 @@ const orderMatchesFromTournamentById = async (tournamentId) => {
     return await sortMatchesFromTournamentById(tournamentId)
 }
 
-const originateMatch = async (match) => {
-    return await createMatch(match)
+// const originateMatch = async (match) => {
+//     return await createMatch(match)
+// }
+
+const originateManyMatches = async (matchesToBePlayed) => {
+    return await createManyMatches(matchesToBePlayed)
+}
+
+const modifyMatchResult = async (matchId, scoreP1, scoreP2, outcome) => {
+    return await updateMatchResult(matchId, scoreP1, scoreP2, outcome)
+}
+
+const modifyMatchResultToRemoveIt = async (matchId) => {
+    return await updateMatchResultToRemoveIt(matchId)
 }
 
 const retrieveMatchById = async (id) => {
@@ -259,7 +273,9 @@ module.exports = {
     totalLossesFromPlayer,
     orderMatchesByScoringDifference,
     orderMatchesFromTournamentById,
-    originateMatch,
+    originateManyMatches,
+    modifyMatchResult,
+    modifyMatchResultToRemoveIt,
     retrieveMatchById,
     deleteMatchById,
     retrieveMatchesByQuery,
