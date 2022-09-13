@@ -18,7 +18,10 @@ app.use(
         origin:
             process.env.NODE_ENV == "development"
                 ? "http://localhost:3000"
-                : "https://apa-website-fe.vercel.app",
+                : [
+                      "http://localhost:3000",
+                      "https://apa-website-fe.vercel.app",
+                  ],
         credentials: true,
     })
 ) // IMPORTANTE

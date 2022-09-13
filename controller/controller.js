@@ -28,7 +28,7 @@ const {
     // retrieveRecentTournamentNames,
     retrieveOngoingTournaments,
     retrieveTournamentById,
-    // originateTournament,
+    originateTournament,
     // retrieveTournaments,
     modifyFixtureFromTournamentVersionOne,
     modifyFixtureFromTournamentVersionTwo,
@@ -294,8 +294,10 @@ const getTournamentsController = async (req, res) => {
 }
 
 const postTournamentsController = async (req, res) => {
+    const { name, players, teams } = req.body
     try {
-        res.status(200).json(req.body)
+        const tournament = await originateTournament({ name, players, teams })
+        res.status(200).json(tournament)
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
     }
@@ -954,6 +956,22 @@ const getPlayoffsBracketController = async (req, res) => {
     }
 }
 
+const getPlayersController = async (req, res) => {
+    // const { query } = req.query
+    try {
+        const allPlayers = await retrieveAllPlayers()
+        const players = allPlayers.map(({ _id, name }) => {
+            return {
+                id: _id,
+                name,
+            }
+        })
+        res.json(players)
+    } catch (err) {
+        return res.status(500).send("Something went wrong!" + err)
+    }
+}
+
 const getMatchesController = async (req, res) => {
     const { query } = req.query
     try {
@@ -1322,6 +1340,7 @@ module.exports = {
     getPlayoffsTableController,
     getPlayoffsPlayerInfoController,
     getPlayoffsBracketController,
+    getPlayersController,
     getMatchesController,
     putModifyGameController,
     putRemoveGameController,

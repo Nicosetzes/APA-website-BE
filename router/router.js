@@ -27,6 +27,7 @@ const {
     getPlayoffsTableController,
     getPlayoffsPlayerInfoController,
     getPlayoffsBracketController,
+    getPlayersController,
     getStandingsPlayerInfoController,
     getMatchesController,
     putModifyGameController,
@@ -67,6 +68,10 @@ homeR.get("/playoffs/table", getPlayoffsTableController)
 homeR.get("/playoffs/player-info", getPlayoffsPlayerInfoController)
 
 homeR.get("/playoffs/bracket", getPlayoffsBracketController)
+
+// /PLAYERS
+
+homeR.get("/players", getPlayersController)
 
 // /MATCHES
 
