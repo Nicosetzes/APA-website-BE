@@ -15,10 +15,16 @@ app.use(express.static("public"))
 app.use(cookieParser())
 app.use(
     cors({
-        origin: ["http://localhost:3000", "https://apa-website-fe.vercel.app"],
+        origin: true,
         credentials: true,
     })
 ) // IMPORTANTE
+// app.use(
+//     cors({
+//         origin: ["http://localhost:3000", "https://apa-website-fe.vercel.app"],
+//         credentials: true,
+//     })
+// ) // IMPORTANTE
 
 const { homeR } = require("./router/router.js")
 
