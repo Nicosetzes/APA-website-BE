@@ -22,6 +22,10 @@ app.use(
 
 const { homeR } = require("./router/router.js")
 
+app.get("/", (req, res) => {
+    res.send("Express on Vercel")
+})
+
 app.use("/api", homeR)
 
 // DEFINO RUTAS INEXISTENTES //
@@ -34,4 +38,6 @@ const PORT = process.env.PORT || 5000
 
 app.listen(PORT, () => console.log(`EXPRESS server listening on port ${PORT}`))
 
-// /* -------------------- ROUTES -------------------- */
+// Export the Express API
+
+module.exports = app

@@ -1,13 +1,15 @@
 {
-    "headers": [
+    "version": 2,
+    "builds": [
         {
-            "source": "/(.*)",
-            "headers": [
-                {
-                    "key": "access-control-allow-origin",
-                    "value": "*"
-                }
-            ]
+            "src": "server.js",
+            "use": "@now/node"
+        }
+    ],
+    "routes": [
+        {
+            "src": "/(.*)",
+            "dest": "server.js"
         }
     ]
 }
