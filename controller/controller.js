@@ -332,6 +332,66 @@ const getStandingsPlayerInfoController = async (req, res) => {
 
                 let totalPoints = totalWins * 3 + totalDraws
 
+                let streak = matches
+                    .filter(
+                        (element) =>
+                            element.playerP1 === player.name ||
+                            element.playerP2 === player.name
+                    )
+                    .splice(0, 10) // REVISAR //
+                    .map((match) => {
+                        let {
+                            outcome,
+                            id,
+                            playerP1,
+                            teamP1,
+                            scoreP1,
+                            playerP2,
+                            teamP2,
+                            scoreP2,
+                        } = match
+                        if (outcome.playerThatWon === player.name)
+                            return {
+                                outcome: "w",
+                                playerP1: outcome.playerThatWon,
+                                teamP1: outcome.teamThatWon,
+                                scoreP1: outcome.scoreFromTeamThatWon,
+                                playerP2: outcome.playerThatLost,
+                                teamP2: outcome.teamThatLost,
+                                scoreP2: outcome.scoreFromTeamThatLost,
+                                date: new Date(
+                                    parseInt(id.substring(0, 8), 16) * 1000
+                                ).toLocaleDateString(),
+                            }
+                        if (outcome.playerThatLost === player.name)
+                            return {
+                                outcome: "l",
+                                playerP1: outcome.playerThatLost,
+                                teamP1: outcome.teamThatLost,
+                                scoreP1: outcome.scoreFromTeamThatLost,
+                                playerP2: outcome.playerThatWon,
+                                teamP2: outcome.teamThatWon,
+                                scoreP2: outcome.scoreFromTeamThatWon,
+                                date: new Date(
+                                    parseInt(id.substring(0, 8), 16) * 1000
+                                ).toLocaleDateString(),
+                            }
+                        if (outcome.draw)
+                            return {
+                                outcome: "d",
+                                playerP1,
+                                teamP1,
+                                scoreP1,
+                                playerP2,
+                                teamP2,
+                                scoreP2,
+                                date: new Date(
+                                    parseInt(id.substring(0, 8), 16) * 1000
+                                ).toLocaleDateString(),
+                            }
+                    })
+                    .reverse()
+
                 playerStatsByTournament.push({
                     player,
                     tournament: tournament.name,
@@ -340,6 +400,7 @@ const getStandingsPlayerInfoController = async (req, res) => {
                     totalDraws,
                     totalLosses,
                     totalPoints,
+                    streak,
                 })
                 if (
                     playerStatsByTournament.length ===
@@ -354,25 +415,26 @@ const getStandingsPlayerInfoController = async (req, res) => {
 }
 
 const getFixtureByTournamentIdController = async (req, res) => {
+    // IMPORTANT: Have to remake once this tournament is finished //
     const tournamentId = req.params.id
     const { player, team } = req.query
     try {
         if (player) {
             const tournament = await retrieveTournamentById(tournamentId)
-            const filteredFixture = tournament.fixture.filter(
-                (match) =>
-                    match.playerP1 === player || match.playerP2 === player
-            )
-            res.status(200).json({ ...tournament, fixture: filteredFixture })
+            // const filteredFixture = tournament.fixture.filter(
+            //     (match) =>
+            //         match.playerP1 === player || match.playerP2 === player
+            // )
+            res.status(200).json(tournament)
         }
         if (team) {
             const tournament = await retrieveTournamentById(tournamentId)
-            const filteredFixture = tournament.fixture.filter(
-                (match) =>
-                    match.teamIdP1 === Number(team) ||
-                    match.teamIdP2 === Number(team)
-            )
-            res.status(200).json({ ...tournament, fixture: filteredFixture })
+            // const filteredFixture = tournament.fixture.filter(
+            //     (match) =>
+            //         match.teamIdP1 === Number(team) ||
+            //         match.teamIdP2 === Number(team)
+            // )
+            res.status(200).json(tournament)
         }
         if (!team && !player) {
             const tournament = await retrieveTournamentById(tournamentId)
@@ -626,6 +688,65 @@ const getStandingsController = async (req, res) => {
                         }, 0)
                 let scoringDifference = goalsFor - goalsAgainst
                 let points = wins * 3 + draws
+                let streak = matches
+                    .filter(
+                        (element) =>
+                            element.teamP1 === team.team ||
+                            element.teamP2 === team.team
+                    )
+                    .splice(0, 5) // REVISAR //
+                    .map((match) => {
+                        let {
+                            outcome,
+                            id,
+                            playerP1,
+                            teamP1,
+                            scoreP1,
+                            playerP2,
+                            teamP2,
+                            scoreP2,
+                        } = match
+                        if (outcome.teamThatWon === team.team)
+                            return {
+                                outcome: "w",
+                                playerP1: outcome.playerThatWon,
+                                teamP1: outcome.teamThatWon,
+                                scoreP1: outcome.scoreFromTeamThatWon,
+                                playerP2: outcome.playerThatLost,
+                                teamP2: outcome.teamThatLost,
+                                scoreP2: outcome.scoreFromTeamThatLost,
+                                date: new Date(
+                                    parseInt(id.substring(0, 8), 16) * 1000
+                                ).toLocaleDateString(),
+                            }
+                        if (outcome.teamThatLost === team.team)
+                            return {
+                                outcome: "l",
+                                playerP1: outcome.playerThatLost,
+                                teamP1: outcome.teamThatLost,
+                                scoreP1: outcome.scoreFromTeamThatLost,
+                                playerP2: outcome.playerThatWon,
+                                teamP2: outcome.teamThatWon,
+                                scoreP2: outcome.scoreFromTeamThatWon,
+                                date: new Date(
+                                    parseInt(id.substring(0, 8), 16) * 1000
+                                ).toLocaleDateString(),
+                            }
+                        if (outcome.draw)
+                            return {
+                                outcome: "d",
+                                playerP1,
+                                teamP1,
+                                scoreP1,
+                                playerP2,
+                                teamP2,
+                                scoreP2,
+                                date: new Date(
+                                    parseInt(id.substring(0, 8), 16) * 1000
+                                ).toLocaleDateString(),
+                            }
+                    })
+                    .reverse()
 
                 let { id, player, logo, teamCode } = team
 
@@ -643,6 +764,7 @@ const getStandingsController = async (req, res) => {
                     goalsAgainst,
                     scoringDifference,
                     points,
+                    streak,
                 })
             })
 

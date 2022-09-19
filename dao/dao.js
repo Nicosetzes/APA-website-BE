@@ -211,7 +211,7 @@ const sortMatchesFromTournamentById = async (tournamentId) => {
     let matches = await matchesModel
         .find(
             { "tournament.id": tournamentId },
-            "playerP1 teamP1 scoreP1 playerP2 teamP2 scoreP2 outcome"
+            "playerP1 teamP1 scoreP1 playerP2 teamP2 scoreP2 outcome tournament"
         )
         .sort({ _id: -1 })
     return matches

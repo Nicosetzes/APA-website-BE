@@ -21,7 +21,7 @@ app.use(
                 : "https://apa-website-fe.vercel.app",
         credentials: true,
     })
-) // IMPORTANTE
+) // IMPORTANTE: Tiene que ser así, intenté usar [] para permitir más de un dominio en production pero esta feature de CORS no fuciona en Vercel! //
 
 const { homeR } = require("./router/router.js")
 
