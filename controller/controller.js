@@ -417,29 +417,9 @@ const getStandingsPlayerInfoController = async (req, res) => {
 const getFixtureByTournamentIdController = async (req, res) => {
     // IMPORTANT: Have to remake once this tournament is finished //
     const tournamentId = req.params.id
-    const { player, team } = req.query
     try {
-        if (player) {
-            const tournament = await retrieveTournamentById(tournamentId)
-            // const filteredFixture = tournament.fixture.filter(
-            //     (match) =>
-            //         match.playerP1 === player || match.playerP2 === player
-            // )
-            res.status(200).json(tournament)
-        }
-        if (team) {
-            const tournament = await retrieveTournamentById(tournamentId)
-            // const filteredFixture = tournament.fixture.filter(
-            //     (match) =>
-            //         match.teamIdP1 === Number(team) ||
-            //         match.teamIdP2 === Number(team)
-            // )
-            res.status(200).json(tournament)
-        }
-        if (!team && !player) {
-            const tournament = await retrieveTournamentById(tournamentId)
-            res.status(200).json(tournament)
-        }
+        const tournament = await retrieveTournamentById(tournamentId)
+        res.status(200).json(tournament)
         // Agregar excepción en caso de error
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
@@ -1119,27 +1099,41 @@ const getStatisticsController = async (req, res) => {
         }
         let count = 0
 
-        const recentMatches = await retrieveMatches(8)
-        recentMatches.forEach((match) => {
-            response.recentMatches.push({
-                playerP1: match.playerP1,
-                playerP2: match.playerP2,
-                teamP1: match.teamP1,
-                teamP2: match.teamP2,
-                scoreP1: match.scoreP1,
-                scoreP2: match.scoreP2,
-                tournament: match.tournament.name,
-                date: new Date(
-                    parseInt(match.id.substring(0, 8), 16) * 1000
-                ).toLocaleDateString(),
-            })
-        })
-
         const playerWins = []
         const playerDraws = []
         const playerLosses = []
 
         const matches = await retrieveMatches({})
+
+        const amountOfRecentMatchesToDisplay = 8
+
+        for (let {
+            playerP1,
+            playerP2,
+            teamP1,
+            teamP2,
+            scoreP1,
+            scoreP2,
+            tournament,
+            id,
+        } of matches) {
+            response.recentMatches.push({
+                playerP1,
+                playerP2,
+                teamP1,
+                teamP2,
+                scoreP1,
+                scoreP2,
+                tournament: tournament.name,
+                date: new Date(
+                    parseInt(id.substring(0, 8), 16) * 1000
+                ).toLocaleDateString(),
+            })
+            if (
+                response.recentMatches.length === amountOfRecentMatchesToDisplay
+            )
+                break
+        }
 
         players.forEach(async (player) => {
             let totalMatches = matches.filter(
