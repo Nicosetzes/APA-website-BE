@@ -18,6 +18,7 @@ const matchesModel = require("./models/matches.js") // Modelo mongoose para la c
 const usersModel = require("./models/users.js") // Modelo mongoose para la carga de usuarios!
 
 const playersModel = require("./models/players.js") // Modelo mongoose para la carga de información de jugadores humanos!
+const matches = require("./models/matches.js")
 
 /* -------------- METHODS -------------- */
 
@@ -84,7 +85,12 @@ const findPlayer = async (playerQuery) => {
 const findRecentMatchesFromPlayer = async (playerQuery) => {
     const matches = await matchesModel
         .find(
-            { $or: [{ playerP1: playerQuery }, { playerP2: playerQuery }] },
+            {
+                $or: [
+                    { "playerP1.name": playerQuery },
+                    { "playerP2.name": playerQuery },
+                ],
+            },
             "playerP1 teamP1 scoreP1 playerP2 teamP2 scoreP2 tournament outcome"
         )
         .limit(10)
@@ -104,10 +110,10 @@ const countTotalMatchesFromAPlayerTeam = async (playerQuery, teamQuery) => {
     let matches = await matchesModel.countDocuments({
         $or: [
             {
-                $and: [{ playerP1: playerQuery }, { teamP1: teamQuery }],
+                $and: [{ "playerP1.name": playerQuery }, { teamP1: teamQuery }],
             },
             {
-                $and: [{ playerP2: playerQuery }, { teamP2: teamQuery }],
+                $and: [{ "playerP2.name": playerQuery }, { teamP2: teamQuery }],
             },
         ],
     })
@@ -120,7 +126,10 @@ const countTotalMatchesFromPlayerByTournament = async (
 ) => {
     let matches = await matchesModel.countDocuments({
         "tournament.id": tournamentId,
-        $or: [{ playerP1: playerQuery }, { playerP2: playerQuery }],
+        $or: [
+            { "playerP1.name": playerQuery },
+            { "playerP2.name": playerQuery },
+        ],
     })
     return matches
 }
@@ -151,7 +160,10 @@ const countTotalLossesFromPlayerByTournament = async (
 
 const countTotalMatchesFromPlayer = async (playerQuery) => {
     const matches = await matchesModel.countDocuments({
-        $or: [{ playerP1: playerQuery }, { playerP2: playerQuery }],
+        $or: [
+            { "playerP1.name": playerQuery },
+            { "playerP2.name": playerQuery },
+        ],
     })
     return matches
 }
@@ -178,7 +190,12 @@ const countTotalWinsFromPlayer = async (playerQuery) => {
 const countTotalDrawsFromPlayer = async (playerQuery) => {
     const draws = await matchesModel.countDocuments({
         $and: [
-            { $or: [{ playerP1: playerQuery }, { playerP2: playerQuery }] },
+            {
+                $or: [
+                    { "playerP1.name": playerQuery },
+                    { "playerP2.name": playerQuery },
+                ],
+            },
             { "outcome.draw": true },
         ],
     })
@@ -210,7 +227,7 @@ const sortMatchesByScoringDifference = async () => {
 const sortMatchesFromTournamentById = async (tournamentId) => {
     let matches = await matchesModel
         .find(
-            { "tournament.id": tournamentId },
+            { "tournament.id": tournamentId, type: { $ne: "playin" } },
             "playerP1 teamP1 scoreP1 playerP2 teamP2 scoreP2 outcome tournament"
         )
         .sort({ _id: -1 })
@@ -225,6 +242,11 @@ const sortMatchesFromTournamentById = async (tournamentId) => {
 
 //     })
 // }
+
+const createMatch = async (match) => {
+    const newMatch = await matchesModel.create(match)
+    return newMatch
+}
 
 const createManyMatches = async (matchesToBePlayed) => {
     const newMatches = await matchesModel.insertMany(matchesToBePlayed)
@@ -474,6 +496,21 @@ const updateFixtureFromTournamentWhenCreated = async (
     return updatedTournament
 }
 
+// const updateManyMatches = async () => {
+//     const updatedMatches = matchesModel.updateMany(
+//         { "outcome.playerThatWon": "Max" },
+//         {
+//             $set: {
+//                 "outcome.playerThatWon": {
+//                     name: "Max",
+//                     id: "632df103ffb8798245034116",
+//                 },
+//             },
+//         }
+//     )
+//     return updatedMatches
+// }
+
 module.exports = {
     createUser,
     findUserById,
@@ -493,6 +530,7 @@ module.exports = {
     countTotalLossesFromPlayer,
     sortMatchesByScoringDifference,
     sortMatchesFromTournamentById,
+    createMatch,
     createManyMatches,
     updateMatchResult,
     updateMatchResultToRemoveIt,
@@ -512,4 +550,5 @@ module.exports = {
     updateFixtureFromTournamentWhenRemoving,
     updateTeamsFromTournament,
     updateFixtureFromTournamentWhenCreated,
+    // updateManyMatches,
 }

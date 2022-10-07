@@ -17,6 +17,7 @@ const {
     countTotalLossesFromPlayer,
     sortMatchesByScoringDifference,
     sortMatchesFromTournamentById,
+    createMatch,
     createManyMatches,
     updateMatchResult,
     updateMatchResultToRemoveIt,
@@ -36,6 +37,7 @@ const {
     updateFixtureFromTournamentWhenRemoving,
     updateTeamsFromTournament,
     updateFixtureFromTournamentWhenCreated,
+    // updateManyMatches,
 } = require("./../dao/dao.js")
 
 const originateUser = async (user) => {
@@ -128,9 +130,9 @@ const orderMatchesFromTournamentById = async (tournamentId) => {
     return await sortMatchesFromTournamentById(tournamentId)
 }
 
-// const originateMatch = async (match) => {
-//     return await createMatch(match)
-// }
+const originateMatch = async (match) => {
+    return await createMatch(match)
+}
 
 const originateManyMatches = async (matchesToBePlayed) => {
     return await createManyMatches(matchesToBePlayed)
@@ -254,6 +256,10 @@ const modifyFixtureFromTournamentWhenCreated = async (
     return await updateFixtureFromTournamentWhenCreated(tournamentId, fixture)
 }
 
+// const modifyManyMatches = async () => {
+//     return await updateManyMatches()
+// }
+
 module.exports = {
     originateUser,
     retrieveUserById,
@@ -273,6 +279,7 @@ module.exports = {
     totalLossesFromPlayer,
     orderMatchesByScoringDifference,
     orderMatchesFromTournamentById,
+    originateMatch,
     originateManyMatches,
     modifyMatchResult,
     modifyMatchResultToRemoveIt,
@@ -292,4 +299,5 @@ module.exports = {
     modifyFixtureFromTournamentWhenRemoving,
     modifyTeamsFromTournament,
     modifyFixtureFromTournamentWhenCreated,
+    // modifyManyMatches,
 }

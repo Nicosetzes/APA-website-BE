@@ -21,20 +21,23 @@ const {
     getIsUserAuthenticatedController,
     getTournamentsController,
     postTournamentsController,
+    // getTournamentsPlayoffsController,
     getFixtureByTournamentIdController,
     postFixtureController,
     getStandingsController,
     getPlayoffsTableController,
     getPlayoffsPlayerInfoController,
-    getPlayoffsBracketController,
+    // getPlayoffsBracketController,
     getPlayersController,
     getStandingsPlayerInfoController,
     getMatchesController,
+    postMatchesController,
     putModifyGameController,
     putRemoveGameController,
     getStatisticsController,
     getStreaksController,
     achievements,
+    // majorUpdatesController,
 } = require("./../controller/controller.js")
 
 /* -------------------- isAUTH -------------------- */
@@ -67,7 +70,7 @@ homeR.get("/playoffs/table", getPlayoffsTableController)
 
 homeR.get("/playoffs/player-info", getPlayoffsPlayerInfoController)
 
-homeR.get("/playoffs/bracket", getPlayoffsBracketController)
+// homeR.get("/playoffs/bracket", getPlayoffsBracketController)
 
 // /PLAYERS
 
@@ -77,11 +80,15 @@ homeR.get("/players", getPlayersController)
 
 homeR.get("/matches", getMatchesController)
 
+homeR.post("/matches", postMatchesController) // Provisoria, luego puede ser modificada //
+
 // /FIXTURE
 
 homeR.get("/tournaments", getTournamentsController)
 
 homeR.post("/tournaments", postTournamentsController)
+
+// homeR.get("/tournaments/playoffs", getTournamentsPlayoffsController) // Provisoria, luego debe ser modificada //
 
 homeR.get("/tournaments/:id/fixture", getFixtureByTournamentIdController)
 
@@ -96,6 +103,8 @@ homeR.get("/statistics", getStatisticsController)
 homeR.get("/streaks", getStreaksController)
 
 homeR.get("/achievements", achievements)
+
+// homeR.get("/update", majorUpdatesController)
 
 module.exports = {
     homeR,

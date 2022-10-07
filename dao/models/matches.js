@@ -13,7 +13,7 @@ const scoreLimit = (upperLimit) => {
 const matchesSchema = new mongoose.Schema(
     {
         playerP1: { type: Object, require: true, max: 100 },
-        teamP1: { type: String, require: true, max: 100 },
+        teamP1: { type: Object, require: true, max: 100 },
         scoreP1: {
             type: Number,
             require: true,
@@ -22,9 +22,8 @@ const matchesSchema = new mongoose.Schema(
                 message: "{VALUE} es un valor inválido",
             },
         },
-        rivalOfP1: { type: String, require: true, max: 100 },
-        playerP2: { type: String, require: true, max: 100 },
-        teamP2: { type: String, require: true, max: 100 },
+        playerP2: { type: Object, require: true, max: 100 },
+        teamP2: { type: Object, require: true, max: 100 },
         scoreP2: {
             type: Number,
             require: true,
@@ -33,7 +32,32 @@ const matchesSchema = new mongoose.Schema(
                 message: "{VALUE} es un valor inválido",
             },
         },
-        rivalOfP2: { type: String, require: true, max: 100 },
+        penaltyScoreP1: {
+            type: Number,
+            require: false,
+            enum: {
+                values: scoreLimit(25),
+                message: "{VALUE} es un valor inválido",
+            },
+        },
+        penaltyScoreP2: {
+            type: Number,
+            require: false,
+            enum: {
+                values: scoreLimit(25),
+                message: "{VALUE} es un valor inválido",
+            },
+        },
+        type: {
+            type: String,
+            require: true,
+            max: 100,
+            // enum: {
+            //     values: ["regular, playin, playoff"],
+            //     message: "{VALUE} es un valor inválido",
+            // },
+            // default: "regular",
+        },
         outcome: { type: Object, require: true, max: 100 },
         tournament: { type: Object, require: true, max: 100 },
     },
