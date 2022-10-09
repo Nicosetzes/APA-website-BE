@@ -31,10 +31,10 @@ const {
     findTournamentById,
     createTournament,
     findTournaments,
-    updateFixtureFromTournamentVersionOne,
-    updateFixtureFromTournamentVersionTwo,
-    updateFixtureFromTournamentWhenEditing,
-    updateFixtureFromTournamentWhenRemoving,
+    // updateFixtureFromTournamentVersionOne,
+    // updateFixtureFromTournamentVersionTwo,
+    // updateFixtureFromTournamentWhenEditing,
+    // updateFixtureFromTournamentWhenRemoving,
     updateTeamsFromTournament,
     updateFixtureFromTournamentWhenCreated,
     // updateManyMatches,
@@ -186,64 +186,64 @@ const retrieveTournaments = async () => {
     return await findTournaments()
 }
 
-const modifyFixtureFromTournamentVersionOne = async (
-    tournamentId,
-    teamThatWon,
-    teamThatLost,
-    scoreFromTeamThatWon,
-    scoreFromTeamThatLost,
-    matchId
-) => {
-    return await updateFixtureFromTournamentVersionOne(
-        tournamentId,
-        teamThatWon,
-        teamThatLost,
-        scoreFromTeamThatWon,
-        scoreFromTeamThatLost,
-        matchId
-    )
-}
+// const modifyFixtureFromTournamentVersionOne = async (
+//     tournamentId,
+//     teamThatWon,
+//     teamThatLost,
+//     scoreFromTeamThatWon,
+//     scoreFromTeamThatLost,
+//     matchId
+// ) => {
+//     return await updateFixtureFromTournamentVersionOne(
+//         tournamentId,
+//         teamThatWon,
+//         teamThatLost,
+//         scoreFromTeamThatWon,
+//         scoreFromTeamThatLost,
+//         matchId
+//     )
+// }
 
-const modifyFixtureFromTournamentVersionTwo = async (
-    tournamentId,
-    teamThatWon,
-    teamThatLost,
-    scoreFromTeamThatWon,
-    scoreFromTeamThatLost,
-    matchId
-) => {
-    return await updateFixtureFromTournamentVersionTwo(
-        tournamentId,
-        teamThatWon,
-        teamThatLost,
-        scoreFromTeamThatWon,
-        scoreFromTeamThatLost,
-        matchId
-    )
-}
+// const modifyFixtureFromTournamentVersionTwo = async (
+//     tournamentId,
+//     teamThatWon,
+//     teamThatLost,
+//     scoreFromTeamThatWon,
+//     scoreFromTeamThatLost,
+//     matchId
+// ) => {
+//     return await updateFixtureFromTournamentVersionTwo(
+//         tournamentId,
+//         teamThatWon,
+//         teamThatLost,
+//         scoreFromTeamThatWon,
+//         scoreFromTeamThatLost,
+//         matchId
+//     )
+// }
 
-const modifyFixtureFromTournamentWhenEditing = async (
-    tournamentId,
-    teamP1,
-    teamP2,
-    scoreP1,
-    scoreP2
-) => {
-    return await updateFixtureFromTournamentWhenEditing(
-        tournamentId,
-        teamP1,
-        teamP2,
-        scoreP1,
-        scoreP2
-    )
-}
+// const modifyFixtureFromTournamentWhenEditing = async (
+//     tournamentId,
+//     teamP1,
+//     teamP2,
+//     scoreP1,
+//     scoreP2
+// ) => {
+//     return await updateFixtureFromTournamentWhenEditing(
+//         tournamentId,
+//         teamP1,
+//         teamP2,
+//         scoreP1,
+//         scoreP2
+//     )
+// }
 
-const modifyFixtureFromTournamentWhenRemoving = async (
-    tournamentId,
-    matchId
-) => {
-    return await updateFixtureFromTournamentWhenRemoving(tournamentId, matchId)
-}
+// const modifyFixtureFromTournamentWhenRemoving = async (
+//     tournamentId,
+//     matchId
+// ) => {
+//     return await updateFixtureFromTournamentWhenRemoving(tournamentId, matchId)
+// }
 
 const modifyTeamsFromTournament = async (tournamentId, team, player) => {
     return await updateTeamsFromTournament(tournamentId, team, player)
@@ -293,10 +293,10 @@ module.exports = {
     retrieveTournamentById,
     originateTournament,
     retrieveTournaments,
-    modifyFixtureFromTournamentVersionOne,
-    modifyFixtureFromTournamentVersionTwo,
-    modifyFixtureFromTournamentWhenEditing,
-    modifyFixtureFromTournamentWhenRemoving,
+    // modifyFixtureFromTournamentVersionOne,
+    // modifyFixtureFromTournamentVersionTwo,
+    // modifyFixtureFromTournamentWhenEditing,
+    // modifyFixtureFromTournamentWhenRemoving,
     modifyTeamsFromTournament,
     modifyFixtureFromTournamentWhenCreated,
     // modifyManyMatches,

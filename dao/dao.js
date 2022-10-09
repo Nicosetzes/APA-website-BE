@@ -110,10 +110,16 @@ const countTotalMatchesFromAPlayerTeam = async (playerQuery, teamQuery) => {
     let matches = await matchesModel.countDocuments({
         $or: [
             {
-                $and: [{ "playerP1.name": playerQuery }, { teamP1: teamQuery }],
+                $and: [
+                    { "playerP1.name": playerQuery },
+                    { "teamP1.name": teamQuery },
+                ],
             },
             {
-                $and: [{ "playerP2.name": playerQuery }, { teamP2: teamQuery }],
+                $and: [
+                    { "playerP2.name": playerQuery },
+                    { "teamP2.name": teamQuery },
+                ],
             },
         ],
     })
@@ -293,8 +299,8 @@ const findMatchesByQuery = async (query) => {
     let matches = await matchesModel
         .find({
             $or: [
-                { teamP1: { $regex: query, $options: "i" } },
-                { teamP2: { $regex: query, $options: "i" } },
+                { "teamP1.name": { $regex: query, $options: "i" } },
+                { "teamP2.name": { $regex: query, $options: "i" } },
             ],
         })
         .sort({ _id: -1 })
@@ -346,141 +352,152 @@ const findTournaments = async () => {
     return tournaments
 }
 
-const updateFixtureFromTournamentVersionOne = async (
-    tournamentId,
-    firstTeamByUser,
-    secondTeamByUser,
-    firstScoreByUser,
-    secondScoreByUser,
-    matchId
-) => {
-    const isUpdated = await tournamentsModel.updateOne(
+// const updateFixtureFromTournamentVersionOne = async (
+//     tournamentId,
+//     firstTeamByUser,
+//     secondTeamByUser,
+//     firstScoreByUser,
+//     secondScoreByUser,
+//     matchId
+// ) => {
+//     const isUpdated = await tournamentsModel.updateOne(
+//         {
+//             _id: tournamentId,
+//             fixture: {
+//                 $elemMatch: {
+//                     teamP1: firstTeamByUser,
+//                     teamP2: secondTeamByUser,
+//                 },
+//             },
+//         },
+//         {
+//             $set: {
+//                 "fixture.$.scoreP1": Number(firstScoreByUser),
+//                 "fixture.$.scoreP2": Number(secondScoreByUser),
+//                 "fixture.$.matchId": matchId,
+//             },
+//         }
+//     )
+
+//     const updatedTournament = await tournamentsModel.findById(tournamentId)
+
+//     return { isUpdated, updatedTournament }
+// }
+
+// const updateFixtureFromTournamentVersionTwo = async (
+//     tournamentId,
+//     firstTeamByUser,
+//     secondTeamByUser,
+//     firstScoreByUser,
+//     secondScoreByUser,
+//     matchId
+// ) => {
+//     const isUpdated = await tournamentsModel.updateOne(
+//         {
+//             _id: tournamentId,
+//             fixture: {
+//                 $elemMatch: {
+//                     teamP1: secondTeamByUser,
+//                     teamP2: firstTeamByUser,
+//                 },
+//             },
+//         },
+//         {
+//             $set: {
+//                 "fixture.$.scoreP1": Number(secondScoreByUser),
+//                 "fixture.$.scoreP2": Number(firstScoreByUser),
+//                 "fixture.$.matchId": matchId,
+//             },
+//         }
+//     )
+
+//     const updatedTournament = await tournamentsModel.findById(tournamentId)
+
+//     return { isUpdated, updatedTournament }
+// }
+
+// const updateFixtureFromTournamentWhenEditing = async (
+//     tournamentId,
+//     teamP1,
+//     teamP2,
+//     scoreP1,
+//     scoreP2
+// ) => {
+//     const isUpdated = await tournamentsModel.updateOne(
+//         {
+//             _id: tournamentId,
+//             fixture: {
+//                 $elemMatch: {
+//                     teamP1,
+//                     teamP2,
+//                 },
+//             },
+//         },
+//         {
+//             $set: {
+//                 "fixture.$.scoreP1": Number(scoreP1),
+//                 "fixture.$.scoreP2": Number(scoreP2),
+//             },
+//         }
+//     )
+
+//     const updatedTournament = await tournamentsModel.findById(tournamentId)
+
+//     return { isUpdated, updatedTournament }
+// }
+
+// const updateFixtureFromTournamentWhenRemoving = async (
+//     tournamentId,
+//     matchId
+// ) => {
+//     const isDeleted = await tournamentsModel.updateOne(
+//         {
+//             _id: tournamentId,
+//             fixture: {
+//                 $elemMatch: {
+//                     matchId,
+//                 },
+//             },
+//         },
+//         {
+//             $unset: {
+//                 "fixture.$.scoreP1": "",
+//                 "fixture.$.scoreP2": "",
+//                 "fixture.$.matchId": "",
+//             },
+//         }
+//     )
+
+//     const updatedTournament = await tournamentsModel.findById(tournamentId)
+
+//     return { isDeleted, updatedTournament }
+// }
+
+const updateTeamsFromTournament = async (tournamentId, assignmentArray) => {
+    const updatedTournament = await tournamentsModel.findByIdAndUpdate(
+        tournamentId,
         {
-            _id: tournamentId,
-            fixture: {
-                $elemMatch: {
-                    teamP1: firstTeamByUser,
-                    teamP2: secondTeamByUser,
-                },
-            },
+            teams: assignmentArray,
         },
-        {
-            $set: {
-                "fixture.$.scoreP1": Number(firstScoreByUser),
-                "fixture.$.scoreP2": Number(secondScoreByUser),
-                "fixture.$.matchId": matchId,
-            },
-        }
-    )
-
-    const updatedTournament = await tournamentsModel.findById(tournamentId)
-
-    return { isUpdated, updatedTournament }
-}
-
-const updateFixtureFromTournamentVersionTwo = async (
-    tournamentId,
-    firstTeamByUser,
-    secondTeamByUser,
-    firstScoreByUser,
-    secondScoreByUser,
-    matchId
-) => {
-    const isUpdated = await tournamentsModel.updateOne(
-        {
-            _id: tournamentId,
-            fixture: {
-                $elemMatch: {
-                    teamP1: secondTeamByUser,
-                    teamP2: firstTeamByUser,
-                },
-            },
-        },
-        {
-            $set: {
-                "fixture.$.scoreP1": Number(secondScoreByUser),
-                "fixture.$.scoreP2": Number(firstScoreByUser),
-                "fixture.$.matchId": matchId,
-            },
-        }
-    )
-
-    const updatedTournament = await tournamentsModel.findById(tournamentId)
-
-    return { isUpdated, updatedTournament }
-}
-
-const updateFixtureFromTournamentWhenEditing = async (
-    tournamentId,
-    teamP1,
-    teamP2,
-    scoreP1,
-    scoreP2
-) => {
-    const isUpdated = await tournamentsModel.updateOne(
-        {
-            _id: tournamentId,
-            fixture: {
-                $elemMatch: {
-                    teamP1,
-                    teamP2,
-                },
-            },
-        },
-        {
-            $set: {
-                "fixture.$.scoreP1": Number(scoreP1),
-                "fixture.$.scoreP2": Number(scoreP2),
-            },
-        }
-    )
-
-    const updatedTournament = await tournamentsModel.findById(tournamentId)
-
-    return { isUpdated, updatedTournament }
-}
-
-const updateFixtureFromTournamentWhenRemoving = async (
-    tournamentId,
-    matchId
-) => {
-    const isDeleted = await tournamentsModel.updateOne(
-        {
-            _id: tournamentId,
-            fixture: {
-                $elemMatch: {
-                    matchId,
-                },
-            },
-        },
-        {
-            $unset: {
-                "fixture.$.scoreP1": "",
-                "fixture.$.scoreP2": "",
-                "fixture.$.matchId": "",
-            },
-        }
-    )
-
-    const updatedTournament = await tournamentsModel.findById(tournamentId)
-
-    return { isDeleted, updatedTournament }
-}
-
-const updateTeamsFromTournament = async (tournamentId, team, player) => {
-    const updatedTournament = await tournamentsModel.updateOne(
-        {
-            _id: tournamentId,
-            "teams.team": team,
-        },
-        {
-            $set: {
-                "teams.$.player": player,
-            },
-        }
+        { new: true }
     )
     return updatedTournament
 }
+
+// const updateTeamsFromTournament = async (tournamentId, team, player) => {
+//     const updatedTournament = await tournamentsModel.updateOne(
+//         {
+//             _id: tournamentId,
+//             "teams.team.id": team.id,
+//         },
+//         {
+//             $set: {
+//                 "teams.$.player": player,
+//             },
+//         }
+//     )
+//     return updatedTournament
+// }
 
 const updateFixtureFromTournamentWhenCreated = async (
     tournamentId,
@@ -498,16 +515,63 @@ const updateFixtureFromTournamentWhenCreated = async (
 
 // const updateManyMatches = async () => {
 //     const updatedMatches = matchesModel.updateMany(
-//         { "outcome.playerThatWon": "Max" },
+//         {
+//             teamP2: "Coventry",
+//         },
 //         {
 //             $set: {
-//                 "outcome.playerThatWon": {
-//                     name: "Max",
-//                     id: "632df103ffb8798245034116",
+//                 teamP2: {
+//                     name: "Coventry",
+//                     id: "1346",
 //                 },
 //             },
 //         }
 //     )
+//     return updatedMatches
+// }
+
+// const updateManyMatches = async () => {
+//     const updatedMatches = matchesModel.updateMany(
+//         {
+//             "outcome.teamThatWon": "Coventry",
+//         },
+//         {
+//             $set: {
+//                 "outcome.teamThatWon": {
+//                     name: "Coventry",
+//                     id: "1346",
+//                 },
+//             },
+//         }
+//     )
+//     return updatedMatches
+// }
+
+// const updateManyMatches = async () => {
+//     const updatedMatches = matchesModel.updateMany(
+//         { "outcome.playerThatLost": "none" },
+//         {
+//             $unset: {
+//                 "outcome.playerThatLost": {
+//                     field: 1,
+//                 },
+//                 "outcome.teamThatLost": {
+//                     field: 1,
+//                 },
+//                 "outcome.scoreFromTeamThatLost": {
+//                     field: 1,
+//                 },
+//             },
+//         }
+//         // { strict: false } // It's necessary for props that aren't in the model anymore //
+//     )
+//     return updatedMatches
+// }
+
+// const updateManyMatches = async () => {
+//     const updatedMatches = matchesModel.deleteMany({
+//         "tournament.id": "634304e294c0030a695e7e3c",
+//     })
 //     return updatedMatches
 // }
 
@@ -544,10 +608,10 @@ module.exports = {
     findTournamentById,
     createTournament,
     findTournaments,
-    updateFixtureFromTournamentVersionOne,
-    updateFixtureFromTournamentVersionTwo,
-    updateFixtureFromTournamentWhenEditing,
-    updateFixtureFromTournamentWhenRemoving,
+    // updateFixtureFromTournamentVersionOne,
+    // updateFixtureFromTournamentVersionTwo,
+    // updateFixtureFromTournamentWhenEditing,
+    // updateFixtureFromTournamentWhenRemoving,
     updateTeamsFromTournament,
     updateFixtureFromTournamentWhenCreated,
     // updateManyMatches,

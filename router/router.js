@@ -21,6 +21,7 @@ const {
     getIsUserAuthenticatedController,
     getTournamentsController,
     postTournamentsController,
+    getTournamentByIdController,
     // getTournamentsPlayoffsController,
     getFixtureByTournamentIdController,
     postFixtureController,
@@ -32,6 +33,8 @@ const {
     getStandingsPlayerInfoController,
     getMatchesController,
     postMatchesController,
+    getOriginateGameController,
+    postOriginateGameController,
     putModifyGameController,
     putRemoveGameController,
     getStatisticsController,
@@ -90,13 +93,19 @@ homeR.post("/tournaments", postTournamentsController)
 
 // homeR.get("/tournaments/playoffs", getTournamentsPlayoffsController) // Provisoria, luego debe ser modificada //
 
-homeR.get("/tournaments/:id/fixture", getFixtureByTournamentIdController)
+homeR.get("/tournaments/:id", getTournamentByIdController)
 
-homeR.post("/tournaments/:id/fixture", postFixtureController)
+homeR.get("/tournaments/:id/create-game/", getOriginateGameController)
+
+homeR.post("/tournaments/:id/create-game/", postOriginateGameController)
 
 homeR.put("/tournaments/:id/update-game/:match", putModifyGameController)
 
 homeR.put("/tournaments/:id/delete-game/:match", putRemoveGameController)
+
+homeR.get("/tournaments/:id/fixture", getFixtureByTournamentIdController)
+
+homeR.post("/tournaments/:id/fixture", postFixtureController)
 
 homeR.get("/statistics", getStatisticsController)
 

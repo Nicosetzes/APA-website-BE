@@ -32,22 +32,6 @@ const matchesSchema = new mongoose.Schema(
                 message: "{VALUE} es un valor inválido",
             },
         },
-        penaltyScoreP1: {
-            type: Number,
-            require: false,
-            enum: {
-                values: scoreLimit(25),
-                message: "{VALUE} es un valor inválido",
-            },
-        },
-        penaltyScoreP2: {
-            type: Number,
-            require: false,
-            enum: {
-                values: scoreLimit(25),
-                message: "{VALUE} es un valor inválido",
-            },
-        },
         type: {
             type: String,
             require: true,

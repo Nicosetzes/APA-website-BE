@@ -1,6 +1,6 @@
 // FUNCIÓN PARA GENERAR EL FIXTURE //
 
-const fixture = (lotteryArray, playerArray) => {
+const fixture = (lotteryArray, playerArray, tournament) => {
     // Calcular cantidad de equipos por jugador: //
     const amountOfTeamsForEachPlayer = lotteryArray.length / playerArray.length
     // console.log(amountOfTeamsForEachPlayer);
@@ -30,41 +30,39 @@ const fixture = (lotteryArray, playerArray) => {
             limit--
             // Le pusheo la suma los índices sorteados a matchesAlreadyPlayedInTotal: //
             matchesAlreadyPlayedInTotal.push(
-                randomTeamOne.team + "vs" + randomTeamTwo.team,
-                randomTeamTwo.team + "vs" + randomTeamOne.team
+                randomTeamOne.team.name + "vs" + randomTeamTwo.team.name,
+                randomTeamTwo.team.name + "vs" + randomTeamOne.team.name
             )
             // Le pusheo los índices individuales sorteados a matchesAlreadyPlayedByTeam para cuantificar cuántos partidos viene jugando cada equipo: //
             matchesAlreadyPlayedByTeam.push(
-                randomTeamOne.team,
-                randomTeamTwo.team
+                randomTeamOne.team.name,
+                randomTeamTwo.team.name
             )
 
-            // Creo un array que tendrá 2 objetos, cada array es un partido: //
-            let modifiedGame = {
+            // Creo el new match //
+            const newMatch = {
                 playerP1: randomTeamOne.player,
                 playerP2: randomTeamTwo.player,
                 teamP1: randomTeamOne.team,
                 teamP2: randomTeamTwo.team,
-                teamIdP1: randomTeamOne.id,
-                teamIdP2: randomTeamTwo.id,
-                teamLogoP1: randomTeamOne.logo,
-                teamLogoP2: randomTeamTwo.logo,
+                type: "regular",
+                tournament,
             }
-            allConcertedMatches.push(modifiedGame)
+            allConcertedMatches.push(newMatch)
             // Chequeo si uno de los equipos sorteados ya jugó su máximo de partidos: //
             let firstCount = 0
             let secondCount = 0
             // Recorro el array matchesAlreadyPlayedByTeam y cuento la cantidad de partidos que jugó cada equipo: //
-            matchesAlreadyPlayedByTeam.forEach((element) => {
-                if (element === randomTeamOne.team) {
+            matchesAlreadyPlayedByTeam.forEach((teamName) => {
+                if (teamName == randomTeamOne.team.name) {
                     firstCount++
                 }
-                if (element === randomTeamTwo.team) {
+                if (teamName == randomTeamTwo.team.name) {
                     secondCount++
                 }
             })
             // Calculo cuáles son los índices de los equipos sorteados (para el paso que sigue): //
-            let firstTeamIndex = lotteryArray.indexOf(randomTeamOne)
+            let firstTeamIndex = lotteryArray.indexOf(randomTeamOne) // REVISAR //
             // Si randomTeamOne alcanzó su máximo de partidos, lo elimino de lotteryArray (por performance): //
             // firstCount === amountOfGamesForEachTeam
             //   ? lotteryArray.splice(firstTeamIndex, 1)
@@ -118,13 +116,14 @@ const fixture = (lotteryArray, playerArray) => {
         if (
             matchesAlreadyPlayedInTotal.some(
                 (element) =>
-                    element === randomTeamOne.team + "vs" + randomTeamTwo.team
+                    element ===
+                    randomTeamOne.team.name + "vs" + randomTeamTwo.team.name
             )
         ) {
             // console.log("EL PARTIDO YA SE JUGÓ, REPITO EL WHILE");
             continue
         }
-        if (randomTeamOne.player === randomTeamTwo.player) {
+        if (randomTeamOne.player.id === randomTeamTwo.player.id) {
             // console.log(randomTeamOne.player);
             // console.log(randomTeamTwo.player);
             // console.log(
