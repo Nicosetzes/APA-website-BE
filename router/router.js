@@ -28,8 +28,9 @@ const {
     getStandingsController,
     getPlayoffsTableController,
     getPlayoffsPlayerInfoController,
-    // getPlayoffsBracketController,
+    getPlayoffsBracketController,
     getPlayersController,
+    getPlayoffsUpdatedWinsController,
     getStandingsPlayerInfoController,
     getMatchesController,
     postMatchesController,
@@ -73,7 +74,9 @@ homeR.get("/playoffs/table", getPlayoffsTableController)
 
 homeR.get("/playoffs/player-info", getPlayoffsPlayerInfoController)
 
-// homeR.get("/playoffs/bracket", getPlayoffsBracketController)
+homeR.get("/playoffs/bracket", getPlayoffsBracketController)
+
+homeR.get("/playoffs/updated-wins", getPlayoffsUpdatedWinsController)
 
 // /PLAYERS
 

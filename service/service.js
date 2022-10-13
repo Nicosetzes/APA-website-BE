@@ -24,6 +24,7 @@ const {
     findMatchById,
     removeMatchById,
     findMatchesByQuery,
+    findMatchesByTournamentId,
     findMatches,
     findTournamentNames,
     findRecentTournamentNames,
@@ -158,6 +159,10 @@ const retrieveMatchesByQuery = async (query) => {
     return await findMatchesByQuery(query)
 }
 
+const retrieveMatchesByTournamentId = async (id) => {
+    return await findMatchesByTournamentId(id)
+}
+
 const retrieveMatches = async (qty) => {
     return await findMatches(qty)
 }
@@ -286,6 +291,7 @@ module.exports = {
     retrieveMatchById,
     deleteMatchById,
     retrieveMatchesByQuery,
+    retrieveMatchesByTournamentId,
     retrieveMatches,
     retrieveTournamentNames,
     retrieveRecentTournamentNames,

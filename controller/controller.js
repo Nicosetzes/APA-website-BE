@@ -24,6 +24,7 @@ const {
     retrieveMatchById,
     deleteMatchById,
     retrieveMatchesByQuery,
+    retrieveMatchesByTournamentId,
     retrieveMatches,
     // retrieveTournamentNames,
     retrieveTournamentTeamsByTournamentId,
@@ -1099,6 +1100,98 @@ const getPlayoffsPlayerInfoController = async (req, res) => {
     }
 }
 
+const getPlayoffsBracketController = async (req, res) => {
+    const playoffsId = "6340436678316e185af86762" // Luego revertir esto //
+    const playoffsName = "Superliga Inglesa 2022 - Playoffs"
+
+    try {
+        const playoffs = await retrieveTournamentById(playoffsId)
+
+        const teamsSortedBySeed = playoffs.teams
+            .map(({ id, name, player, seed }) => {
+                return {
+                    id,
+                    name,
+                    player,
+                    seed,
+                    tournament: { name: playoffsName, id: playoffsId },
+                }
+            })
+            .sort((a, b) => (a.seed > b.seed ? 1 : -1))
+
+        res.status(200).send(teamsSortedBySeed)
+    } catch (err) {
+        return res.status(500).send("Something went wrong!" + err)
+    }
+}
+
+const getPlayoffsUpdatedWinsController = async (req, res) => {
+    const playoffsId = "6340436678316e185af86762" // Luego revertir esto //
+
+    try {
+        const tournament = await retrieveTournamentById(playoffsId)
+
+        const matches = await retrieveMatchesByTournamentId(playoffsId)
+
+        // console.log(matches)
+
+        const winsByTeam = []
+
+        if (matches.length) {
+            tournament.teams.forEach(({ id, name, player, seed }) => {
+                const matchesFromTeam = matches.filter(
+                    ({ teamP1, teamP2 }) => id == teamP1.id || id == teamP2.id
+                )
+                if (matchesFromTeam.length) {
+                    const wins = matchesFromTeam.filter(
+                        ({ outcome }) => outcome.teamThatWon.id == id
+                    ).length
+                    winsByTeam.push({
+                        id,
+                        name,
+                        player,
+                        seed,
+                        tournament: {
+                            name: tournament.name,
+                            id: tournament.id,
+                        },
+                        wins,
+                    })
+                } else {
+                    winsByTeam.push({
+                        id,
+                        name,
+                        player,
+                        seed,
+                        tournament: {
+                            name: tournament.name,
+                            id: tournament.id,
+                        },
+                        wins: 0,
+                    })
+                }
+            })
+        }
+        res.status(200).send({ winsByTeam, playoffsMatches: matches })
+
+        // const teamsSortedBySeed = playoffs.teams
+        //     .map(({ id, name, player, seed }) => {
+        //         return {
+        //             id,
+        //             name,
+        //             player,
+        //             seed,
+        //             tournament: { name: playoffsName, id: playoffsId },
+        //         }
+        //     })
+        //     .sort((a, b) => (a.seed > b.seed ? 1 : -1))
+
+        // res.status(200).send(teamsSortedBySeed)
+    } catch (err) {
+        return res.status(500).send("Something went wrong!" + err)
+    }
+}
+
 const getPlayersController = async (req, res) => {
     // const { query } = req.query
     try {
@@ -1624,7 +1717,8 @@ module.exports = {
     getStandingsController,
     getPlayoffsTableController,
     getPlayoffsPlayerInfoController,
-    // getPlayoffsBracketController,
+    getPlayoffsBracketController,
+    getPlayoffsUpdatedWinsController,
     getPlayersController,
     getMatchesController,
     postMatchesController,

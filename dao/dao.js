@@ -307,6 +307,11 @@ const findMatchesByQuery = async (query) => {
     return matches
 }
 
+const findMatchesByTournamentId = async (id) => {
+    let matches = await matchesModel.find({ "tournament.id": id })
+    return matches
+}
+
 const findMatches = async (qty) => {
     let matches = await matchesModel.find({}).sort({ _id: -1 }).limit(qty)
     return matches
@@ -601,6 +606,7 @@ module.exports = {
     findMatchById,
     removeMatchById,
     findMatchesByQuery,
+    findMatchesByTournamentId,
     findMatches,
     findTournamentNames,
     findRecentTournamentNames,
