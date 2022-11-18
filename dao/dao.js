@@ -308,7 +308,10 @@ const findMatchesByQuery = async (query) => {
 }
 
 const findMatchesByTournamentId = async (id) => {
-    let matches = await matchesModel.find({ "tournament.id": id })
+    let matches = await matchesModel.find({
+        "tournament.id": id,
+        // type: "regular", // Activar a futuro //
+    })
     return matches
 }
 
@@ -355,6 +358,25 @@ const createTournament = async (tournament) => {
 const findTournaments = async () => {
     const tournaments = await tournamentsModel.find({}, "id name status")
     return tournaments
+}
+
+const findTournamentPlayersByTournamentId = async (id) => {
+    const { players } = await tournamentsModel.findById(id, "players")
+    return players
+}
+
+const findTournamentTeamsByTournamentId = async (id) => {
+    const { teams } = await tournamentsModel.findById(id, "teams")
+    return teams
+}
+
+const updateTeamUsersFromTournamentByTournamentId = async (id, teams) => {
+    const updatedTeamUsers = await tournamentsModel.findByIdAndUpdate(
+        id,
+        { teams },
+        { new: true } // Returns the updated document, not the original
+    )
+    return updatedTeamUsers
 }
 
 // const updateFixtureFromTournamentVersionOne = async (
@@ -484,7 +506,7 @@ const updateTeamsFromTournament = async (tournamentId, assignmentArray) => {
         {
             teams: assignmentArray,
         },
-        { new: true }
+        { new: true } // Returns the updated document, not the original
     )
     return updatedTournament
 }
@@ -614,6 +636,9 @@ module.exports = {
     findTournamentById,
     createTournament,
     findTournaments,
+    findTournamentPlayersByTournamentId,
+    findTournamentTeamsByTournamentId,
+    updateTeamUsersFromTournamentByTournamentId,
     // updateFixtureFromTournamentVersionOne,
     // updateFixtureFromTournamentVersionTwo,
     // updateFixtureFromTournamentWhenEditing,

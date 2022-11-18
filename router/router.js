@@ -25,19 +25,23 @@ const {
     // getTournamentsPlayoffsController,
     getFixtureByTournamentIdController,
     postFixtureController,
-    getStandingsController,
+    getStandingsFromTournamentController,
     getPlayoffsTableController,
+    getPlayersFromTournamentController,
     getPlayoffsPlayerInfoController,
     getPlayoffsBracketController,
     getPlayersController,
     getPlayoffsUpdatedWinsController,
-    getStandingsPlayerInfoController,
+    getStandingsPlayerInfoFromTournamentController,
     getMatchesController,
     postMatchesController,
     getOriginateGameController,
     postOriginateGameController,
     putModifyGameController,
     putRemoveGameController,
+    putWorldCupTeamAssignmentController,
+    getWorldCupStandingsController,
+    postWorldCupNewMatchController,
     getStatisticsController,
     getStreaksController,
     achievements,
@@ -62,22 +66,6 @@ homeR.post("/logout", postLogoutController)
 
 homeR.get("/isUserAuthenticated", getIsUserAuthenticatedController)
 
-// /STANDINGS
-
-homeR.get("/standings", getStandingsController)
-
-homeR.get("/standings/player-info", getStandingsPlayerInfoController)
-
-// /PLAYOFFS
-
-homeR.get("/playoffs/table", getPlayoffsTableController)
-
-homeR.get("/playoffs/player-info", getPlayoffsPlayerInfoController)
-
-homeR.get("/playoffs/bracket", getPlayoffsBracketController)
-
-homeR.get("/playoffs/updated-wins", getPlayoffsUpdatedWinsController)
-
 // /PLAYERS
 
 homeR.get("/players", getPlayersController)
@@ -94,21 +82,75 @@ homeR.get("/tournaments", getTournamentsController)
 
 homeR.post("/tournaments", postTournamentsController)
 
-// homeR.get("/tournaments/playoffs", getTournamentsPlayoffsController) // Provisoria, luego debe ser modificada //
+homeR.get("/tournaments/:tournament", getTournamentByIdController)
 
-homeR.get("/tournaments/:id", getTournamentByIdController)
+homeR.get(
+    "/tournaments/:tournament/players",
+    getPlayersFromTournamentController
+)
 
-homeR.get("/tournaments/:id/create-game/", getOriginateGameController)
+homeR.get(
+    "/tournaments/:tournament/matches",
+    getFixtureByTournamentIdController
+)
 
-homeR.post("/tournaments/:id/create-game/", postOriginateGameController)
+homeR.get(
+    "/tournaments/:tournament/matches/create-game/",
+    getOriginateGameController
+)
 
-homeR.put("/tournaments/:id/update-game/:match", putModifyGameController)
+homeR.post(
+    "/tournaments/:tournament/matches/create-game/",
+    postOriginateGameController
+)
 
-homeR.put("/tournaments/:id/delete-game/:match", putRemoveGameController)
+homeR.put(
+    "/tournaments/:tournament/matches/update-game/:match",
+    putModifyGameController
+)
 
-homeR.get("/tournaments/:id/fixture", getFixtureByTournamentIdController)
+homeR.put(
+    "/tournaments/:tournament/matches/delete-game/:match",
+    putRemoveGameController
+)
 
-homeR.post("/tournaments/:id/fixture", postFixtureController)
+homeR.get(
+    "/tournaments/:tournament/standings/table",
+    getStandingsFromTournamentController
+)
+
+homeR.get(
+    "/tournaments/:tournament/standings/player-info",
+    getStandingsPlayerInfoFromTournamentController
+)
+
+homeR.get("/tournaments/:tournament/playoffs/table", getPlayoffsTableController)
+
+homeR.get(
+    "/tournaments/:tournament/playoffs/player-info",
+    getPlayoffsPlayerInfoController
+)
+
+homeR.get(
+    "/tournaments/:tournament/playoffs/bracket",
+    getPlayoffsBracketController
+)
+
+homeR.get(
+    "/tournaments/:tournament/playoffs/updated-wins",
+    getPlayoffsUpdatedWinsController
+)
+
+// //
+
+homeR.put(
+    "/world-cup/:tournament/team-assignment",
+    putWorldCupTeamAssignmentController
+)
+
+homeR.get("/world-cup/:tournament/standings", getWorldCupStandingsController)
+
+homeR.post("/world-cup/:tournament/matches", postWorldCupNewMatchController)
 
 homeR.get("/statistics", getStatisticsController)
 

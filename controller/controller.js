@@ -29,6 +29,7 @@ const {
     // retrieveTournamentNames,
     retrieveTournamentTeamsByTournamentId,
     retrieveTournamentPlayersByTournamentId,
+    modifyTeamUsersFromTournamentByTournamentId,
     // retrieveRecentTournamentNames,
     retrieveOngoingTournaments,
     retrieveTournamentById,
@@ -309,7 +310,7 @@ const postTournamentsController = async (req, res) => {
 }
 
 const getTournamentByIdController = async (req, res) => {
-    const tournamentId = req.params.id
+    const tournamentId = req.params.tournament
     try {
         const tournament = await retrieveTournamentById(tournamentId)
         res.status(200).json(tournament)
@@ -318,139 +319,37 @@ const getTournamentByIdController = async (req, res) => {
     }
 }
 
-const getStandingsPlayerInfoController = async (req, res) => {
-    try {
-        const tournaments = await retrieveOngoingTournaments({ ongoing: true })
-
-        let playerStatsByTournament = []
-
-        tournaments.forEach(async (tournament) => {
-            let { players, id } = tournament
-            let matches = await orderMatchesFromTournamentById(id)
-
-            players.forEach((player) => {
-                let totalMatches = matches.filter(
-                    ({ playerP1, playerP2 }) =>
-                        playerP1.name === player.name ||
-                        playerP2.name === player.name
-                ).length
-
-                let totalWins = matches.filter(
-                    (match) =>
-                        match.outcome?.playerThatWon?.name === player.name
-                ).length
-
-                let totalLosses = matches.filter(
-                    (match) =>
-                        match.outcome?.playerThatLost?.name === player.name
-                ).length
-
-                let totalDraws = totalMatches - totalWins - totalLosses
-
-                let totalPoints = totalWins * 3 + totalDraws
-
-                let streak = matches
-                    .filter(
-                        ({ playerP1, playerP2 }) =>
-                            playerP1.name === player.name ||
-                            playerP2.name === player.name
-                    )
-                    .splice(0, 10) // REVISAR //
-                    .map(
-                        ({
-                            outcome,
-                            id,
-                            playerP1,
-                            teamP1,
-                            scoreP1,
-                            playerP2,
-                            teamP2,
-                            scoreP2,
-                        }) => {
-                            const { playerThatWon } = outcome
-                            const { playerThatLost } = outcome
-                            const { teamThatWon } = outcome
-                            const { scoreFromTeamThatWon } = outcome
-                            const { teamThatLost } = outcome
-                            const { scoreFromTeamThatLost } = outcome
-                            if (
-                                playerThatWon &&
-                                playerThatWon.name == player.name
-                            )
-                                return {
-                                    outcome: "w",
-                                    playerP1: playerThatWon,
-                                    teamP1: teamThatWon,
-                                    scoreP1: scoreFromTeamThatWon,
-                                    playerP2: playerThatLost,
-                                    teamP2: teamThatLost,
-                                    scoreP2: scoreFromTeamThatLost,
-                                    date: new Date(
-                                        parseInt(id.substring(0, 8), 16) * 1000
-                                    ).toLocaleDateString(),
-                                }
-                            if (
-                                playerThatLost &&
-                                playerThatLost.name == player.name
-                            )
-                                return {
-                                    outcome: "l",
-                                    playerP1: playerThatLost,
-                                    teamP1: teamThatLost,
-                                    scoreP1: scoreFromTeamThatLost,
-                                    playerP2: playerThatWon,
-                                    teamP2: teamThatWon,
-                                    scoreP2: scoreFromTeamThatWon,
-                                    date: new Date(
-                                        parseInt(id.substring(0, 8), 16) * 1000
-                                    ).toLocaleDateString(),
-                                }
-                            if (outcome.draw)
-                                return {
-                                    outcome: "d",
-                                    playerP1,
-                                    teamP1,
-                                    scoreP1,
-                                    playerP2,
-                                    teamP2,
-                                    scoreP2,
-                                    date: new Date(
-                                        parseInt(id.substring(0, 8), 16) * 1000
-                                    ).toLocaleDateString(),
-                                }
-                        }
-                    )
-                    .reverse()
-
-                playerStatsByTournament.push({
-                    player,
-                    tournament: tournament.name,
-                    totalMatches,
-                    totalWins,
-                    totalDraws,
-                    totalLosses,
-                    totalPoints,
-                    streak,
-                })
-                if (
-                    playerStatsByTournament.length ===
-                    players.length * tournaments.length
-                )
-                    res.send(playerStatsByTournament)
-            })
-        })
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
-    }
-}
+// const getFixtureByTournamentIdController = async (req, res) => {
+//     // IMPORTANT: Have to remake once this tournament is finished //
+//     const tournamentId = req.params.tournament
+//     try {
+//         const activeTournament = await retrieveTournamentById(tournamentId)
+//         res.status(200).json(activeTournament)
+//         // Agregar excepción en caso de error
+//     } catch (err) {
+//         return res.status(500).send("Something went wrong!" + err)
+//     }
+// }
 
 const getFixtureByTournamentIdController = async (req, res) => {
-    // IMPORTANT: Have to remake once this tournament is finished //
-    const tournamentId = req.params.id
+    const tournamentId = req.params.tournament
     try {
-        const tournament = await retrieveTournamentById(tournamentId)
-        res.status(200).json(tournament)
+        // AHORA DEBO TRAER LOS PARTIDOS DE UN TORNEO ESPECÍFICO //
+        const matches = await retrieveMatchesByTournamentId(tournamentId)
+        res.status(200).json(matches)
         // Agregar excepción en caso de error
+    } catch (err) {
+        return res.status(500).send("Something went wrong!" + err)
+    }
+}
+
+const getPlayersFromTournamentController = async (req, res) => {
+    const tournamentId = req.params.tournament
+    try {
+        const players = await retrieveTournamentPlayersByTournamentId(
+            tournamentId
+        )
+        res.status(200).json(players)
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
     }
@@ -654,17 +553,16 @@ const postOriginateGameController = async (req, res) => {
 
 const putModifyGameController = async (req, res) => {
     //TODO: Accomodate matches inside each tournament, maybe?
-    // const tournamentId = req.params.id
     const matchId = req.params.match
     try {
         // const tournament = await retrieveTournamentById(tournamentId)
 
         let {
             playerP1,
-            teamP1,
-            scoreP1,
             playerP2,
+            teamP1,
             teamP2,
+            scoreP1,
             scoreP2,
             penaltyScoreP1,
             penaltyScoreP2,
@@ -763,174 +661,274 @@ const putRemoveGameController = async (req, res) => {
     }
 }
 
-const getStandingsController = async (req, res) => {
+const getStandingsFromTournamentController = async (req, res) => {
+    const tournament = req.params.tournament
+
     try {
-        const tournaments = await retrieveOngoingTournaments({ ongoing: true })
+        const tournamentFromDB = await retrieveTournamentById(tournament)
+        const matches = await orderMatchesFromTournamentById(tournament)
+        const teamsFromTournament = tournamentFromDB.teams
+        const standings = []
 
-        const standingsArray = []
-
-        let counter = 0
-
-        tournaments.forEach(async (tournament) => {
-            const standings = []
-
-            let matches = await orderMatchesFromTournamentById(tournament.id)
-
-            tournament.teams.forEach(async (team) => {
-                let played = matches.filter(
+        teamsFromTournament.forEach(async (team) => {
+            let played = matches.filter(
+                ({ teamP1, teamP2 }) =>
+                    teamP1.name === team.team || teamP2.name === team.team
+            ).length
+            let wins = matches.filter(
+                ({ outcome }) => outcome?.teamThatWon?.name === team.team
+            ).length
+            let draws = matches.filter(
+                ({ teamP1, teamP2, outcome }) =>
+                    (teamP1.name === team.team || teamP2.name === team.team) &&
+                    outcome.draw
+            ).length
+            let losses = matches.filter(
+                ({ outcome }) => outcome?.teamThatLost?.name === team.team
+            ).length
+            let goalsFor =
+                matches
+                    .filter(({ teamP1 }) => teamP1.name === team.team)
+                    .reduce((acc, curr) => {
+                        return acc + curr.scoreP1
+                    }, 0) +
+                matches
+                    .filter(({ teamP2 }) => teamP2.name === team.team)
+                    .reduce((acc, curr) => {
+                        return acc + curr.scoreP2
+                    }, 0)
+            let goalsAgainst =
+                matches
+                    .filter(({ teamP1 }) => teamP1.name === team.team)
+                    .reduce((acc, curr) => {
+                        return acc + curr.scoreP2
+                    }, 0) +
+                matches
+                    .filter(({ teamP2 }) => teamP2.name === team.team)
+                    .reduce((acc, curr) => {
+                        return acc + curr.scoreP1
+                    }, 0)
+            let scoringDifference = goalsFor - goalsAgainst
+            let points = wins * 3 + draws
+            let streak = matches
+                .filter(
                     ({ teamP1, teamP2 }) =>
                         teamP1.name === team.team || teamP2.name === team.team
-                ).length
-                let wins = matches.filter(
-                    ({ outcome }) => outcome?.teamThatWon?.name === team.team
-                ).length
-                let draws = matches.filter(
-                    ({ teamP1, teamP2, outcome }) =>
-                        (teamP1.name === team.team ||
-                            teamP2.name === team.team) &&
-                        outcome.draw
-                ).length
-                let losses = matches.filter(
-                    ({ outcome }) => outcome?.teamThatLost?.name === team.team
-                ).length
-                let goalsFor =
-                    matches
-                        .filter(({ teamP1 }) => teamP1.name === team.team)
-                        .reduce((acc, curr) => {
-                            return acc + curr.scoreP1
-                        }, 0) +
-                    matches
-                        .filter(({ teamP2 }) => teamP2.name === team.team)
-                        .reduce((acc, curr) => {
-                            return acc + curr.scoreP2
-                        }, 0)
-                let goalsAgainst =
-                    matches
-                        .filter(({ teamP1 }) => teamP1.name === team.team)
-                        .reduce((acc, curr) => {
-                            return acc + curr.scoreP2
-                        }, 0) +
-                    matches
-                        .filter(({ teamP2 }) => teamP2.name === team.team)
-                        .reduce((acc, curr) => {
-                            return acc + curr.scoreP1
-                        }, 0)
-                let scoringDifference = goalsFor - goalsAgainst
-                let points = wins * 3 + draws
-                let streak = matches
-                    .filter(
-                        ({ teamP1, teamP2 }) =>
-                            teamP1.name === team.team ||
-                            teamP2.name === team.team
-                    )
-                    .splice(0, 5) // REVISAR //
-                    .map(
-                        ({
-                            outcome,
-                            id,
-                            playerP1,
-                            teamP1,
-                            scoreP1,
-                            playerP2,
-                            teamP2,
-                            scoreP2,
-                        }) => {
-                            const {
-                                playerThatWon,
-                                teamThatWon,
-                                scoreFromTeamThatWon,
-                                playerThatLost,
-                                teamThatLost,
-                                scoreFromTeamThatLost,
-                            } = outcome
-                            if (teamThatWon && teamThatWon.name === team.team)
-                                return {
-                                    outcome: "w",
-                                    playerP1: playerThatWon,
-                                    teamP1: teamThatWon,
-                                    scoreP1: scoreFromTeamThatWon,
-                                    playerP2: playerThatLost,
-                                    teamP2: teamThatLost,
-                                    scoreP2: scoreFromTeamThatLost,
-                                    date: new Date(
-                                        parseInt(id.substring(0, 8), 16) * 1000
-                                    ).toLocaleDateString(),
-                                }
-                            if (teamThatLost && teamThatLost.name === team.team)
-                                return {
-                                    outcome: "l",
-                                    playerP1: playerThatLost,
-                                    teamP1: teamThatLost,
-                                    scoreP1: scoreFromTeamThatLost,
-                                    playerP2: playerThatWon,
-                                    teamP2: teamThatWon,
-                                    scoreP2: scoreFromTeamThatWon,
-                                    date: new Date(
-                                        parseInt(id.substring(0, 8), 16) * 1000
-                                    ).toLocaleDateString(),
-                                }
-                            if (outcome.draw)
-                                return {
-                                    outcome: "d",
-                                    playerP1,
-                                    teamP1,
-                                    scoreP1,
-                                    playerP2,
-                                    teamP2,
-                                    scoreP2,
-                                    date: new Date(
-                                        parseInt(id.substring(0, 8), 16) * 1000
-                                    ).toLocaleDateString(),
-                                }
-                        }
-                    )
-                    .reverse()
+                )
+                .splice(0, 5) // REVISAR //
+                .map(
+                    ({
+                        outcome,
+                        id,
+                        playerP1,
+                        teamP1,
+                        scoreP1,
+                        playerP2,
+                        teamP2,
+                        scoreP2,
+                    }) => {
+                        const {
+                            playerThatWon,
+                            teamThatWon,
+                            scoreFromTeamThatWon,
+                            playerThatLost,
+                            teamThatLost,
+                            scoreFromTeamThatLost,
+                        } = outcome
+                        if (teamThatWon && teamThatWon.name === team.team)
+                            return {
+                                outcome: "w",
+                                playerP1: playerThatWon,
+                                teamP1: teamThatWon,
+                                scoreP1: scoreFromTeamThatWon,
+                                playerP2: playerThatLost,
+                                teamP2: teamThatLost,
+                                scoreP2: scoreFromTeamThatLost,
+                                date: new Date(
+                                    parseInt(id.substring(0, 8), 16) * 1000
+                                ).toLocaleDateString(),
+                            }
+                        if (teamThatLost && teamThatLost.name === team.team)
+                            return {
+                                outcome: "l",
+                                playerP1: playerThatLost,
+                                teamP1: teamThatLost,
+                                scoreP1: scoreFromTeamThatLost,
+                                playerP2: playerThatWon,
+                                teamP2: teamThatWon,
+                                scoreP2: scoreFromTeamThatWon,
+                                date: new Date(
+                                    parseInt(id.substring(0, 8), 16) * 1000
+                                ).toLocaleDateString(),
+                            }
+                        if (outcome.draw)
+                            return {
+                                outcome: "d",
+                                playerP1,
+                                teamP1,
+                                scoreP1,
+                                playerP2,
+                                teamP2,
+                                scoreP2,
+                                date: new Date(
+                                    parseInt(id.substring(0, 8), 16) * 1000
+                                ).toLocaleDateString(),
+                            }
+                    }
+                )
+                .reverse()
 
-                let { id, player, teamCode } = team
+            let { id, player, teamCode } = team
 
-                standings.push({
-                    id,
-                    team: team.team,
-                    player, // REVISAR
-                    teamCode,
-                    played,
-                    wins,
-                    draws,
-                    losses,
-                    goalsFor,
-                    goalsAgainst,
-                    scoringDifference,
-                    points,
-                    streak,
-                })
+            standings.push({
+                id,
+                team: team.team,
+                player, // REVISAR
+                teamCode,
+                played,
+                wins,
+                draws,
+                losses,
+                goalsFor,
+                goalsAgainst,
+                scoringDifference,
+                points,
+                streak,
             })
-
-            let sortedStanding = standings.sort(function (a, b) {
-                if (a.points > b.points) return -1
-                if (a.points < b.points) return 1
-
-                if (a.scoringDifference > b.scoringDifference) return -1
-                if (a.scoringDifference < b.scoringDifference) return 1
-
-                if (a.goalsFor > b.goalsFor) return -1
-                if (a.goalsFor < b.goalsFor) return 1
-
-                if (a.goalsAgainst > b.goalsAgainst) return 1
-                if (a.goalsAgainst < b.goalsAgainst) return -1
-            })
-
-            standingsArray.push({
-                name: tournament.name,
-                tournamentId: tournament.id,
-                sortedStanding,
-            })
-
-            counter++
-
-            if (counter === tournaments.length) {
-                res.status(200).json(standingsArray)
-            }
         })
+
+        let sortedStandings = standings.sort(function (a, b) {
+            if (a.points > b.points) return -1
+            if (a.points < b.points) return 1
+
+            if (a.scoringDifference > b.scoringDifference) return -1
+            if (a.scoringDifference < b.scoringDifference) return 1
+
+            if (a.goalsFor > b.goalsFor) return -1
+            if (a.goalsFor < b.goalsFor) return 1
+
+            if (a.goalsAgainst > b.goalsAgainst) return 1
+            if (a.goalsAgainst < b.goalsAgainst) return -1
+        })
+
+        res.status(200).send({
+            name: tournamentFromDB.name,
+            tournamentId: tournamentFromDB._id,
+            sortedStandings,
+        })
+    } catch (err) {
+        return res.status(500).send("Something went wrong!" + err)
+    }
+}
+
+const getStandingsPlayerInfoFromTournamentController = async (req, res) => {
+    const tournament = req.params.tournament
+
+    try {
+        const tournamentFromDB = await retrieveTournamentById(tournament)
+        const matches = await orderMatchesFromTournamentById(tournament)
+
+        const { players, _id } = tournamentFromDB
+        const tournamentName = tournamentFromDB.name
+
+        const playerStats = []
+
+        players.forEach((player) => {
+            let totalMatches = matches.filter(
+                ({ playerP1, playerP2 }) =>
+                    playerP1.id == player.id || playerP2.id == player.id
+            ).length
+
+            let totalWins = matches.filter(
+                (match) => match.outcome?.playerThatWon?.id === player.id
+            ).length
+
+            let totalLosses = matches.filter(
+                (match) => match.outcome?.playerThatLost?.id === player.id
+            ).length
+
+            let totalDraws = totalMatches - totalWins - totalLosses
+
+            let totalPoints = totalWins * 3 + totalDraws
+
+            let streak = matches
+                .filter(
+                    ({ playerP1, playerP2 }) =>
+                        playerP1.id == player.id || playerP2.id == player.id
+                )
+                .splice(0, 10) // REVISAR //
+                .map(
+                    ({
+                        outcome,
+                        id,
+                        playerP1,
+                        teamP1,
+                        scoreP1,
+                        playerP2,
+                        teamP2,
+                        scoreP2,
+                    }) => {
+                        const { playerThatWon } = outcome
+                        const { playerThatLost } = outcome
+                        const { teamThatWon } = outcome
+                        const { scoreFromTeamThatWon } = outcome
+                        const { teamThatLost } = outcome
+                        const { scoreFromTeamThatLost } = outcome
+                        if (playerThatWon && playerThatWon.id == player.id)
+                            return {
+                                outcome: "w",
+                                playerP1: playerThatWon,
+                                teamP1: teamThatWon,
+                                scoreP1: scoreFromTeamThatWon,
+                                playerP2: playerThatLost,
+                                teamP2: teamThatLost,
+                                scoreP2: scoreFromTeamThatLost,
+                                date: new Date(
+                                    parseInt(id.substring(0, 8), 16) * 1000
+                                ).toLocaleDateString(),
+                            }
+                        if (playerThatLost && playerThatLost.id == player.id)
+                            return {
+                                outcome: "l",
+                                playerP1: playerThatLost,
+                                teamP1: teamThatLost,
+                                scoreP1: scoreFromTeamThatLost,
+                                playerP2: playerThatWon,
+                                teamP2: teamThatWon,
+                                scoreP2: scoreFromTeamThatWon,
+                                date: new Date(
+                                    parseInt(id.substring(0, 8), 16) * 1000
+                                ).toLocaleDateString(),
+                            }
+                        if (outcome.draw)
+                            return {
+                                outcome: "d",
+                                playerP1,
+                                teamP1,
+                                scoreP1,
+                                playerP2,
+                                teamP2,
+                                scoreP2,
+                                date: new Date(
+                                    parseInt(id.substring(0, 8), 16) * 1000
+                                ).toLocaleDateString(),
+                            }
+                    }
+                )
+                .reverse()
+
+            playerStats.push({
+                player: { name: player.name, id: player.id },
+                tournament: { name: tournamentName, id: _id },
+                totalMatches,
+                totalWins,
+                totalDraws,
+                totalLosses,
+                totalPoints,
+                streak,
+            })
+        })
+        res.send(playerStats)
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
     }
@@ -1319,6 +1317,157 @@ const postMatchesController = async (req, res) => {
     }
 }
 
+const putWorldCupTeamAssignmentController = async (req, res) => {
+    const { tournament } = req.params
+    const assignments = req.body
+    try {
+        const playersFromTournament =
+            await retrieveTournamentPlayersByTournamentId(tournament)
+        const teamsFromTournament = await retrieveTournamentTeamsByTournamentId(
+            tournament
+        )
+        // console.log(teamsFromTournament)
+        let playerName
+        let teamName
+        const teamsWithAssignedPlayers = assignments.map(({ team, user }) => {
+            const filteredPlayerArray = playersFromTournament.filter(
+                ({ id }) => id == user.id
+            )
+            filteredPlayerArray.length
+                ? (playerName = filteredPlayerArray[0].name)
+                : (playerName = "IA")
+            const filteredTeamsArray = teamsFromTournament.filter(
+                (teamFromDB) => teamFromDB.team.id == team.id
+            )
+            if (filteredTeamsArray.length)
+                teamName = filteredTeamsArray[0].team.name
+
+            return {
+                team: { name: teamName, id: team.id, group: team.group },
+                player: { name: playerName, id: user.id },
+            }
+        })
+        // console.log(teamsWithAssignedPlayers)
+        const teamsWithAssignedPlayersFromDB =
+            await modifyTeamUsersFromTournamentByTournamentId(
+                tournament,
+                teamsWithAssignedPlayers
+            )
+        // console.log(teamsWithAssignedPlayersFromDB)
+        res.status(200).send(teamsWithAssignedPlayersFromDB)
+    } catch (err) {
+        return res.status(500).send("Something went wrong!" + err)
+    }
+}
+
+const getWorldCupStandingsController = async (req, res) => {
+    const { tournament } = req.params
+    try {
+        const tournamentFromDB = await retrieveTournamentById(tournament)
+        const matches = await orderMatchesFromTournamentById(tournament)
+        const teamsFromTournament = tournamentFromDB.teams
+        const standings = []
+
+        teamsFromTournament.forEach(async ({ team, player }) => {
+            let played = matches.filter(
+                ({ teamP1, teamP2, scoreP1, scoreP2 }) =>
+                    scoreP1 &&
+                    scoreP2 !== null &&
+                    (teamP1.id == team.id || teamP2.id == team.id)
+            ).length
+            let wins = matches.filter(
+                ({ outcome }) => outcome?.teamThatWon?.id == team.id
+            ).length
+            let draws = matches.filter(
+                ({ teamP1, teamP2, outcome }) =>
+                    (teamP1.id == team.id || teamP2.id == team.id) &&
+                    outcome?.draw
+            ).length
+            let losses = matches.filter(
+                ({ outcome }) => outcome?.teamThatLost?.id == team.id
+            ).length
+            let goalsFor =
+                matches
+                    .filter(
+                        ({ teamP1, scoreP1, scoreP2 }) =>
+                            scoreP1 && scoreP2 !== null && teamP1.id == team.id
+                    )
+                    .reduce((acc, curr) => {
+                        return acc + curr.scoreP1
+                    }, 0) +
+                matches
+                    .filter(
+                        ({ teamP2, scoreP1, scoreP2 }) =>
+                            scoreP1 && scoreP2 !== null && teamP2.id == team.id
+                    )
+                    .reduce((acc, curr) => {
+                        return acc + curr.scoreP2
+                    }, 0)
+            let goalsAgainst =
+                matches
+                    .filter(
+                        ({ teamP1, scoreP1, scoreP2 }) =>
+                            scoreP1 && scoreP2 !== null && teamP1.id == team.id
+                    )
+                    .reduce((acc, curr) => {
+                        return acc + curr.scoreP2
+                    }, 0) +
+                matches
+                    .filter(
+                        ({ teamP2, scoreP1, scoreP2 }) =>
+                            scoreP1 && scoreP2 !== null && teamP2.id == team.id
+                    )
+                    .reduce((acc, curr) => {
+                        return acc + curr.scoreP1
+                    }, 0)
+            let scoringDifference = goalsFor - goalsAgainst
+            let points = wins * 3 + draws
+
+            standings.push({
+                team,
+                player, // REVISAR
+                played,
+                wins,
+                draws,
+                losses,
+                goalsFor,
+                goalsAgainst,
+                scoringDifference,
+                points,
+            })
+        })
+        let sortedStandings = standings.sort(function (a, b) {
+            if (a.points > b.points) return -1
+            if (a.points < b.points) return 1
+
+            if (a.scoringDifference > b.scoringDifference) return -1
+            if (a.scoringDifference < b.scoringDifference) return 1
+
+            if (a.goalsFor > b.goalsFor) return -1
+            if (a.goalsFor < b.goalsFor) return 1
+
+            if (a.goalsAgainst > b.goalsAgainst) return 1
+            if (a.goalsAgainst < b.goalsAgainst) return -1
+        })
+
+        res.status(200).send({
+            sortedStandings,
+        })
+    } catch (err) {
+        return res.status(500).send("Something went wrong!" + err)
+    }
+}
+
+const postWorldCupNewMatchController = async (req, res) => {
+    try {
+        const matches = req.body
+        const newMatches = await originateManyMatches(matches)
+        res.status(200).send(newMatches)
+    } catch (err) {
+        return res.status(500).send("Something went wrong!" + err)
+    }
+}
+
 const getStatisticsController = async (req, res) => {
     try {
         const players = await retrieveAllPlayers()
@@ -1452,6 +1601,8 @@ const getStreaksController = async (req, res) => {
             let recentMatches = await retrieveRecentMatchesFromPlayer(
                 player.name
             )
+
+            console.log(recentMatches)
 
             let streak = recentMatches
                 .map(
@@ -1711,10 +1862,11 @@ module.exports = {
     postTournamentsController,
     getTournamentByIdController,
     // getTournamentsPlayoffsController,
-    getStandingsPlayerInfoController,
     getFixtureByTournamentIdController,
+    getPlayersFromTournamentController,
     postFixtureController,
-    getStandingsController,
+    getStandingsFromTournamentController,
+    getStandingsPlayerInfoFromTournamentController,
     getPlayoffsTableController,
     getPlayoffsPlayerInfoController,
     getPlayoffsBracketController,
@@ -1726,6 +1878,9 @@ module.exports = {
     postOriginateGameController,
     putModifyGameController,
     putRemoveGameController,
+    putWorldCupTeamAssignmentController,
+    getWorldCupStandingsController,
+    postWorldCupNewMatchController,
     getStatisticsController,
     getStreaksController,
     achievements,

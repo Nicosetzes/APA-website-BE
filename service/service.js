@@ -25,8 +25,11 @@ const {
     removeMatchById,
     findMatchesByQuery,
     findMatchesByTournamentId,
+    updateTeamUsersFromTournamentByTournamentId,
     findMatches,
     findTournamentNames,
+    findTournamentPlayersByTournamentId,
+    findTournamentTeamsByTournamentId,
     findRecentTournamentNames,
     findOngoingTournaments,
     findTournamentById,
@@ -163,6 +166,18 @@ const retrieveMatchesByTournamentId = async (id) => {
     return await findMatchesByTournamentId(id)
 }
 
+const retrieveTournamentPlayersByTournamentId = async (id) => {
+    return await findTournamentPlayersByTournamentId(id)
+}
+
+const retrieveTournamentTeamsByTournamentId = async (id) => {
+    return await findTournamentTeamsByTournamentId(id)
+}
+
+const modifyTeamUsersFromTournamentByTournamentId = async (id, team, user) => {
+    return await updateTeamUsersFromTournamentByTournamentId(id, team, user)
+}
+
 const retrieveMatches = async (qty) => {
     return await findMatches(qty)
 }
@@ -292,6 +307,9 @@ module.exports = {
     deleteMatchById,
     retrieveMatchesByQuery,
     retrieveMatchesByTournamentId,
+    retrieveTournamentPlayersByTournamentId,
+    retrieveTournamentTeamsByTournamentId,
+    modifyTeamUsersFromTournamentByTournamentId,
     retrieveMatches,
     retrieveTournamentNames,
     retrieveRecentTournamentNames,
