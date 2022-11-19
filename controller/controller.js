@@ -2,8 +2,7 @@ const {
     originateUser,
     retrieveUserById,
     retrieveUserByUserName,
-    retrieveAllPlayers,
-    // retrievePlayer,
+    retrieveAllUsers,
     retrieveRecentMatchesFromPlayer,
     // retrieveWonMatchesFromPlayer,
     // totalMatchesFromAPlayerTeam,
@@ -332,10 +331,10 @@ const getTournamentByIdController = async (req, res) => {
 // }
 
 const getFixtureByTournamentIdController = async (req, res) => {
-    const tournamentId = req.params.tournament
+    const { tournament } = req.params
     try {
         // AHORA DEBO TRAER LOS PARTIDOS DE UN TORNEO ESPECÍFICO //
-        const matches = await retrieveMatchesByTournamentId(tournamentId)
+        const matches = await retrieveMatchesByTournamentId(tournament)
         res.status(200).json(matches)
         // Agregar excepción en caso de error
     } catch (err) {
@@ -360,12 +359,12 @@ const { fixture } = require("./../fixture-generation")
 const postFixtureController = async (req, res) => {
     try {
         const { players, teams } = req.body
-        const tournamentId = req.params.id
+        const { tournament } = req.params
         const assignmentArray = []
 
-        const tournament = await retrieveTournamentById(tournamentId)
+        const tournamentFromDB = await retrieveTournamentById(tournament)
 
-        const teamsFromTournament = tournament.teams
+        const teamsFromTournament = tournamentFromDB.teams
 
         teams.forEach((teamFromUser, index) => {
             let { team } = teamsFromTournament.filter(
@@ -386,15 +385,15 @@ const postFixtureController = async (req, res) => {
         // console.log(assignmentArray)
 
         const updatedTournament = await modifyTeamsFromTournament(
-            tournamentId,
+            tournament,
             assignmentArray
         )
 
         const playersForFixtureGeneration = updatedTournament.players // REVISAR
 
         const tournamentForFixtureGeneration = {
-            name: tournament.name,
-            id: tournament.id,
+            name: updatedTournament.name,
+            id: updatedTournament.id,
         }
 
         const definitiveFixture = fixture(
@@ -639,7 +638,7 @@ const putRemoveGameController = async (req, res) => {
 }
 
 const getStandingsFromTournamentController = async (req, res) => {
-    const tournament = req.params.tournament
+    const { tournament } = req.params
 
     try {
         const tournamentFromDB = await retrieveTournamentById(tournament)
@@ -647,41 +646,41 @@ const getStandingsFromTournamentController = async (req, res) => {
         const teamsFromTournament = tournamentFromDB.teams
         const standings = []
 
-        teamsFromTournament.forEach(async (team) => {
+        teamsFromTournament.forEach(async ({ team, player }) => {
             let played = matches.filter(
                 ({ teamP1, teamP2 }) =>
-                    teamP1.name === team.team || teamP2.name === team.team
+                    teamP1.id == team.id || teamP2.id == team.id
             ).length
             let wins = matches.filter(
-                ({ outcome }) => outcome?.teamThatWon?.name === team.team
+                ({ outcome }) => outcome?.teamThatWon?.id == team.id
             ).length
             let draws = matches.filter(
                 ({ teamP1, teamP2, outcome }) =>
-                    (teamP1.name === team.team || teamP2.name === team.team) &&
-                    outcome.draw
+                    (teamP1.id == team.id || teamP2.id == team.id) &&
+                    outcome?.draw
             ).length
             let losses = matches.filter(
-                ({ outcome }) => outcome?.teamThatLost?.name === team.team
+                ({ outcome }) => outcome?.teamThatLost?.id == team.id
             ).length
             let goalsFor =
                 matches
-                    .filter(({ teamP1 }) => teamP1.name === team.team)
+                    .filter(({ teamP1 }) => teamP1.id == team.id)
                     .reduce((acc, curr) => {
                         return acc + curr.scoreP1
                     }, 0) +
                 matches
-                    .filter(({ teamP2 }) => teamP2.name === team.team)
+                    .filter(({ teamP2 }) => teamP2.id == team.id)
                     .reduce((acc, curr) => {
                         return acc + curr.scoreP2
                     }, 0)
             let goalsAgainst =
                 matches
-                    .filter(({ teamP1 }) => teamP1.name === team.team)
+                    .filter(({ teamP1 }) => teamP1.id == team.id)
                     .reduce((acc, curr) => {
                         return acc + curr.scoreP2
                     }, 0) +
                 matches
-                    .filter(({ teamP2 }) => teamP2.name === team.team)
+                    .filter(({ teamP2 }) => teamP2.id == team.id)
                     .reduce((acc, curr) => {
                         return acc + curr.scoreP1
                     }, 0)
@@ -690,7 +689,7 @@ const getStandingsFromTournamentController = async (req, res) => {
             let streak = matches
                 .filter(
                     ({ teamP1, teamP2 }) =>
-                        teamP1.name === team.team || teamP2.name === team.team
+                        teamP1.id === team.id || teamP2.id === team.id
                 )
                 .splice(0, 5) // REVISAR //
                 .map(
@@ -712,7 +711,7 @@ const getStandingsFromTournamentController = async (req, res) => {
                             teamThatLost,
                             scoreFromTeamThatLost,
                         } = outcome
-                        if (teamThatWon && teamThatWon.name === team.team)
+                        if (teamThatWon && teamThatWon.id === team.id)
                             return {
                                 outcome: "w",
                                 playerP1: playerThatWon,
@@ -725,7 +724,7 @@ const getStandingsFromTournamentController = async (req, res) => {
                                     parseInt(id.substring(0, 8), 16) * 1000
                                 ).toLocaleDateString(),
                             }
-                        if (teamThatLost && teamThatLost.name === team.team)
+                        if (teamThatLost && teamThatLost.id === team.id)
                             return {
                                 outcome: "l",
                                 playerP1: playerThatLost,
@@ -755,13 +754,9 @@ const getStandingsFromTournamentController = async (req, res) => {
                 )
                 .reverse()
 
-            let { id, player, teamCode } = team
-
             standings.push({
-                id,
-                team: team.team,
-                player, // REVISAR
-                teamCode,
+                team,
+                player,
                 played,
                 wins,
                 draws,
@@ -790,7 +785,6 @@ const getStandingsFromTournamentController = async (req, res) => {
 
         res.status(200).send({
             name: tournamentFromDB.name,
-            tournamentId: tournamentFromDB._id,
             sortedStandings,
         })
     } catch (err) {
@@ -1031,7 +1025,7 @@ const getPlayoffsPlayerInfoController = async (req, res) => {
 
                 const playoffsPlayerStats = []
 
-                const players = await retrieveAllPlayers()
+                const players = await retrieveAllUsers()
 
                 players.forEach((player) => {
                     let totalMatches = matchesFromOngoingTournaments.filter(
@@ -1167,10 +1161,10 @@ const getPlayoffsUpdatedWinsController = async (req, res) => {
     }
 }
 
-const getPlayersController = async (req, res) => {
+const getUsersController = async (req, res) => {
     // const { query } = req.query
     try {
-        const allPlayers = await retrieveAllPlayers()
+        const allPlayers = await retrieveAllUsers()
         const players = allPlayers.map(({ _id, name }) => {
             return {
                 id: _id,
@@ -1433,7 +1427,7 @@ const postWorldCupNewMatchController = async (req, res) => {
 
 const getStatisticsController = async (req, res) => {
     try {
-        const players = await retrieveAllPlayers()
+        const players = await retrieveAllUsers()
         const response = {
             playerStats: [],
             recentMatches: [],
@@ -1553,7 +1547,7 @@ const getStatisticsController = async (req, res) => {
 
 const getStreaksController = async (req, res) => {
     try {
-        const players = await retrieveAllPlayers()
+        const players = await retrieveAllUsers()
         const response = {
             playerStreaks: [],
         }
@@ -1676,7 +1670,7 @@ const hasANumberOfDrawsAchievement = async (
 const achievements = async (req, res) => {
     try {
         const responseArray = []
-        const players = await retrieveAllPlayers()
+        const players = await retrieveAllUsers()
         players.forEach(async (player, index) => {
             let amoutOfMatchesFromPlayer = await totalMatchesFromPlayer(
                 player.name
@@ -1834,7 +1828,7 @@ module.exports = {
     getPlayoffsPlayerInfoController,
     getPlayoffsBracketController,
     getPlayoffsUpdatedWinsController,
-    getPlayersController,
+    getUsersController,
     getMatchesController,
     postMatchesController,
     getOriginateGameController,

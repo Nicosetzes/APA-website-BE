@@ -30,7 +30,7 @@ const {
     getPlayersFromTournamentController,
     getPlayoffsPlayerInfoController,
     getPlayoffsBracketController,
-    getPlayersController,
+    getUsersController,
     getPlayoffsUpdatedWinsController,
     getStandingsPlayerInfoFromTournamentController,
     getMatchesController,
@@ -68,7 +68,7 @@ homeR.get("/isUserAuthenticated", getIsUserAuthenticatedController)
 
 // /PLAYERS
 
-homeR.get("/players", getPlayersController)
+homeR.get("/users", getUsersController)
 
 // /MATCHES
 
@@ -83,6 +83,8 @@ homeR.get("/tournaments", getTournamentsController)
 homeR.post("/tournaments", postTournamentsController)
 
 homeR.get("/tournaments/:tournament", getTournamentByIdController)
+
+homeR.post("/tournaments/:tournament/fixture", postFixtureController)
 
 homeR.get(
     "/tournaments/:tournament/players",

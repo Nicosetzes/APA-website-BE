@@ -2,8 +2,7 @@ const {
     createUser,
     findUserById,
     findUserByUserName,
-    findAllPlayers,
-    findPlayer,
+    findAllUsers,
     findRecentMatchesFromPlayer,
     findWonMatchesFromPlayer,
     countTotalMatchesFromAPlayerTeam,
@@ -56,25 +55,9 @@ const retrieveUserByUserName = async (email) => {
     return await findUserByUserName(email)
 }
 
-const retrieveAllPlayers = async () => {
-    return await findAllPlayers()
+const retrieveAllUsers = async () => {
+    return await findAllUsers()
 }
-
-const retrievePlayer = async (player) => {
-    return await findPlayer(player)
-}
-
-// const orderPlayersByLongestWinningStreak = async () => {
-//     return await sortPlayersByLongestWinningStreak()
-// }
-
-// const orderPlayersByLongestDrawStreak = async () => {
-//     return await sortPlayersByLongestDrawStreak()
-// }
-
-// const orderPlayersByLongestLosingStreak = async () => {
-//     return await sortPlayersByLongestLosingStreak()
-// }
 
 const retrieveRecentMatchesFromPlayer = async (player) => {
     return await findRecentMatchesFromPlayer(player)
@@ -284,8 +267,7 @@ module.exports = {
     originateUser,
     retrieveUserById,
     retrieveUserByUserName,
-    retrieveAllPlayers,
-    retrievePlayer,
+    retrieveAllUsers,
     retrieveRecentMatchesFromPlayer,
     retrieveWonMatchesFromPlayer,
     totalMatchesFromAPlayerTeam,

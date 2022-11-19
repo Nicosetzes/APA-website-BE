@@ -17,9 +17,6 @@ const matchesModel = require("./models/matches.js") // Modelo mongoose para la c
 
 const usersModel = require("./models/users.js") // Modelo mongoose para la carga de usuarios!
 
-const playersModel = require("./models/players.js") // Modelo mongoose para la carga de información de jugadores humanos!
-const matches = require("./models/matches.js")
-
 /* -------------- METHODS -------------- */
 
 /* -------------- usersModel -------------- */
@@ -39,46 +36,10 @@ const findUserByUserName = async (email) => {
     return foundUser
 }
 
-/* -------------- playersModel -------------- */
-
-const findAllPlayers = async () => {
-    const players = await playersModel.find({}, "name")
-    return players
+const findAllUsers = async () => {
+    const foundUsers = await usersModel.find({})
+    return foundUsers
 }
-
-const findPlayer = async (playerQuery) => {
-    const player = await playersModel.findOne({ name: playerQuery })
-    return player
-}
-
-// const sortPlayersByLongestWinningStreak = async () => {
-// 	const players = await playersModel
-// 		.find({}, "name longestWinningStreak")
-// 		.sort({
-// 			longestWinningStreak: -1,
-// 			longestDrawStreak: -1,
-// 			longestLosingStreak: 1,
-// 		});
-// 	return players;
-// };
-
-// const sortPlayersByLongestDrawStreak = async () => {
-// 	const players = await playersModel
-// 		.find({}, "name longestDrawStreak")
-// 		.sort({ longestDrawStreak: -1 });
-// 	return players;
-// };
-
-// const sortPlayersByLongestLosingStreak = async () => {
-// 	const players = await playersModel
-// 		.find({}, "name longestLosingStreak")
-// 		.sort({
-// 			longestLosingStreak: -1,
-// 			longestWinningStreak: -1,
-// 			longestDrawStreak: -1,
-// 		});
-// 	return players;
-// };
 
 /* -------------- matchesModel -------------- */
 
@@ -306,6 +267,7 @@ const removeMatchById = async (id) => {
 const findMatchesByQuery = async (query) => {
     let matches = await matchesModel
         .find({
+            played: true,
             $or: [
                 { "teamP1.name": { $regex: query, $options: "i" } },
                 { "teamP2.name": { $regex: query, $options: "i" } },
@@ -604,9 +566,12 @@ const updateFixtureFromTournamentWhenCreated = async (
 // }
 
 // const updateManyMatches = async () => {
-//     const updatedMatches = matchesModel.deleteMany({
-//         "tournament.id": "634304e294c0030a695e7e3c",
-//     })
+//     const updatedMatches = matchesModel.updateMany(
+//         {
+//             "tournament.name": "Superliga ítalo-española 2022/23",
+//         },
+//         { $set: { "tournament.id": "6377fb8eb217aa7d3bf61eef" } }
+//     )
 //     return updatedMatches
 // }
 
@@ -614,8 +579,7 @@ module.exports = {
     createUser,
     findUserById,
     findUserByUserName,
-    findAllPlayers,
-    findPlayer,
+    findAllUsers,
     findRecentMatchesFromPlayer,
     findWonMatchesFromPlayer,
     countTotalMatchesFromAPlayerTeam,
