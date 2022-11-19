@@ -45,7 +45,7 @@ const {
     getStatisticsController,
     getStreaksController,
     achievements,
-    // majorUpdatesController,
+    majorUpdatesController,
 } = require("./../controller/controller.js")
 
 /* -------------------- isAUTH -------------------- */
@@ -160,7 +160,7 @@ homeR.get("/streaks", getStreaksController)
 
 homeR.get("/achievements", achievements)
 
-// homeR.get("/update", majorUpdatesController)
+homeR.get("/update", majorUpdatesController)
 
 module.exports = {
     homeR,

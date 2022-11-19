@@ -47,6 +47,7 @@ const findRecentMatchesFromPlayer = async (playerQuery) => {
     const matches = await matchesModel
         .find(
             {
+                played: { $ne: false },
                 $or: [
                     { "playerP1.name": playerQuery },
                     { "playerP2.name": playerQuery },
@@ -286,7 +287,10 @@ const findMatchesByTournamentId = async (id) => {
 }
 
 const findMatches = async (qty) => {
-    let matches = await matchesModel.find({}).sort({ _id: -1 }).limit(qty)
+    let matches = await matchesModel
+        .find({ played: { $ne: false } })
+        .sort({ _id: -1 })
+        .limit(qty)
     return matches
 }
 
@@ -565,15 +569,16 @@ const updateFixtureFromTournamentWhenCreated = async (
 //     return updatedMatches
 // }
 
-// const updateManyMatches = async () => {
-//     const updatedMatches = matchesModel.updateMany(
-//         {
-//             "tournament.name": "Superliga ítalo-española 2022/23",
-//         },
-//         { $set: { "tournament.id": "6377fb8eb217aa7d3bf61eef" } }
-//     )
-//     return updatedMatches
-// }
+const updateManyMatches = async () => {
+    const updatedMatches = matchesModel.updateMany(
+        {
+            "tournament.name": "Copa del Mundo 2022",
+            played: { $ne: true },
+        },
+        { $set: { played: false } }
+    )
+    return updatedMatches
+}
 
 module.exports = {
     createUser,
@@ -617,5 +622,5 @@ module.exports = {
     // updateFixtureFromTournamentWhenRemoving,
     updateTeamsFromTournament,
     updateFixtureFromTournamentWhenCreated,
-    // updateManyMatches,
+    updateManyMatches,
 }

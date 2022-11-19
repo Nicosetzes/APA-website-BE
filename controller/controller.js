@@ -40,7 +40,7 @@ const {
     // modifyFixtureFromTournamentWhenRemoving,
     modifyTeamsFromTournament,
     // modifyFixtureFromTournamentWhenCreated,
-    // modifyManyMatches,
+    modifyManyMatches,
 } = require("./../service/service.js")
 
 /* -------------------- HOME -------------------- */
@@ -1471,40 +1471,39 @@ const getStatisticsController = async (req, res) => {
                 break
         }
 
-        players.forEach(async (player) => {
+        players.forEach(async ({ nickname, _id }) => {
             let totalMatches = matches.filter(
                 ({ playerP1, playerP2 }) =>
-                    playerP1.name === player.name ||
-                    playerP2.name === player.name
+                    playerP1.name === nickname || playerP2.name === nickname
             ).length
 
             let wins = matches.filter(
-                ({ outcome }) => outcome?.playerThatWon?.name === player.name
+                ({ outcome }) => outcome?.playerThatWon?.name === nickname
             ).length
 
             let losses = matches.filter(
-                ({ outcome }) => outcome?.playerThatLost?.name === player.name
+                ({ outcome }) => outcome?.playerThatLost?.name === nickname
             ).length
 
             let draws = totalMatches - wins - losses
 
             playerWins.push({
-                player: player.name,
+                player: nickname,
                 wins,
             })
 
             playerDraws.push({
-                player: player.name,
+                player: nickname,
                 draws,
             })
 
             playerLosses.push({
-                player: player.name,
+                player: nickname,
                 losses,
             })
 
             response.playerStats.push({
-                player: player.name,
+                player: nickname,
                 wins,
                 draws,
                 losses,
@@ -1554,12 +1553,8 @@ const getStreaksController = async (req, res) => {
 
         let count = 0
 
-        players.forEach(async (player) => {
-            let recentMatches = await retrieveRecentMatchesFromPlayer(
-                player.name
-            )
-
-            console.log(recentMatches)
+        players.forEach(async ({ nickname }) => {
+            let recentMatches = await retrieveRecentMatchesFromPlayer(nickname)
 
             let streak = recentMatches
                 .map(
@@ -1577,7 +1572,7 @@ const getStreaksController = async (req, res) => {
                         const { playerThatWon } = outcome
                         const { playerThatLost } = outcome
 
-                        if (playerThatWon && playerThatWon.name == player.name)
+                        if (playerThatWon && playerThatWon.name == nickname)
                             return {
                                 outcome: "w",
                                 playerP1,
@@ -1593,7 +1588,7 @@ const getStreaksController = async (req, res) => {
                             }
                         else if (
                             playerThatLost &&
-                            playerThatLost.name == player.name
+                            playerThatLost.name == nickname
                         )
                             return {
                                 outcome: "l",
@@ -1627,7 +1622,7 @@ const getStreaksController = async (req, res) => {
                 .reverse()
 
             response.playerStreaks.push({
-                player: player.name,
+                player: nickname,
                 streak,
             })
 
@@ -1646,7 +1641,6 @@ const hasANumberOfMatchesAchievement = async (
     amount,
     amoutOfMatchesFromPlayer
 ) => {
-    // console.log(`${player}: ${allMatchesFromPlayer}`)
     let hasAchievement = false
     if (amoutOfMatchesFromPlayer >= amount) hasAchievement = true
     return hasAchievement
@@ -1799,15 +1793,15 @@ const achievements = async (req, res) => {
     }
 }
 
-// const majorUpdatesController = async (req, res) => {
-//     try {
-//         const matches = await modifyManyMatches()
+const majorUpdatesController = async (req, res) => {
+    try {
+        const matches = await modifyManyMatches()
 
-//         res.send(matches)
-//     } catch (err) {
-//         console.log(err)
-//     }
-// }
+        res.send(matches)
+    } catch (err) {
+        console.log(err)
+    }
+}
 
 module.exports = {
     getHomeController,
@@ -1841,5 +1835,5 @@ module.exports = {
     getStatisticsController,
     getStreaksController,
     achievements,
-    // majorUpdatesController,
+    majorUpdatesController,
 }
