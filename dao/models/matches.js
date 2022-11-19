@@ -45,6 +45,7 @@ const matchesSchema = new mongoose.Schema(
         outcome: { type: Object, require: true, max: 100 },
         tournament: { type: Object, require: true, max: 100 },
         valid: { type: Boolean, require: false },
+        played: { type: Boolean, require: true },
     },
     { collection }
 )

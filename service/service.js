@@ -265,8 +265,8 @@ const retrieveTournaments = async () => {
 //     return await updateFixtureFromTournamentWhenRemoving(tournamentId, matchId)
 // }
 
-const modifyTeamsFromTournament = async (tournamentId, team, player) => {
-    return await updateTeamsFromTournament(tournamentId, team, player)
+const modifyTeamsFromTournament = async (tournamentId, teams) => {
+    return await updateTeamsFromTournament(tournamentId, teams)
 }
 
 const modifyFixtureFromTournamentWhenCreated = async (

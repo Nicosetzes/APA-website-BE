@@ -367,7 +367,7 @@ const postFixtureController = async (req, res) => {
 
         const teamsFromTournament = tournament.teams
 
-        teams.forEach(async (teamFromUser, index) => {
+        teams.forEach((teamFromUser, index) => {
             let { team } = teamsFromTournament.filter(
                 (teamFromTournament) =>
                     teamFromTournament.team.id == teamFromUser.id
@@ -388,13 +388,7 @@ const postFixtureController = async (req, res) => {
         const updatedTournament = await modifyTeamsFromTournament(
             tournamentId,
             assignmentArray
-        ) // Chequear //
-
-        // assignmentArray.forEach(async ({ team, player }) => {
-        //     await modifyTeamsFromTournament(tournamentId, teams)
-        // })
-
-        // const updatedTournament = await retrieveTournamentById(tournamentId)
+        )
 
         const playersForFixtureGeneration = updatedTournament.players // REVISAR
 
@@ -411,26 +405,9 @@ const postFixtureController = async (req, res) => {
         ) // GENERO EL FIXTURE
 
         if (!definitiveFixture.error) {
-            // const matchesToBePlayed = definitiveFixture.map((match) => {
-            //     return {
-            //         playerP1: match.playerP1,
-            //         playerP2: match.playerP2,
-            //         teamP1: match.teamP1,
-            //         teamP2: match.teamP2,
-            //         teamIdP1: match.teamIdP1,
-            //         teamIdP2: match.teamIdP2,
-            //         scoreP1: null,
-            //         scoreP2: null,
-            //         tournament: {
-            //             name: tournament.name,
-            //             id: tournament.id,
-            //         },
-            //     }
-            // })
+            const newFixture = await originateManyMatches(definitiveFixture)
 
-            await originateManyMatches(definitiveFixture)
-
-            res.status(200).send({ status: "ok" })
+            res.status(200).send(newFixture)
         }
     } catch (err) {
         res.status(500).send("Something went wrong" + err)
@@ -1370,10 +1347,8 @@ const getWorldCupStandingsController = async (req, res) => {
 
         teamsFromTournament.forEach(async ({ team, player }) => {
             let played = matches.filter(
-                ({ teamP1, teamP2, scoreP1, scoreP2 }) =>
-                    scoreP1 &&
-                    scoreP2 !== null &&
-                    (teamP1.id == team.id || teamP2.id == team.id)
+                ({ teamP1, teamP2 }) =>
+                    teamP1.id == team.id || teamP2.id == team.id
             ).length
             let wins = matches.filter(
                 ({ outcome }) => outcome?.teamThatWon?.id == team.id
@@ -1388,35 +1363,23 @@ const getWorldCupStandingsController = async (req, res) => {
             ).length
             let goalsFor =
                 matches
-                    .filter(
-                        ({ teamP1, scoreP1, scoreP2 }) =>
-                            scoreP1 && scoreP2 !== null && teamP1.id == team.id
-                    )
+                    .filter(({ teamP1 }) => teamP1.id == team.id)
                     .reduce((acc, curr) => {
                         return acc + curr.scoreP1
                     }, 0) +
                 matches
-                    .filter(
-                        ({ teamP2, scoreP1, scoreP2 }) =>
-                            scoreP1 && scoreP2 !== null && teamP2.id == team.id
-                    )
+                    .filter(({ teamP2 }) => teamP2.id == team.id)
                     .reduce((acc, curr) => {
                         return acc + curr.scoreP2
                     }, 0)
             let goalsAgainst =
                 matches
-                    .filter(
-                        ({ teamP1, scoreP1, scoreP2 }) =>
-                            scoreP1 && scoreP2 !== null && teamP1.id == team.id
-                    )
+                    .filter(({ teamP1 }) => teamP1.id == team.id)
                     .reduce((acc, curr) => {
                         return acc + curr.scoreP2
                     }, 0) +
                 matches
-                    .filter(
-                        ({ teamP2, scoreP1, scoreP2 }) =>
-                            scoreP1 && scoreP2 !== null && teamP2.id == team.id
-                    )
+                    .filter(({ teamP2 }) => teamP2.id == team.id)
                     .reduce((acc, curr) => {
                         return acc + curr.scoreP1
                     }, 0)

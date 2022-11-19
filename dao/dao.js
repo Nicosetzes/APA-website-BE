@@ -233,7 +233,11 @@ const sortMatchesByScoringDifference = async () => {
 const sortMatchesFromTournamentById = async (tournamentId) => {
     let matches = await matchesModel
         .find(
-            { "tournament.id": tournamentId, type: { $ne: "playin" } },
+            {
+                "tournament.id": tournamentId,
+                played: true,
+                type: { $ne: "playin" },
+            },
             "playerP1 teamP1 scoreP1 playerP2 teamP2 scoreP2 outcome tournament"
         )
         .sort({ _id: -1 })
@@ -266,6 +270,7 @@ const updateMatchResult = async (matchId, scoreP1, scoreP2, outcome) => {
             scoreP1,
             scoreP2,
             outcome,
+            played: true,
         },
         { new: true } // Returns the updated document, not the original
     )
@@ -276,9 +281,12 @@ const updateMatchResultToRemoveIt = async (matchId) => {
     const removedMatchResult = await matchesModel.findByIdAndUpdate(
         matchId,
         {
-            scoreP1: null,
-            scoreP2: null,
-            outcome: {},
+            $unset: {
+                scoreP1: 1,
+                scoreP2: 1,
+                outcome: 1,
+            },
+            played: false,
         },
         { new: true } // Returns the updated document, not the original
     )
@@ -500,11 +508,11 @@ const updateTeamUsersFromTournamentByTournamentId = async (id, teams) => {
 //     return { isDeleted, updatedTournament }
 // }
 
-const updateTeamsFromTournament = async (tournamentId, assignmentArray) => {
+const updateTeamsFromTournament = async (tournamentId, teams) => {
     const updatedTournament = await tournamentsModel.findByIdAndUpdate(
         tournamentId,
         {
-            teams: assignmentArray,
+            teams: teams,
         },
         { new: true } // Returns the updated document, not the original
     )

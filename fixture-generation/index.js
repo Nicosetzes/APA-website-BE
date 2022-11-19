@@ -47,6 +47,7 @@ const fixture = (lotteryArray, playerArray, tournament) => {
                 teamP2: randomTeamTwo.team,
                 type: "regular",
                 tournament,
+                played: false,
             }
             allConcertedMatches.push(newMatch)
             // Chequeo si uno de los equipos sorteados ya jugó su máximo de partidos: //
