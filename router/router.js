@@ -44,6 +44,8 @@ const {
     postWorldCupNewMatchController,
     getStatisticsController,
     getStreaksController,
+    getAllTimeStandingsController,
+    getAllTimeGeneralStatsController,
     achievements,
     majorUpdatesController,
 } = require("./../controller/controller.js")
@@ -155,6 +157,13 @@ homeR.get("/world-cup/:tournament/standings", getWorldCupStandingsController)
 homeR.post("/world-cup/:tournament/matches", postWorldCupNewMatchController)
 
 homeR.get("/statistics", getStatisticsController)
+
+homeR.get("/statistics/all-time/standings", getAllTimeStandingsController)
+
+homeR.get(
+    "/statistics/all-time/general-stats",
+    getAllTimeGeneralStatsController
+)
 
 homeR.get("/streaks", getStreaksController)
 

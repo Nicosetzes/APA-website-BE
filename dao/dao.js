@@ -48,6 +48,7 @@ const findRecentMatchesFromPlayer = async (playerQuery) => {
         .find(
             {
                 played: { $ne: false },
+                valid: { $ne: false },
                 $or: [
                     { "playerP1.name": playerQuery },
                     { "playerP2.name": playerQuery },
@@ -288,7 +289,7 @@ const findMatchesByTournamentId = async (id) => {
 
 const findMatches = async (qty) => {
     let matches = await matchesModel
-        .find({ played: { $ne: false } })
+        .find({ played: { $ne: false }, valid: { $ne: false } })
         .sort({ _id: -1 })
         .limit(qty)
     return matches
@@ -312,10 +313,7 @@ const findRecentTournamentNames = async () => {
 }
 
 const findOngoingTournaments = async () => {
-    const tournaments = await tournamentsModel.find(
-        { ongoing: true },
-        "name teams players"
-    )
+    const tournaments = await tournamentsModel.find({ ongoing: true })
     return tournaments
 }
 

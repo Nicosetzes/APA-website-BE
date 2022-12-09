@@ -47,7 +47,7 @@ const matchesSchema = new mongoose.Schema(
         valid: { type: Boolean, require: false },
         played: { type: Boolean, require: true },
     },
-    { collection }
+    { collection, timestamps: true }
 )
 
 module.exports = mongoose.model(collection, matchesSchema)

@@ -793,7 +793,7 @@ const getStandingsFromTournamentController = async (req, res) => {
 }
 
 const getStandingsPlayerInfoFromTournamentController = async (req, res) => {
-    const tournament = req.params.tournament
+    const { tournament } = req.params
 
     try {
         const tournamentFromDB = await retrieveTournamentById(tournament)
@@ -805,22 +805,22 @@ const getStandingsPlayerInfoFromTournamentController = async (req, res) => {
         const playerStats = []
 
         players.forEach((player) => {
-            let totalMatches = matches.filter(
+            let played = matches.filter(
                 ({ playerP1, playerP2 }) =>
                     playerP1.id == player.id || playerP2.id == player.id
             ).length
 
-            let totalWins = matches.filter(
+            let wins = matches.filter(
                 (match) => match.outcome?.playerThatWon?.id === player.id
             ).length
 
-            let totalLosses = matches.filter(
+            let losses = matches.filter(
                 (match) => match.outcome?.playerThatLost?.id === player.id
             ).length
 
-            let totalDraws = totalMatches - totalWins - totalLosses
+            let draws = played - wins - losses
 
-            let totalPoints = totalWins * 3 + totalDraws
+            let points = wins * 3 + draws
 
             let streak = matches
                 .filter(
@@ -891,11 +891,11 @@ const getStandingsPlayerInfoFromTournamentController = async (req, res) => {
             playerStats.push({
                 player: { name: player.name, id: player.id },
                 tournament: { name: tournamentName, id: _id },
-                totalMatches,
-                totalWins,
-                totalDraws,
-                totalLosses,
-                totalPoints,
+                played,
+                wins,
+                draws,
+                losses,
+                points,
                 streak,
             })
         })
@@ -1637,6 +1637,172 @@ const getStreaksController = async (req, res) => {
     }
 }
 
+const getAllTimeStandingsController = async (req, res) => {
+    try {
+        const players = await retrieveAllUsers()
+        const matches = await retrieveMatches()
+
+        const standings = []
+
+        players.forEach(({ nickname, _id }) => {
+            let played = matches.filter(
+                ({ playerP1, playerP2 }) =>
+                    playerP1.id == _id || playerP2.id == _id
+            ).length
+            let wins = matches.filter(
+                ({ outcome }) => outcome.playerThatWon?.id == _id
+            ).length
+            let draws = matches.filter(
+                ({ playerP1, playerP2, outcome }) =>
+                    outcome.draw && (playerP1.id == _id || playerP2.id == _id)
+            ).length
+            let losses = matches.filter(
+                ({ outcome }) => outcome.playerThatLost?.id == _id
+            ).length
+            let goalsFor =
+                matches
+                    .filter(({ playerP1 }) => playerP1.id == _id)
+                    .reduce((acc, curr) => {
+                        return acc + curr.scoreP1
+                    }, 0) +
+                matches
+                    .filter(({ playerP2 }) => playerP2.id == _id)
+                    .reduce((acc, curr) => {
+                        return acc + curr.scoreP2
+                    }, 0)
+            let goalsAgainst =
+                matches
+                    .filter(({ playerP1 }) => playerP1.id == _id)
+                    .reduce((acc, curr) => {
+                        return acc + curr.scoreP2
+                    }, 0) +
+                matches
+                    .filter(({ playerP2 }) => playerP2.id == _id)
+                    .reduce((acc, curr) => {
+                        return acc + curr.scoreP1
+                    }, 0)
+            let scoringDifference = goalsFor - goalsAgainst
+            let points = wins * 3 + draws
+
+            standings.push({
+                player: { name: nickname, id: _id },
+                played,
+                wins,
+                draws,
+                losses,
+                goalsFor,
+                goalsAgainst,
+                scoringDifference,
+                points,
+            })
+        })
+        let sortedStandings = standings.sort(function (a, b) {
+            if (a.points > b.points) return -1
+            if (a.points < b.points) return 1
+
+            if (a.scoringDifference > b.scoringDifference) return -1
+            if (a.scoringDifference < b.scoringDifference) return 1
+
+            if (a.goalsFor > b.goalsFor) return -1
+            if (a.goalsFor < b.goalsFor) return 1
+
+            if (a.goalsAgainst > b.goalsAgainst) return 1
+            if (a.goalsAgainst < b.goalsAgainst) return -1
+        })
+
+        res.status(200).send(sortedStandings)
+    } catch (err) {
+        return res.status(500).send("Something went wrong!" + err)
+    }
+}
+
+const getAllTimeGeneralStatsController = async (req, res) => {
+    try {
+        const players = await retrieveAllUsers()
+        const matches = await retrieveMatches()
+
+        const stats = []
+
+        players.forEach(({ nickname, _id }) => {
+            let played = matches.filter(
+                ({ playerP1, playerP2 }) =>
+                    playerP1.id == _id || playerP2.id == _id
+            ).length
+            let bestWin = matches
+                .filter(({ outcome }) => outcome.playerThatWon?.id == _id)
+                .sort((a, b) =>
+                    a.outcome.scoringDifference > b.outcome.scoringDifference
+                        ? -1
+                        : 1
+                )
+                .at(0)
+            let worstLoss = matches
+                .filter(({ outcome }) => outcome.playerThatLost?.id == _id)
+                .sort((a, b) =>
+                    a.outcome.scoringDifference > b.outcome.scoringDifference
+                        ? -1
+                        : 1
+                )
+                .at(0)
+            let bestTeam = matches
+                .filter(({ outcome }) => outcome.playerThatWon?.id == _id)
+                .map(({ outcome }) => outcome.teamThatWon.name)
+                .reduce((acc, curr) => {
+                    return acc[curr] ? ++acc[curr] : (acc[curr] = 1), acc
+                }, {})
+            // let goalsFor =
+            //     matches
+            //         .filter(({ playerP1 }) => playerP1.id == _id)
+            //         .reduce((acc, curr) => {
+            //             return acc + curr.scoreP1
+            //         }, 0) +
+            //     matches
+            //         .filter(({ playerP2 }) => playerP2.id == _id)
+            //         .reduce((acc, curr) => {
+            //             return acc + curr.scoreP2
+            //         }, 0)
+            // let goalsAgainst =
+            //     matches
+            //         .filter(({ playerP1 }) => playerP1.id == _id)
+            //         .reduce((acc, curr) => {
+            //             return acc + curr.scoreP2
+            //         }, 0) +
+            //     matches
+            //         .filter(({ playerP2 }) => playerP2.id == _id)
+            //         .reduce((acc, curr) => {
+            //             return acc + curr.scoreP1
+            //         }, 0)
+            // let scoringDifference = goalsFor - goalsAgainst
+            // let points = wins * 3 + draws
+
+            stats.push({
+                player: { name: nickname, id: _id },
+                played,
+                bestWin,
+                worstLoss,
+                bestTeam,
+            })
+        })
+        // let sortedStandings = standings.sort(function (a, b) {
+        //     if (a.points > b.points) return -1
+        //     if (a.points < b.points) return 1
+
+        //     if (a.scoringDifference > b.scoringDifference) return -1
+        //     if (a.scoringDifference < b.scoringDifference) return 1
+
+        //     if (a.goalsFor > b.goalsFor) return -1
+        //     if (a.goalsFor < b.goalsFor) return 1
+
+        //     if (a.goalsAgainst > b.goalsAgainst) return 1
+        //     if (a.goalsAgainst < b.goalsAgainst) return -1
+        // })
+
+        res.status(200).send(stats)
+    } catch (err) {
+        return res.status(500).send("Something went wrong!" + err)
+    }
+}
+
 const hasANumberOfMatchesAchievement = async (
     amount,
     amoutOfMatchesFromPlayer
@@ -1834,6 +2000,8 @@ module.exports = {
     postWorldCupNewMatchController,
     getStatisticsController,
     getStreaksController,
+    getAllTimeStandingsController,
+    getAllTimeGeneralStatsController,
     achievements,
     majorUpdatesController,
 }
