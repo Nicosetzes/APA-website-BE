@@ -46,6 +46,7 @@ const {
     getStreaksController,
     getAllTimeStandingsController,
     getAllTimeGeneralStatsController,
+    getAllTimeFaceToFaceController,
     achievements,
     majorUpdatesController,
 } = require("./../controller/controller.js")
@@ -164,6 +165,8 @@ homeR.get(
     "/statistics/all-time/general-stats",
     getAllTimeGeneralStatsController
 )
+
+homeR.get("/statistics/all-time/face-to-face", getAllTimeFaceToFaceController)
 
 homeR.get("/streaks", getStreaksController)
 
