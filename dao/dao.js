@@ -54,10 +54,10 @@ const findRecentMatchesFromPlayer = async (playerQuery) => {
                     { "playerP2.name": playerQuery },
                 ],
             },
-            "playerP1 teamP1 scoreP1 playerP2 teamP2 scoreP2 tournament outcome"
+            "playerP1 teamP1 scoreP1 playerP2 teamP2 scoreP2 tournament outcome updatedAt"
         )
         .limit(10)
-        .sort({ _id: -1 })
+        .sort({ updatedAt: -1, _id: -1 })
     return matches
 }
 
@@ -201,9 +201,9 @@ const sortMatchesFromTournamentById = async (tournamentId) => {
                 played: true,
                 type: { $ne: "playin" },
             },
-            "playerP1 teamP1 scoreP1 playerP2 teamP2 scoreP2 outcome tournament"
+            "playerP1 teamP1 scoreP1 playerP2 teamP2 scoreP2 outcome tournament updatedAt"
         )
-        .sort({ _id: -1 })
+        .sort({ updatedAt: -1, _id: -1 })
     return matches
 }
 
@@ -275,7 +275,7 @@ const findMatchesByQuery = async (query) => {
                 { "teamP2.name": { $regex: query, $options: "i" } },
             ],
         })
-        .sort({ _id: -1 })
+        .sort({ updatedAt: -1, _id: -1 })
     return matches
 }
 
@@ -289,8 +289,11 @@ const findMatchesByTournamentId = async (id) => {
 
 const findMatches = async (qty) => {
     let matches = await matchesModel
-        .find({ played: { $ne: false }, valid: { $ne: false } })
-        .sort({ _id: -1 })
+        .find({
+            played: { $ne: false },
+            valid: { $ne: false },
+        })
+        .sort({ updatedAt: -1, _id: -1 })
         .limit(qty)
     return matches
 }

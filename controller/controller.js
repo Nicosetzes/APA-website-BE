@@ -702,6 +702,7 @@ const getStandingsFromTournamentController = async (req, res) => {
                         playerP2,
                         teamP2,
                         scoreP2,
+                        updatedAt,
                     }) => {
                         const {
                             playerThatWon,
@@ -720,9 +721,12 @@ const getStandingsFromTournamentController = async (req, res) => {
                                 playerP2: playerThatLost,
                                 teamP2: teamThatLost,
                                 scoreP2: scoreFromTeamThatLost,
-                                date: new Date(
-                                    parseInt(id.substring(0, 8), 16) * 1000
-                                ).toLocaleDateString(),
+                                date: updatedAt
+                                    ? new Date(updatedAt).toLocaleString()
+                                    : new Date(
+                                          parseInt(id.substring(0, 8), 16) *
+                                              1000
+                                      ).toLocaleDateString(),
                             }
                         if (teamThatLost && teamThatLost.id === team.id)
                             return {
@@ -733,9 +737,12 @@ const getStandingsFromTournamentController = async (req, res) => {
                                 playerP2: playerThatWon,
                                 teamP2: teamThatWon,
                                 scoreP2: scoreFromTeamThatWon,
-                                date: new Date(
-                                    parseInt(id.substring(0, 8), 16) * 1000
-                                ).toLocaleDateString(),
+                                date: updatedAt
+                                    ? new Date(updatedAt).toLocaleString()
+                                    : new Date(
+                                          parseInt(id.substring(0, 8), 16) *
+                                              1000
+                                      ).toLocaleDateString(),
                             }
                         if (outcome.draw)
                             return {
@@ -746,9 +753,12 @@ const getStandingsFromTournamentController = async (req, res) => {
                                 playerP2,
                                 teamP2,
                                 scoreP2,
-                                date: new Date(
-                                    parseInt(id.substring(0, 8), 16) * 1000
-                                ).toLocaleDateString(),
+                                date: updatedAt
+                                    ? new Date(updatedAt).toLocaleString()
+                                    : new Date(
+                                          parseInt(id.substring(0, 8), 16) *
+                                              1000
+                                      ).toLocaleDateString(),
                             }
                     }
                 )
@@ -838,6 +848,7 @@ const getStandingsPlayerInfoFromTournamentController = async (req, res) => {
                         playerP2,
                         teamP2,
                         scoreP2,
+                        updatedAt,
                     }) => {
                         const { playerThatWon } = outcome
                         const { playerThatLost } = outcome
@@ -854,9 +865,12 @@ const getStandingsPlayerInfoFromTournamentController = async (req, res) => {
                                 playerP2: playerThatLost,
                                 teamP2: teamThatLost,
                                 scoreP2: scoreFromTeamThatLost,
-                                date: new Date(
-                                    parseInt(id.substring(0, 8), 16) * 1000
-                                ).toLocaleDateString(),
+                                date: updatedAt
+                                    ? new Date(updatedAt).toLocaleString()
+                                    : new Date(
+                                          parseInt(id.substring(0, 8), 16) *
+                                              1000
+                                      ).toLocaleDateString(),
                             }
                         if (playerThatLost && playerThatLost.id == player.id)
                             return {
@@ -867,9 +881,12 @@ const getStandingsPlayerInfoFromTournamentController = async (req, res) => {
                                 playerP2: playerThatWon,
                                 teamP2: teamThatWon,
                                 scoreP2: scoreFromTeamThatWon,
-                                date: new Date(
-                                    parseInt(id.substring(0, 8), 16) * 1000
-                                ).toLocaleDateString(),
+                                date: updatedAt
+                                    ? new Date(updatedAt).toLocaleString()
+                                    : new Date(
+                                          parseInt(id.substring(0, 8), 16) *
+                                              1000
+                                      ).toLocaleDateString(),
                             }
                         if (outcome.draw)
                             return {
@@ -880,9 +897,12 @@ const getStandingsPlayerInfoFromTournamentController = async (req, res) => {
                                 playerP2,
                                 teamP2,
                                 scoreP2,
-                                date: new Date(
-                                    parseInt(id.substring(0, 8), 16) * 1000
-                                ).toLocaleDateString(),
+                                date: updatedAt
+                                    ? new Date(updatedAt).toLocaleString()
+                                    : new Date(
+                                          parseInt(id.substring(0, 8), 16) *
+                                              1000
+                                      ).toLocaleDateString(),
                             }
                     }
                 )
@@ -1452,6 +1472,7 @@ const getStatisticsController = async (req, res) => {
             scoreP2,
             tournament,
             id,
+            updatedAt,
         } of matches) {
             response.recentMatches.push({
                 playerP1,
@@ -1461,9 +1482,11 @@ const getStatisticsController = async (req, res) => {
                 scoreP1,
                 scoreP2,
                 tournament: tournament.name,
-                date: new Date(
-                    parseInt(id.substring(0, 8), 16) * 1000
-                ).toLocaleDateString(),
+                date: updatedAt
+                    ? new Date(updatedAt).toLocaleString()
+                    : new Date(
+                          parseInt(id.substring(0, 8), 16) * 1000
+                      ).toLocaleDateString(),
             })
             if (
                 response.recentMatches.length === amountOfRecentMatchesToDisplay
@@ -1568,6 +1591,7 @@ const getStreaksController = async (req, res) => {
                         outcome,
                         id,
                         tournament,
+                        updatedAt,
                     }) => {
                         const { playerThatWon } = outcome
                         const { playerThatLost } = outcome
@@ -1581,9 +1605,12 @@ const getStreaksController = async (req, res) => {
                                 playerP2,
                                 teamP2,
                                 scoreP2,
-                                date: new Date(
-                                    parseInt(id.substring(0, 8), 16) * 1000
-                                ).toLocaleDateString(),
+                                date: updatedAt
+                                    ? new Date(updatedAt).toLocaleString()
+                                    : new Date(
+                                          parseInt(id.substring(0, 8), 16) *
+                                              1000
+                                      ).toLocaleDateString(),
                                 tournament: tournament.name,
                             }
                         else if (
@@ -1598,9 +1625,12 @@ const getStreaksController = async (req, res) => {
                                 playerP2,
                                 teamP2,
                                 scoreP2,
-                                date: new Date(
-                                    parseInt(id.substring(0, 8), 16) * 1000
-                                ).toLocaleDateString(),
+                                date: updatedAt
+                                    ? new Date(updatedAt).toLocaleString()
+                                    : new Date(
+                                          parseInt(id.substring(0, 8), 16) *
+                                              1000
+                                      ).toLocaleDateString(),
                                 tournament: tournament.name,
                             }
                         else
@@ -1612,9 +1642,12 @@ const getStreaksController = async (req, res) => {
                                 playerP2,
                                 teamP2,
                                 scoreP2,
-                                date: new Date(
-                                    parseInt(id.substring(0, 8), 16) * 1000
-                                ).toLocaleDateString(),
+                                date: updatedAt
+                                    ? new Date(updatedAt).toLocaleString()
+                                    : new Date(
+                                          parseInt(id.substring(0, 8), 16) *
+                                              1000
+                                      ).toLocaleDateString(),
                                 tournament: tournament.name,
                             }
                     }
