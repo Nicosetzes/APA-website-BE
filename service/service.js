@@ -31,10 +31,9 @@ const {
     findTournamentPlayersByTournamentId,
     findTournamentTeamsByTournamentId,
     findRecentTournamentNames,
-    findOngoingTournaments,
+    findTournaments,
     findTournamentById,
     createTournament,
-    findTournaments,
     // updateFixtureFromTournamentVersionOne,
     // updateFixtureFromTournamentVersionTwo,
     // updateFixtureFromTournamentWhenEditing,
@@ -178,8 +177,8 @@ const retrieveRecentTournamentNames = async () => {
     return await findRecentTournamentNames()
 }
 
-const retrieveOngoingTournaments = async () => {
-    return await findOngoingTournaments()
+const retrieveTournaments = async (prop) => {
+    return await findTournaments(prop)
 }
 
 const retrieveTournamentById = async (id) => {
@@ -190,9 +189,9 @@ const originateTournament = async (tournament) => {
     return await createTournament(tournament)
 }
 
-const retrieveTournaments = async () => {
-    return await findTournaments()
-}
+// const retrieveTournaments = async () => {
+//     return await findTournaments()
+// }
 
 // const modifyFixtureFromTournamentVersionOne = async (
 //     tournamentId,
@@ -301,10 +300,9 @@ module.exports = {
     retrieveMatches,
     retrieveTournamentNames,
     retrieveRecentTournamentNames,
-    retrieveOngoingTournaments,
+    retrieveTournaments,
     retrieveTournamentById,
     originateTournament,
-    retrieveTournaments,
     modifyTeamsFromTournament,
     modifyFixtureFromTournamentWhenCreated,
     modifyManyMatches,

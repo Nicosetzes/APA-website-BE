@@ -323,8 +323,8 @@ const findRecentTournamentNames = async () => {
     return tournaments
 }
 
-const findOngoingTournaments = async () => {
-    const tournaments = await tournamentsModel.find({ ongoing: true })
+const findTournaments = async (query) => {
+    const tournaments = await tournamentsModel.find(query)
     return tournaments
 }
 
@@ -338,10 +338,10 @@ const createTournament = async (tournament) => {
     return newTournament
 }
 
-const findTournaments = async () => {
-    const tournaments = await tournamentsModel.find({}, "id name status")
-    return tournaments
-}
+// const findTournaments = async () => {
+//     const tournaments = await tournamentsModel.find({}, "id name status")
+//     return tournaments
+// }
 
 const findTournamentPlayersByTournamentId = async (id) => {
     const { players } = await tournamentsModel.findById(id, "players")
@@ -619,7 +619,7 @@ module.exports = {
     findMatches,
     findTournamentNames,
     findRecentTournamentNames,
-    findOngoingTournaments,
+    findTournaments,
     findTournamentById,
     createTournament,
     findTournaments,

@@ -31,7 +31,7 @@ const {
     retrieveTournamentPlayersByTournamentId,
     modifyTeamUsersFromTournamentByTournamentId,
     // retrieveRecentTournamentNames,
-    retrieveOngoingTournaments,
+    retrieveTournaments,
     retrieveTournamentById,
     originateTournament,
     // retrieveTournaments,
@@ -286,9 +286,14 @@ const getIsUserAuthenticatedController = async (req, res) => {
 
 const getTournamentsController = async (req, res) => {
     try {
-        const tournaments = await retrieveOngoingTournaments({ ongoing: true })
+        const activeTournaments = await retrieveTournaments({
+            ongoing: true,
+        })
+        // const inactiveTournaments = await retrieveTournaments({
+        //     ongoing: false,
+        // })
 
-        res.status(200).json(tournaments)
+        res.status(200).json({ activeTournaments })
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
     }
