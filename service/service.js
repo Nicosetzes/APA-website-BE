@@ -16,6 +16,7 @@ const {
     countTotalLossesFromPlayer,
     sortMatchesByScoringDifference,
     sortMatchesFromTournamentById,
+    sortPlayoffMatchesFromTournamentById,
     createMatch,
     createManyMatches,
     updateMatchResult,
@@ -115,6 +116,10 @@ const orderMatchesByScoringDifference = async () => {
 
 const orderMatchesFromTournamentById = async (tournamentId) => {
     return await sortMatchesFromTournamentById(tournamentId)
+}
+
+const orderPlayoffMatchesFromTournamentById = async (tournamentId) => {
+    return await sortPlayoffMatchesFromTournamentById(tournamentId)
 }
 
 const originateMatch = async (match) => {
@@ -281,6 +286,7 @@ module.exports = {
     totalLossesFromPlayer,
     orderMatchesByScoringDifference,
     orderMatchesFromTournamentById,
+    orderPlayoffMatchesFromTournamentById,
     originateMatch,
     originateManyMatches,
     modifyMatchResult,

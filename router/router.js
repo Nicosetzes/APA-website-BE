@@ -41,7 +41,9 @@ const {
     putRemoveGameController,
     putWorldCupTeamAssignmentController,
     getWorldCupStandingsController,
+    getWorldCupPlayoffTeamsController,
     postWorldCupNewMatchController,
+    getWorldCupPlayoffMatchesController,
     getStatisticsController,
     getStreaksController,
     getAllTimeStandingsController,
@@ -154,6 +156,16 @@ homeR.put(
 )
 
 homeR.get("/world-cup/:tournament/standings", getWorldCupStandingsController)
+
+homeR.get(
+    "/world-cup/:tournament/playoffs/matches",
+    getWorldCupPlayoffMatchesController
+)
+
+homeR.get(
+    "/world-cup/:tournament/playoffs/teams",
+    getWorldCupPlayoffTeamsController
+)
 
 homeR.post("/world-cup/:tournament/matches", postWorldCupNewMatchController)
 

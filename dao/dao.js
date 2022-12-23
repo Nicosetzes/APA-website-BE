@@ -195,14 +195,22 @@ const sortMatchesByScoringDifference = async () => {
 
 const sortMatchesFromTournamentById = async (tournamentId) => {
     let matches = await matchesModel
-        .find(
-            {
-                "tournament.id": tournamentId,
-                played: true,
-                type: { $ne: "playin" },
-            },
-            "playerP1 teamP1 scoreP1 playerP2 teamP2 scoreP2 outcome tournament updatedAt"
-        )
+        .find({
+            "tournament.id": tournamentId,
+            played: true,
+            type: "regular",
+        })
+        .sort({ updatedAt: -1, _id: -1 })
+    return matches
+}
+
+const sortPlayoffMatchesFromTournamentById = async (tournamentId) => {
+    let matches = await matchesModel
+        .find({
+            "tournament.id": tournamentId,
+            played: true,
+            type: "playoff",
+        })
         .sort({ updatedAt: -1, _id: -1 })
     return matches
 }
@@ -599,6 +607,7 @@ module.exports = {
     countTotalLossesFromPlayer,
     sortMatchesByScoringDifference,
     sortMatchesFromTournamentById,
+    sortPlayoffMatchesFromTournamentById,
     createMatch,
     createManyMatches,
     updateMatchResult,

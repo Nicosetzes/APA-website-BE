@@ -16,6 +16,7 @@ const {
     totalLossesFromPlayer,
     // orderMatchesByScoringDifference,
     orderMatchesFromTournamentById,
+    orderPlayoffMatchesFromTournamentById,
     originateMatch,
     originateManyMatches,
     modifyMatchResult,
@@ -1293,6 +1294,7 @@ const postMatchesController = async (req, res) => {
             outcome,
             type,
             tournament,
+            played: true,
         }
 
         const createdMatch = await originateMatch(match)
@@ -1408,7 +1410,7 @@ const getWorldCupStandingsController = async (req, res) => {
                 points,
             })
         })
-        let sortedStandings = standings.sort(function (a, b) {
+        const sortedStandings = standings.sort(function (a, b) {
             if (a.points > b.points) return -1
             if (a.points < b.points) return 1
 
@@ -1422,8 +1424,177 @@ const getWorldCupStandingsController = async (req, res) => {
             if (a.goalsAgainst < b.goalsAgainst) return -1
         })
 
+        res.status(200).send(sortedStandings)
+    } catch (err) {
+        return res.status(500).send("Something went wrong!" + err)
+    }
+}
+
+const getWorldCupPlayoffTeamsController = async (req, res) => {
+    const { tournament } = req.params
+    try {
+        const tournamentFromDB = await retrieveTournamentById(tournament)
+        const regularMatches = await orderMatchesFromTournamentById(tournament)
+        const playoffMatches = await orderPlayoffMatchesFromTournamentById(
+            tournament
+        )
+        const teamsFromTournament = tournamentFromDB.teams
+        const standings = []
+
+        teamsFromTournament.forEach(async ({ team, player }) => {
+            let winsInGroups = regularMatches.filter((match) => {
+                let { outcome } = match
+                return outcome?.teamThatWon?.id == team.id
+            }).length
+
+            let winsInPlayoffs = 0
+
+            if (playoffMatches.length) {
+                winsInPlayoffs = playoffMatches.filter((match) => {
+                    let { outcome } = match
+                    // console.log(type)
+                    return outcome?.teamThatWon?.id == team.id
+                }).length
+            }
+
+            let draws = regularMatches.filter(
+                ({ teamP1, teamP2, outcome }) =>
+                    (teamP1.id == team.id || teamP2.id == team.id) &&
+                    outcome?.draw
+            ).length
+
+            let goalsFor =
+                regularMatches
+                    .filter(({ teamP1 }) => teamP1.id == team.id)
+                    .reduce((acc, curr) => {
+                        return acc + curr.scoreP1
+                    }, 0) +
+                regularMatches
+                    .filter(({ teamP2 }) => teamP2.id == team.id)
+                    .reduce((acc, curr) => {
+                        return acc + curr.scoreP2
+                    }, 0)
+
+            let goalsAgainst =
+                regularMatches
+                    .filter(({ teamP1 }) => teamP1.id == team.id)
+                    .reduce((acc, curr) => {
+                        return acc + curr.scoreP2
+                    }, 0) +
+                regularMatches
+                    .filter(({ teamP2 }) => teamP2.id == team.id)
+                    .reduce((acc, curr) => {
+                        return acc + curr.scoreP1
+                    }, 0)
+
+            let scoringDifference = goalsFor - goalsAgainst
+
+            let points = winsInGroups * 3 + draws
+
+            standings.push({
+                team,
+                player,
+                goalsFor,
+                goalsAgainst,
+                scoringDifference,
+                points,
+                winsInPlayoffs,
+                tournament: {
+                    name: tournamentFromDB.name,
+                    id: tournamentFromDB.id,
+                },
+            })
+        })
+        const sortedStandings = standings.sort((a, b) => {
+            if (a.points > b.points) return -1
+            if (a.points < b.points) return 1
+
+            if (a.scoringDifference > b.scoringDifference) return -1
+            if (a.scoringDifference < b.scoringDifference) return 1
+
+            if (a.goalsFor > b.goalsFor) return -1
+            if (a.goalsFor < b.goalsFor) return 1
+
+            if (a.goalsAgainst > b.goalsAgainst) return 1
+            if (a.goalsAgainst < b.goalsAgainst) return -1
+        })
+
+        const playoffSortedStandingsByGroup = [
+            sortedStandings
+                .filter(({ team }) => team.group == "A")
+                .map(({ player, team, winsInPlayoffs, tournament }, index) => {
+                    return { index, player, team, winsInPlayoffs, tournament }
+                }),
+            sortedStandings
+                .filter(({ team }) => team.group == "B")
+                .map(({ player, team, winsInPlayoffs, tournament }, index) => {
+                    return { index, player, team, winsInPlayoffs, tournament }
+                }),
+            sortedStandings
+                .filter(({ team }) => team.group == "C")
+                .map(({ player, team, winsInPlayoffs, tournament }, index) => {
+                    return { index, player, team, winsInPlayoffs, tournament }
+                }),
+            sortedStandings
+                .filter(({ team }) => team.group == "D")
+                .map(({ player, team, winsInPlayoffs, tournament }, index) => {
+                    return { index, player, team, winsInPlayoffs, tournament }
+                }),
+            sortedStandings
+                .filter(({ team }) => team.group == "E")
+                .map(({ player, team, winsInPlayoffs, tournament }, index) => {
+                    return { index, player, team, winsInPlayoffs, tournament }
+                }),
+            sortedStandings
+                .filter(({ team }) => team.group == "F")
+                .map(({ player, team, winsInPlayoffs, tournament }, index) => {
+                    return { index, player, team, winsInPlayoffs, tournament }
+                }),
+            sortedStandings
+                .filter(({ team }) => team.group == "G")
+                .map(({ player, team, winsInPlayoffs, tournament }, index) => {
+                    return { index, player, team, winsInPlayoffs, tournament }
+                }),
+            sortedStandings
+                .filter(({ team }) => team.group == "H")
+                .map(({ player, team, winsInPlayoffs, tournament }, index) => {
+                    return { index, player, team, winsInPlayoffs, tournament }
+                }),
+        ]
+
+        const firstQuadrant = [
+            playoffSortedStandingsByGroup[0].at(0),
+            playoffSortedStandingsByGroup[1].at(1),
+            playoffSortedStandingsByGroup[2].at(0),
+            playoffSortedStandingsByGroup[3].at(1),
+        ]
+
+        const secondQuadrant = [
+            playoffSortedStandingsByGroup[4].at(0),
+            playoffSortedStandingsByGroup[5].at(1),
+            playoffSortedStandingsByGroup[6].at(0),
+            playoffSortedStandingsByGroup[7].at(1),
+        ]
+
+        const thirdQuadrant = [
+            playoffSortedStandingsByGroup[1].at(0),
+            playoffSortedStandingsByGroup[0].at(1),
+            playoffSortedStandingsByGroup[3].at(0),
+            playoffSortedStandingsByGroup[2].at(1),
+        ]
+
+        const fourthQuadrant = [
+            playoffSortedStandingsByGroup[5].at(0),
+            playoffSortedStandingsByGroup[4].at(1),
+            playoffSortedStandingsByGroup[7].at(0),
+            playoffSortedStandingsByGroup[6].at(1),
+        ]
+
         res.status(200).send({
-            sortedStandings,
+            firstQuadrant,
+            secondQuadrant,
+            thirdQuadrant,
+            fourthQuadrant,
         })
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
@@ -1435,6 +1606,17 @@ const postWorldCupNewMatchController = async (req, res) => {
         const matches = req.body
         const newMatches = await originateManyMatches(matches)
         res.status(200).send(newMatches)
+    } catch (err) {
+        return res.status(500).send("Something went wrong!" + err)
+    }
+}
+
+const getWorldCupPlayoffMatchesController = async (req, res) => {
+    const { tournament } = req.params
+    try {
+        // const tournamentFromDB = await retrieveTournamentById(tournament)
+        const matches = await orderPlayoffMatchesFromTournamentById(tournament)
+        res.status(200).send(matches)
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
     }
@@ -2159,7 +2341,9 @@ module.exports = {
     putRemoveGameController,
     putWorldCupTeamAssignmentController,
     getWorldCupStandingsController,
+    getWorldCupPlayoffTeamsController,
     postWorldCupNewMatchController,
+    getWorldCupPlayoffMatchesController,
     getStatisticsController,
     getStreaksController,
     getAllTimeStandingsController,
