@@ -932,7 +932,7 @@ const getPlayoffsTableController = async (req, res) => {
     try {
         const playoffs = await retrieveTournamentById(playoffsId)
 
-        const tournaments = await retrieveOngoingTournaments({ ongoing: true })
+        const tournaments = await retrieveTournaments({ ongoing: true })
 
         const allTeams = []
 
@@ -1025,7 +1025,7 @@ const getPlayoffsTableController = async (req, res) => {
 
 const getPlayoffsPlayerInfoController = async (req, res) => {
     try {
-        const tournaments = await retrieveOngoingTournaments({ ongoing: true })
+        const tournaments = await retrieveTournaments({ ongoing: true })
 
         let allMatches = []
 
@@ -1496,6 +1496,84 @@ const getWorldCupPlayoffTeamsController = async (req, res) => {
 
             let points = winsInGroups * 3 + draws
 
+            let streak = regularMatches
+                .filter(
+                    ({ teamP1, teamP2 }) =>
+                        teamP1.id === team.id || teamP2.id === team.id
+                )
+                .splice(0, 5) // REVISAR //
+                .map(
+                    ({
+                        outcome,
+                        id,
+                        playerP1,
+                        teamP1,
+                        scoreP1,
+                        playerP2,
+                        teamP2,
+                        scoreP2,
+                        updatedAt,
+                    }) => {
+                        const {
+                            playerThatWon,
+                            teamThatWon,
+                            scoreFromTeamThatWon,
+                            playerThatLost,
+                            teamThatLost,
+                            scoreFromTeamThatLost,
+                        } = outcome
+                        if (teamThatWon && teamThatWon.id === team.id)
+                            return {
+                                outcome: "w",
+                                playerP1: playerThatWon,
+                                teamP1: teamThatWon,
+                                scoreP1: scoreFromTeamThatWon,
+                                playerP2: playerThatLost,
+                                teamP2: teamThatLost,
+                                scoreP2: scoreFromTeamThatLost,
+                                date: updatedAt
+                                    ? new Date(updatedAt).toLocaleString()
+                                    : new Date(
+                                          parseInt(id.substring(0, 8), 16) *
+                                              1000
+                                      ).toLocaleDateString(),
+                            }
+                        if (teamThatLost && teamThatLost.id === team.id)
+                            return {
+                                outcome: "l",
+                                playerP1: playerThatLost,
+                                teamP1: teamThatLost,
+                                scoreP1: scoreFromTeamThatLost,
+                                playerP2: playerThatWon,
+                                teamP2: teamThatWon,
+                                scoreP2: scoreFromTeamThatWon,
+                                date: updatedAt
+                                    ? new Date(updatedAt).toLocaleString()
+                                    : new Date(
+                                          parseInt(id.substring(0, 8), 16) *
+                                              1000
+                                      ).toLocaleDateString(),
+                            }
+                        if (outcome.draw)
+                            return {
+                                outcome: "d",
+                                playerP1,
+                                teamP1,
+                                scoreP1,
+                                playerP2,
+                                teamP2,
+                                scoreP2,
+                                date: updatedAt
+                                    ? new Date(updatedAt).toLocaleString()
+                                    : new Date(
+                                          parseInt(id.substring(0, 8), 16) *
+                                              1000
+                                      ).toLocaleDateString(),
+                            }
+                    }
+                )
+                .reverse()
+
             standings.push({
                 team,
                 player,
@@ -1504,6 +1582,7 @@ const getWorldCupPlayoffTeamsController = async (req, res) => {
                 scoringDifference,
                 points,
                 winsInPlayoffs,
+                streak,
                 tournament: {
                     name: tournamentFromDB.name,
                     id: tournamentFromDB.id,
@@ -1527,44 +1606,140 @@ const getWorldCupPlayoffTeamsController = async (req, res) => {
         const playoffSortedStandingsByGroup = [
             sortedStandings
                 .filter(({ team }) => team.group == "A")
-                .map(({ player, team, winsInPlayoffs, tournament }, index) => {
-                    return { index, player, team, winsInPlayoffs, tournament }
-                }),
+                .map(
+                    (
+                        { player, team, winsInPlayoffs, streak, tournament },
+                        index
+                    ) => {
+                        return {
+                            index,
+                            player,
+                            team,
+                            winsInPlayoffs,
+                            streak,
+                            tournament,
+                        }
+                    }
+                ),
             sortedStandings
                 .filter(({ team }) => team.group == "B")
-                .map(({ player, team, winsInPlayoffs, tournament }, index) => {
-                    return { index, player, team, winsInPlayoffs, tournament }
-                }),
+                .map(
+                    (
+                        { player, team, winsInPlayoffs, streak, tournament },
+                        index
+                    ) => {
+                        return {
+                            index,
+                            player,
+                            team,
+                            winsInPlayoffs,
+                            streak,
+                            tournament,
+                        }
+                    }
+                ),
             sortedStandings
                 .filter(({ team }) => team.group == "C")
-                .map(({ player, team, winsInPlayoffs, tournament }, index) => {
-                    return { index, player, team, winsInPlayoffs, tournament }
-                }),
+                .map(
+                    (
+                        { player, team, winsInPlayoffs, streak, tournament },
+                        index
+                    ) => {
+                        return {
+                            index,
+                            player,
+                            team,
+                            winsInPlayoffs,
+                            streak,
+                            tournament,
+                        }
+                    }
+                ),
             sortedStandings
                 .filter(({ team }) => team.group == "D")
-                .map(({ player, team, winsInPlayoffs, tournament }, index) => {
-                    return { index, player, team, winsInPlayoffs, tournament }
-                }),
+                .map(
+                    (
+                        { player, team, winsInPlayoffs, streak, tournament },
+                        index
+                    ) => {
+                        return {
+                            index,
+                            player,
+                            team,
+                            winsInPlayoffs,
+                            streak,
+                            tournament,
+                        }
+                    }
+                ),
             sortedStandings
                 .filter(({ team }) => team.group == "E")
-                .map(({ player, team, winsInPlayoffs, tournament }, index) => {
-                    return { index, player, team, winsInPlayoffs, tournament }
-                }),
+                .map(
+                    (
+                        { player, team, winsInPlayoffs, streak, tournament },
+                        index
+                    ) => {
+                        return {
+                            index,
+                            player,
+                            team,
+                            winsInPlayoffs,
+                            streak,
+                            tournament,
+                        }
+                    }
+                ),
             sortedStandings
                 .filter(({ team }) => team.group == "F")
-                .map(({ player, team, winsInPlayoffs, tournament }, index) => {
-                    return { index, player, team, winsInPlayoffs, tournament }
-                }),
+                .map(
+                    (
+                        { player, team, winsInPlayoffs, streak, tournament },
+                        index
+                    ) => {
+                        return {
+                            index,
+                            player,
+                            team,
+                            winsInPlayoffs,
+                            streak,
+                            tournament,
+                        }
+                    }
+                ),
             sortedStandings
                 .filter(({ team }) => team.group == "G")
-                .map(({ player, team, winsInPlayoffs, tournament }, index) => {
-                    return { index, player, team, winsInPlayoffs, tournament }
-                }),
+                .map(
+                    (
+                        { player, team, winsInPlayoffs, streak, tournament },
+                        index
+                    ) => {
+                        return {
+                            index,
+                            player,
+                            team,
+                            winsInPlayoffs,
+                            streak,
+                            tournament,
+                        }
+                    }
+                ),
             sortedStandings
                 .filter(({ team }) => team.group == "H")
-                .map(({ player, team, winsInPlayoffs, tournament }, index) => {
-                    return { index, player, team, winsInPlayoffs, tournament }
-                }),
+                .map(
+                    (
+                        { player, team, winsInPlayoffs, streak, tournament },
+                        index
+                    ) => {
+                        return {
+                            index,
+                            player,
+                            team,
+                            winsInPlayoffs,
+                            streak,
+                            tournament,
+                        }
+                    }
+                ),
         ]
 
         const firstQuadrant = [

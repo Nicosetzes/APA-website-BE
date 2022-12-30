@@ -622,7 +622,6 @@ module.exports = {
     findTournaments,
     findTournamentById,
     createTournament,
-    findTournaments,
     findTournamentPlayersByTournamentId,
     findTournamentTeamsByTournamentId,
     updateTeamUsersFromTournamentByTournamentId,
