@@ -23,8 +23,8 @@ const {
     modifyMatchResultToRemoveIt,
     retrieveMatchById,
     deleteMatchById,
-    retrieveMatchesByQuery,
-    retrieveMatchesByTournamentId,
+    retrieveMatchesByTeamName,
+    retrieveMatchesByTournamentIds,
     retrieveMatches,
     // retrieveTournamentNames,
     retrieveTournamentTeamsByTournamentId,
@@ -285,15 +285,22 @@ const getIsUserAuthenticatedController = async (req, res) => {
 }
 
 const getTournamentsController = async (req, res) => {
-    try {
-        const activeTournaments = await retrieveTournaments({
-            ongoing: true,
-        })
-        // const inactiveTournaments = await retrieveTournaments({
-        //     ongoing: false,
-        // })
+    const { active, inactive } = req.query
 
-        res.status(200).json({ activeTournaments })
+    try {
+        let activeTournaments
+        let inactiveTournaments
+
+        if (active)
+            activeTournaments = await retrieveTournaments({
+                ongoing: true,
+            })
+        if (inactive)
+            inactiveTournaments = await retrieveTournaments({
+                ongoing: false,
+            })
+
+        res.status(200).json({ activeTournaments, inactiveTournaments })
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
     }
@@ -335,7 +342,7 @@ const getFixtureByTournamentIdController = async (req, res) => {
     const { tournament } = req.params
     try {
         // AHORA DEBO TRAER LOS PARTIDOS DE UN TORNEO ESPECÍFICO //
-        const matches = await retrieveMatchesByTournamentId(tournament)
+        const matches = await retrieveMatchesByTournamentIds([tournament])
         res.status(200).json(matches)
         // Agregar excepción en caso de error
     } catch (err) {
@@ -927,163 +934,163 @@ const getStandingsPlayerInfoFromTournamentController = async (req, res) => {
 }
 
 const getPlayoffsTableController = async (req, res) => {
-    const playoffsId = "6340436678316e185af86762" // Luego revertir esto //
+    const { tournament } = req.params
 
     try {
-        const playoffs = await retrieveTournamentById(playoffsId)
+        const playoffs = await retrieveTournamentById(tournament)
 
-        const tournaments = await retrieveTournaments({ ongoing: true })
+        const { parents, teams } = playoffs
 
-        const allTeams = []
+        let tournamentData = parents.map(async ({ id }) => {
+            return await retrieveTournamentById(id)
+        })
 
-        let counter = 0
+        Promise.all(tournamentData)
+            .then((values) => {
+                return values
+            })
+            .then((tournaments) => {
+                const allTeams = []
 
-        tournaments.forEach(async (tournament) => {
-            let matches = await orderMatchesFromTournamentById(tournament.id)
+                let counter = 0
 
-            playoffs.teams.forEach(async ({ id, name, player }) => {
-                let played = matches.filter(
-                    ({ teamP1, teamP2 }) =>
-                        teamP1.name === name || teamP2.name === name
-                ).length
-                let wins = matches.filter(
-                    ({ outcome }) => outcome?.teamThatWon?.name === name
-                ).length
-                let draws = matches.filter(
-                    ({ teamP1, teamP2, outcome }) =>
-                        (teamP1.name === name || teamP2.name === name) &&
-                        outcome.draw
-                ).length
-                let losses = matches.filter(
-                    ({ outcome }) => outcome?.teamThatLost?.name === name
-                ).length
-                let goalsFor =
-                    matches
-                        .filter(({ teamP1 }) => teamP1.name === name)
-                        .reduce((acc, curr) => {
-                            return acc + curr.scoreP1
-                        }, 0) +
-                    matches
-                        .filter(({ teamP2 }) => teamP2.name === name)
-                        .reduce((acc, curr) => {
-                            return acc + curr.scoreP2
-                        }, 0)
-                let goalsAgainst =
-                    matches
-                        .filter(({ teamP1 }) => teamP1.name === name)
-                        .reduce((acc, curr) => {
-                            return acc + curr.scoreP2
-                        }, 0) +
-                    matches
-                        .filter(({ teamP2 }) => teamP2.name === name)
-                        .reduce((acc, curr) => {
-                            return acc + curr.scoreP1
-                        }, 0)
-                let scoringDifference = goalsFor - goalsAgainst
-                let points = wins * 3 + draws
+                tournaments.forEach(async (tournament) => {
+                    let matches = await orderMatchesFromTournamentById(
+                        tournament.id
+                    )
 
-                allTeams.push({
-                    id,
-                    team: name,
-                    player,
-                    played,
-                    wins,
-                    draws,
-                    losses,
-                    goalsFor,
-                    goalsAgainst,
-                    scoringDifference,
-                    points,
+                    teams.forEach(({ team, player }) => {
+                        let played = matches.filter(
+                            ({ teamP1, teamP2 }) =>
+                                teamP1.id == team.id || teamP2.id == team.id
+                        ).length
+                        let wins = matches.filter(
+                            ({ outcome }) => outcome?.teamThatWon?.id == team.id
+                        ).length
+                        let draws = matches.filter(
+                            ({ teamP1, teamP2, outcome }) =>
+                                (teamP1.id == team.id ||
+                                    teamP2.id == team.id) &&
+                                outcome.draw
+                        ).length
+                        let losses = matches.filter(
+                            ({ outcome }) =>
+                                outcome?.teamThatLost?.id == team.id
+                        ).length
+                        let goalsFor =
+                            matches
+                                .filter(({ teamP1 }) => teamP1.id == team.id)
+                                .reduce((acc, curr) => {
+                                    return acc + curr.scoreP1
+                                }, 0) +
+                            matches
+                                .filter(({ teamP2 }) => teamP2.id == team.id)
+                                .reduce((acc, curr) => {
+                                    return acc + curr.scoreP2
+                                }, 0)
+                        let goalsAgainst =
+                            matches
+                                .filter(({ teamP1 }) => teamP1.id == team.id)
+                                .reduce((acc, curr) => {
+                                    return acc + curr.scoreP2
+                                }, 0) +
+                            matches
+                                .filter(({ teamP2 }) => teamP2.id == team.id)
+                                .reduce((acc, curr) => {
+                                    return acc + curr.scoreP1
+                                }, 0)
+                        let scoringDifference = goalsFor - goalsAgainst
+                        let points = wins * 3 + draws
+
+                        allTeams.push({
+                            team,
+                            player,
+                            played,
+                            wins,
+                            draws,
+                            losses,
+                            goalsFor,
+                            goalsAgainst,
+                            scoringDifference,
+                            points,
+                        })
+                    })
+
+                    counter++
+
+                    if (counter === tournaments.length) {
+                        let sortedPlayoffsTeams = allTeams.sort(function (
+                            a,
+                            b
+                        ) {
+                            if (a.points > b.points) return -1
+                            if (a.points < b.points) return 1
+
+                            if (a.scoringDifference > b.scoringDifference)
+                                return -1
+                            if (a.scoringDifference < b.scoringDifference)
+                                return 1
+
+                            if (a.goalsFor > b.goalsFor) return -1
+                            if (a.goalsFor < b.goalsFor) return 1
+
+                            if (a.goalsAgainst > b.goalsAgainst) return 1
+                            if (a.goalsAgainst < b.goalsAgainst) return -1
+                        })
+
+                        const definitiveSortedPlayoffsTeams =
+                            sortedPlayoffsTeams.filter((match) => match.played)
+                        res.status(200).json(definitiveSortedPlayoffsTeams)
+                    }
                 })
             })
-
-            counter++
-
-            if (counter === tournaments.length) {
-                let sortedPlayoffsTeams = allTeams.sort(function (a, b) {
-                    if (a.points > b.points) return -1
-                    if (a.points < b.points) return 1
-
-                    if (a.scoringDifference > b.scoringDifference) return -1
-                    if (a.scoringDifference < b.scoringDifference) return 1
-
-                    if (a.goalsFor > b.goalsFor) return -1
-                    if (a.goalsFor < b.goalsFor) return 1
-
-                    if (a.goalsAgainst > b.goalsAgainst) return 1
-                    if (a.goalsAgainst < b.goalsAgainst) return -1
-                })
-                const definitiveSortedPlayoffsTeams =
-                    sortedPlayoffsTeams.filter((match) => match.played)
-                res.status(200).json(definitiveSortedPlayoffsTeams)
-            }
-        })
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
     }
 }
 
 const getPlayoffsPlayerInfoController = async (req, res) => {
+    const { tournament } = req.params
+
     try {
-        const tournaments = await retrieveTournaments({ ongoing: true })
+        const playoffs = await retrieveTournamentById(tournament)
 
-        let allMatches = []
+        const { parents, players } = playoffs
 
-        let matchesFromOngoingTournaments = []
+        const idsFromParents = parents.map(({ id }) => id)
 
-        let counter = 0
+        const matches = await retrieveMatchesByTournamentIds([tournament])
 
-        tournaments.forEach(async ({ id }) => {
-            let matches = await orderMatchesFromTournamentById(id)
-            if (!allMatches.length) {
-                allMatches = matches
-            } else {
-                matchesFromOngoingTournaments = allMatches.concat(matches)
-            }
-            counter++
-            if (counter === tournaments.length) {
-                // REVISAR
+        const playoffsPlayerStats = []
 
-                const playoffsPlayerStats = []
+        players.forEach(({ id, name }) => {
+            let played = matches.filter(
+                ({ playerP1, playerP2 }) =>
+                    playerP1.id == id || playerP2.id == id
+            ).length
 
-                const players = await retrieveAllUsers()
+            let wins = matches.filter(
+                ({ outcome }) => outcome?.playerThatWon?.id == id
+            ).length
 
-                players.forEach((player) => {
-                    let totalMatches = matchesFromOngoingTournaments.filter(
-                        ({ playerP1, playerP2 }) =>
-                            playerP1.name == player.name ||
-                            playerP2.name == player.name
-                    ).length
+            let losses = matches.filter(
+                ({ outcome }) => outcome?.playerThatLost?.id == id
+            ).length
 
-                    let totalWins = matchesFromOngoingTournaments.filter(
-                        ({ outcome }) =>
-                            outcome?.playerThatWon?.name == player.name
-                    ).length
+            let draws = played - wins - losses
 
-                    let totalLosses = matchesFromOngoingTournaments.filter(
-                        ({ outcome }) =>
-                            outcome?.playerThatLost?.name == player.name
-                    ).length
+            let points = wins * 3 + draws
 
-                    let totalDraws = totalMatches - totalWins - totalLosses
-
-                    let totalPoints = totalWins * 3 + totalDraws
-
-                    playoffsPlayerStats.push({
-                        player: {
-                            name: player.name,
-                            id: player._id,
-                        },
-                        totalMatches,
-                        totalWins,
-                        totalDraws,
-                        totalLosses,
-                        totalPoints,
-                    })
-                    if (playoffsPlayerStats.length === players.length)
-                        res.send(playoffsPlayerStats)
-                })
-            }
+            playoffsPlayerStats.push({
+                player: { name, id },
+                played,
+                wins,
+                draws,
+                losses,
+                points,
+            })
+            if (playoffsPlayerStats.length == players.length)
+                res.send(playoffsPlayerStats)
         })
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
@@ -1091,20 +1098,18 @@ const getPlayoffsPlayerInfoController = async (req, res) => {
 }
 
 const getPlayoffsBracketController = async (req, res) => {
-    const playoffsId = "6340436678316e185af86762" // Luego revertir esto //
-    const playoffsName = "Superliga Inglesa 2022 - Playoffs"
+    const { tournament } = req.params
 
     try {
-        const playoffs = await retrieveTournamentById(playoffsId)
+        const playoffs = await retrieveTournamentById(tournament)
 
         const teamsSortedBySeed = playoffs.teams
-            .map(({ id, name, player, seed }) => {
+            .map(({ team, player, seed }) => {
                 return {
-                    id,
-                    name,
+                    team,
                     player,
                     seed,
-                    tournament: { name: playoffsName, id: playoffsId },
+                    tournament: { name: playoffs.name, id: playoffs.id },
                 }
             })
             .sort((a, b) => (a.seed > b.seed ? 1 : -1))
@@ -1116,29 +1121,29 @@ const getPlayoffsBracketController = async (req, res) => {
 }
 
 const getPlayoffsUpdatedWinsController = async (req, res) => {
-    const playoffsId = "6340436678316e185af86762" // Luego revertir esto //
+    const { tournament } = req.params
 
     try {
-        const tournament = await retrieveTournamentById(playoffsId)
+        const playoffs = await retrieveTournamentById(tournament)
 
-        const matches = await retrieveMatchesByTournamentId(playoffsId)
+        const { teams } = playoffs
 
-        // console.log(matches)
+        const matches = await retrieveMatchesByTournamentIds([tournament])
 
         const winsByTeam = []
 
         if (matches.length) {
-            tournament.teams.forEach(({ id, name, player, seed }) => {
+            teams.forEach(({ team, player, seed }) => {
                 const matchesFromTeam = matches.filter(
-                    ({ teamP1, teamP2 }) => id == teamP1.id || id == teamP2.id
+                    ({ teamP1, teamP2 }) =>
+                        teamP1.id == team.id || teamP2.id == team.id
                 )
                 if (matchesFromTeam.length) {
                     const wins = matchesFromTeam.filter(
-                        ({ outcome }) => outcome.teamThatWon.id == id
+                        ({ outcome }) => outcome.teamThatWon?.id == team.id
                     ).length
                     winsByTeam.push({
-                        id,
-                        name,
+                        team,
                         player,
                         seed,
                         tournament: {
@@ -1149,8 +1154,7 @@ const getPlayoffsUpdatedWinsController = async (req, res) => {
                     })
                 } else {
                     winsByTeam.push({
-                        id,
-                        name,
+                        team,
                         player,
                         seed,
                         tournament: {
@@ -1163,20 +1167,6 @@ const getPlayoffsUpdatedWinsController = async (req, res) => {
             })
         }
         res.status(200).send({ winsByTeam, playoffsMatches: matches })
-
-        // const teamsSortedBySeed = playoffs.teams
-        //     .map(({ id, name, player, seed }) => {
-        //         return {
-        //             id,
-        //             name,
-        //             player,
-        //             seed,
-        //             tournament: { name: playoffsName, id: playoffsId },
-        //         }
-        //     })
-        //     .sort((a, b) => (a.seed > b.seed ? 1 : -1))
-
-        // res.status(200).send(teamsSortedBySeed)
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
     }
@@ -1202,7 +1192,7 @@ const getMatchesController = async (req, res) => {
     const { query } = req.query
     try {
         if (query) {
-            const matches = await retrieveMatchesByQuery(query)
+            const matches = await retrieveMatchesByTeamName(query)
             res.json(matches)
         } else {
             const matches = await retrieveMatches(10)
@@ -1319,7 +1309,6 @@ const putWorldCupTeamAssignmentController = async (req, res) => {
         const teamsFromTournament = await retrieveTournamentTeamsByTournamentId(
             tournament
         )
-        // console.log(teamsFromTournament)
         let playerName
         let teamName
         const teamsWithAssignedPlayers = assignments.map(({ team, user }) => {

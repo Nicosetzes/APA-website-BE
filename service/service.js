@@ -23,8 +23,8 @@ const {
     updateMatchResultToRemoveIt,
     findMatchById,
     removeMatchById,
-    findMatchesByQuery,
-    findMatchesByTournamentId,
+    findMatchesByTeamName,
+    findMatchesByTournamentIds,
     updateTeamUsersFromTournamentByTournamentId,
     findMatches,
     findTournamentNames,
@@ -34,12 +34,7 @@ const {
     findTournaments,
     findTournamentById,
     createTournament,
-    // updateFixtureFromTournamentVersionOne,
-    // updateFixtureFromTournamentVersionTwo,
-    // updateFixtureFromTournamentWhenEditing,
-    // updateFixtureFromTournamentWhenRemoving,
     updateTeamsFromTournament,
-    updateFixtureFromTournamentWhenCreated,
     updateManyMatches,
 } = require("./../dao/dao.js")
 
@@ -145,12 +140,12 @@ const deleteMatchById = async (id) => {
     return await removeMatchById(id)
 }
 
-const retrieveMatchesByQuery = async (query) => {
-    return await findMatchesByQuery(query)
+const retrieveMatchesByTeamName = async (query) => {
+    return await findMatchesByTeamName(query)
 }
 
-const retrieveMatchesByTournamentId = async (id) => {
-    return await findMatchesByTournamentId(id)
+const retrieveMatchesByTournamentIds = async (id) => {
+    return await findMatchesByTournamentIds(id)
 }
 
 const retrieveTournamentPlayersByTournamentId = async (id) => {
@@ -256,13 +251,6 @@ const modifyTeamsFromTournament = async (tournamentId, teams) => {
     return await updateTeamsFromTournament(tournamentId, teams)
 }
 
-const modifyFixtureFromTournamentWhenCreated = async (
-    tournamentId,
-    fixture
-) => {
-    return await updateFixtureFromTournamentWhenCreated(tournamentId, fixture)
-}
-
 const modifyManyMatches = async () => {
     return await updateManyMatches()
 }
@@ -292,8 +280,8 @@ module.exports = {
     modifyMatchResultToRemoveIt,
     retrieveMatchById,
     deleteMatchById,
-    retrieveMatchesByQuery,
-    retrieveMatchesByTournamentId,
+    retrieveMatchesByTeamName,
+    retrieveMatchesByTournamentIds,
     retrieveTournamentPlayersByTournamentId,
     retrieveTournamentTeamsByTournamentId,
     modifyTeamUsersFromTournamentByTournamentId,
@@ -304,6 +292,5 @@ module.exports = {
     retrieveTournamentById,
     originateTournament,
     modifyTeamsFromTournament,
-    modifyFixtureFromTournamentWhenCreated,
     modifyManyMatches,
 }
