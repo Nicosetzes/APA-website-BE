@@ -1176,10 +1176,10 @@ const getUsersController = async (req, res) => {
     // const { query } = req.query
     try {
         const allPlayers = await retrieveAllUsers()
-        const players = allPlayers.map(({ _id, name }) => {
+        const players = allPlayers.map(({ _id, nickname }) => {
             return {
                 id: _id,
-                name,
+                name: nickname,
             }
         })
         res.json(players)
