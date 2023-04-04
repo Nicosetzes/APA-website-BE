@@ -307,9 +307,42 @@ const getTournamentsController = async (req, res) => {
 }
 
 const postTournamentsController = async (req, res) => {
-    const { name, players, teams } = req.body
+    const { name, format, players, teams, apa_id } = req.body
+
+    // TODO: Work the format //
+
+    // const img = req.file
+
+    // console.log(req.body)
+    // console.log(req.file)
+
     try {
-        const tournament = await originateTournament({ name, players, teams })
+        const tournamentsFromDB = await retrieveTournaments()
+
+        const apaIdsFromTournaments = tournamentsFromDB
+            .map(({ apa_id }) => Number(apa_id))
+            .sort((a, b) => (a > b ? 1 : -1))
+
+        let tournament
+
+        if (apa_id != null) {
+            const newApaId = Number(apaIdsFromTournaments.at(-1)) + 1
+
+            tournament = await originateTournament({
+                name,
+                players,
+                teams,
+                apa_id: newApaId,
+            })
+        } else {
+            tournament = await originateTournament({
+                name,
+                players,
+                teams,
+                apa_id,
+            })
+        }
+
         res.status(200).json(tournament)
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)

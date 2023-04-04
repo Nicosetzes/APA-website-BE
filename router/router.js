@@ -85,6 +85,8 @@ homeR.post("/matches", postMatchesController) // Provisoria, luego puede ser mod
 
 homeR.get("/tournaments", getTournamentsController)
 
+// const { upload } = require("./../server") // To handle files from FE (FormData) //
+
 homeR.post("/tournaments", postTournamentsController)
 
 homeR.get("/tournaments/:tournament", getTournamentByIdController)

@@ -5,6 +5,8 @@ const dotenv = require("dotenv").config()
 /* -------------------- SERVER -------------------- */
 
 const express = require("express")
+// const multer = require("multer")
+// const upload = multer({ dest: "uploads/" })
 const cookieParser = require("cookie-parser")
 const cors = require("cors")
 
