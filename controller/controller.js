@@ -311,12 +311,26 @@ const postTournamentsController = async (req, res) => {
 
     // TODO: Work the format //
 
-    // const img = req.file
-
     // console.log(req.body)
     // console.log(req.file)
 
     try {
+        const players = await retrieveAllUsers()
+
+        const teamsForDB = teams.map(({ id, name, value }) => {
+            let indexOfPlayer = players.findIndex(
+                (player) => player.id == value
+            )
+
+            return {
+                team: { id, name },
+                player: {
+                    id: value,
+                    name: players[indexOfPlayer].nickname,
+                },
+            }
+        })
+
         const tournamentsFromDB = await retrieveTournaments()
 
         const apaIdsFromTournaments = tournamentsFromDB
@@ -325,20 +339,20 @@ const postTournamentsController = async (req, res) => {
 
         let tournament
 
-        if (apa_id != null) {
+        if (apa_id === null) {
             const newApaId = Number(apaIdsFromTournaments.at(-1)) + 1
 
             tournament = await originateTournament({
                 name,
                 players,
-                teams,
+                teams: teamsForDB,
                 apa_id: newApaId,
             })
         } else {
             tournament = await originateTournament({
                 name,
                 players,
-                teams,
+                teams: teamsForDB,
                 apa_id,
             })
         }
