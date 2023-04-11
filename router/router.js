@@ -5,150 +5,152 @@ const express = require("express")
 /* -------------------- ROUTER -------------------- */
 
 const { Router } = express
-const homeR = Router()
 
-homeR.use(express.json())
+// Defino todos los routers de la aplicación //
 
-homeR.use(express.urlencoded({ extended: true }))
+const root = Router()
+const users = Router()
+const tournaments = Router()
+const statistics = Router()
+
+root.use(express.json()) // Ya definí a nivel aplicación, revisar si es necesario //
+users.use(express.json()) // Ya definí a nivel aplicación, revisar si es necesario //
+tournaments.use(express.json()) // Ya definí a nivel aplicación, revisar si es necesario //
+statistics.use(express.json()) // Ya definí a nivel aplicación, revisar si es necesario //
+
+root.use(express.urlencoded({ extended: true })) // Ya definí a nivel aplicación, revisar si es necesario //
+users.use(express.urlencoded({ extended: true })) // Ya definí a nivel aplicación, revisar si es necesario //
+tournaments.use(express.urlencoded({ extended: true })) // Ya definí a nivel aplicación, revisar si es necesario //
+statistics.use(express.urlencoded({ extended: true })) // Ya definí a nivel aplicación, revisar si es necesario //
 
 /* -------------------- API -------------------- */
 
 const {
-    getHomeController,
-    postRegisterController,
-    postLoginController,
-    postLogoutController,
-    getIsUserAuthenticatedController,
-    getTournamentsController,
-    postTournamentsController,
-    getTournamentByIdController,
-    // getTournamentsPlayoffsController,
-    getFixtureByTournamentIdController,
-    // postFixtureController,
-    getStandingsFromTournamentController,
-    getPlayoffsTableController,
-    getPlayersFromTournamentController,
-    getPlayoffsPlayerInfoController,
-    getPlayoffsBracketController,
-    getUsersController,
-    getPlayoffsUpdatedWinsController,
-    getStandingsPlayerInfoFromTournamentController,
-    getMatchesController,
-    postMatchesController,
-    getOriginateGameController,
-    postOriginateGameController,
-    putModifyGameController,
-    putRemoveGameController,
-    // putWorldCupTeamAssignmentController,
-    getWorldCupStandingsController,
-    getWorldCupPlayoffTeamsController,
-    postWorldCupNewMatchController,
-    getWorldCupPlayoffMatchesController,
-    getStatisticsController,
-    getStreaksController,
-    getAllTimeStandingsController,
-    getAllTimeGeneralStatsController,
-    getAllTimeFaceToFaceController,
-    // majorUpdatesController,
-} = require("./../controller/controller.js")
+    getHome,
+    getMatches,
+    postMatch,
+    getWorldCupStandingsByTournamentId,
+    getWorldCupPlayoffMatchesByTournamentId,
+    getWorldCupPlayoffTeamsByTournamentId,
+    postWorldCupMatchesByTournamentId,
+    getStreaks,
+    getUsers,
+    postRegister,
+    postLogin,
+    postLogout,
+    getIsUserAuthenticated,
+    getTournaments,
+    postTournaments,
+    getTournamentById,
+    getPlayersByTournamentId,
+    getMatchesByTournamentId,
+    postMatchByTournamentId,
+    putMatchByTournamentId,
+    putRemoveMatchByTournamentId,
+    getStandingsTableByTournamentId,
+    getStandingsPlayerInfoByTournamentId,
+    getPlayoffsTableByTournamentId,
+    getPlayoffsPlayerInfoByTournamentId,
+    getPlayoffsBracketByTournamentId,
+    getPlayoffsUpdatedWinsByTournamentId,
+    getStatistics,
+    getAllTimeStandings,
+    getAllTimeGeneralStatistics,
+    getAllTimeFaceToFace,
+} = require("./../controller")
 
 /* -------------------- isAUTH -------------------- */
 
 const { isAuth } = require("./auth")
 
-// HOME
+// ROOT
 
-homeR.get("/", getHomeController)
+root.get("/", getHome)
 
-// LOGIN, LOGOUT, REGISTER, ISUSERAUTHENTICATED
+root.get("/matches", getMatches)
 
-homeR.post("/register", postRegisterController)
+root.post("/matches", postMatch) // Provisoria, luego puede ser modificada //
 
-homeR.post("/login", postLoginController)
+root.get("/world-cup/:tournament/standings", getWorldCupStandingsByTournamentId)
 
-homeR.post("/logout", postLogoutController)
+root.get(
+    "/world-cup/:tournament/playoffs/matches",
+    getWorldCupPlayoffMatchesByTournamentId
+)
 
-homeR.get("/isUserAuthenticated", getIsUserAuthenticatedController)
+root.get(
+    "/world-cup/:tournament/playoffs/teams",
+    getWorldCupPlayoffTeamsByTournamentId
+)
 
-// /PLAYERS
+root.post("/world-cup/:tournament/matches", postWorldCupMatchesByTournamentId)
 
-homeR.get("/users", getUsersController)
+root.get("/streaks", getStreaks)
 
-// /MATCHES
+// USERS
 
-homeR.get("/matches", getMatchesController)
+users.get("/", getUsers)
 
-homeR.post("/matches", postMatchesController) // Provisoria, luego puede ser modificada //
+users.post("/register", postRegister)
 
-// /FIXTURE
+users.post("/login", postLogin)
 
-homeR.get("/tournaments", getTournamentsController)
+users.post("/logout", postLogout)
 
-// const { upload } = require("./../server") // To handle files from FE (FormData) //
+users.get("/isUserAuthenticated", getIsUserAuthenticated)
+
+// TOURNAMENTS
+
+tournaments.get("/", getTournaments)
 
 const upload = require("./multer")
 
-homeR.post("/tournaments", upload.single("file"), postTournamentsController)
+tournaments.post("/", upload.single("file"), postTournaments)
 
-homeR.get("/tournaments/:tournament", getTournamentByIdController)
+tournaments.get("/:tournament", getTournamentById)
 
 // homeR.post("/tournaments/:tournament/fixture", postFixtureController)
 
-homeR.get(
-    "/tournaments/:tournament/players",
-    getPlayersFromTournamentController
+tournaments.get("/:tournament/players", getPlayersByTournamentId)
+
+tournaments.get("/:tournament/matches", getMatchesByTournamentId)
+
+// tournaments.get("/:tournament/matches/create-game/", getOriginateGameController)
+
+tournaments.post("/:tournament/matches/create-game/", postMatchByTournamentId)
+
+tournaments.put(
+    "/:tournament/matches/update-game/:match",
+    putMatchByTournamentId
 )
 
-homeR.get(
-    "/tournaments/:tournament/matches",
-    getFixtureByTournamentIdController
+tournaments.put(
+    "/:tournament/matches/delete-game/:match",
+    putRemoveMatchByTournamentId
 )
 
-homeR.get(
-    "/tournaments/:tournament/matches/create-game/",
-    getOriginateGameController
+tournaments.get("/:tournament/standings/table", getStandingsTableByTournamentId)
+
+tournaments.get(
+    "/:tournament/standings/player-info",
+    getStandingsPlayerInfoByTournamentId
 )
 
-homeR.post(
-    "/tournaments/:tournament/matches/create-game/",
-    postOriginateGameController
+tournaments.get("/:tournament/playoffs/table", getPlayoffsTableByTournamentId)
+
+tournaments.get(
+    "/:tournament/playoffs/player-info",
+    getPlayoffsPlayerInfoByTournamentId
 )
 
-homeR.put(
-    "/tournaments/:tournament/matches/update-game/:match",
-    putModifyGameController
+tournaments.get(
+    "/:tournament/playoffs/bracket",
+    getPlayoffsBracketByTournamentId
 )
 
-homeR.put(
-    "/tournaments/:tournament/matches/delete-game/:match",
-    putRemoveGameController
-)
-
-homeR.get(
-    "/tournaments/:tournament/standings/table",
-    getStandingsFromTournamentController
-)
-
-homeR.get(
-    "/tournaments/:tournament/standings/player-info",
-    getStandingsPlayerInfoFromTournamentController
-)
-
-homeR.get("/tournaments/:tournament/playoffs/table", getPlayoffsTableController)
-
-homeR.get(
-    "/tournaments/:tournament/playoffs/player-info",
-    getPlayoffsPlayerInfoController
-)
-
-homeR.get(
-    "/tournaments/:tournament/playoffs/bracket",
-    getPlayoffsBracketController
-)
-
-homeR.get(
-    "/tournaments/:tournament/playoffs/updated-wins",
-    getPlayoffsUpdatedWinsController
+tournaments.get(
+    "/:tournament/playoffs/updated-wins",
+    getPlayoffsUpdatedWinsByTournamentId
 )
 
 // //
@@ -158,35 +160,21 @@ homeR.get(
 //     putWorldCupTeamAssignmentController
 // )
 
-homeR.get("/world-cup/:tournament/standings", getWorldCupStandingsController)
+// STATISTICS
 
-homeR.get(
-    "/world-cup/:tournament/playoffs/matches",
-    getWorldCupPlayoffMatchesController
-)
+statistics.get("/", getStatistics)
 
-homeR.get(
-    "/world-cup/:tournament/playoffs/teams",
-    getWorldCupPlayoffTeamsController
-)
+statistics.get("/all-time/standings", getAllTimeStandings)
 
-homeR.post("/world-cup/:tournament/matches", postWorldCupNewMatchController)
+statistics.get("/all-time/general-stats", getAllTimeGeneralStatistics)
 
-homeR.get("/statistics", getStatisticsController)
-
-homeR.get("/statistics/all-time/standings", getAllTimeStandingsController)
-
-homeR.get(
-    "/statistics/all-time/general-stats",
-    getAllTimeGeneralStatsController
-)
-
-homeR.get("/statistics/all-time/face-to-face", getAllTimeFaceToFaceController)
-
-homeR.get("/streaks", getStreaksController)
+statistics.get("/all-time/face-to-face", getAllTimeFaceToFace)
 
 // homeR.get("/update", majorUpdatesController)
 
 module.exports = {
-    homeR,
+    root,
+    users,
+    tournaments,
+    statistics,
 }
