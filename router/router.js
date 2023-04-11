@@ -24,7 +24,7 @@ const {
     getTournamentByIdController,
     // getTournamentsPlayoffsController,
     getFixtureByTournamentIdController,
-    postFixtureController,
+    // postFixtureController,
     getStandingsFromTournamentController,
     getPlayoffsTableController,
     getPlayersFromTournamentController,
@@ -39,7 +39,7 @@ const {
     postOriginateGameController,
     putModifyGameController,
     putRemoveGameController,
-    putWorldCupTeamAssignmentController,
+    // putWorldCupTeamAssignmentController,
     getWorldCupStandingsController,
     getWorldCupPlayoffTeamsController,
     postWorldCupNewMatchController,
@@ -49,8 +49,7 @@ const {
     getAllTimeStandingsController,
     getAllTimeGeneralStatsController,
     getAllTimeFaceToFaceController,
-    achievements,
-    majorUpdatesController,
+    // majorUpdatesController,
 } = require("./../controller/controller.js")
 
 /* -------------------- isAUTH -------------------- */
@@ -87,11 +86,13 @@ homeR.get("/tournaments", getTournamentsController)
 
 // const { upload } = require("./../server") // To handle files from FE (FormData) //
 
-homeR.post("/tournaments", postTournamentsController)
+const upload = require("./multer")
+
+homeR.post("/tournaments", upload.single("file"), postTournamentsController)
 
 homeR.get("/tournaments/:tournament", getTournamentByIdController)
 
-homeR.post("/tournaments/:tournament/fixture", postFixtureController)
+// homeR.post("/tournaments/:tournament/fixture", postFixtureController)
 
 homeR.get(
     "/tournaments/:tournament/players",
@@ -152,10 +153,10 @@ homeR.get(
 
 // //
 
-homeR.put(
-    "/world-cup/:tournament/team-assignment",
-    putWorldCupTeamAssignmentController
-)
+// homeR.put(
+//     "/world-cup/:tournament/team-assignment",
+//     putWorldCupTeamAssignmentController
+// )
 
 homeR.get("/world-cup/:tournament/standings", getWorldCupStandingsController)
 
@@ -184,9 +185,7 @@ homeR.get("/statistics/all-time/face-to-face", getAllTimeFaceToFaceController)
 
 homeR.get("/streaks", getStreaksController)
 
-homeR.get("/achievements", achievements)
-
-homeR.get("/update", majorUpdatesController)
+// homeR.get("/update", majorUpdatesController)
 
 module.exports = {
     homeR,

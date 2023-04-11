@@ -4,40 +4,21 @@ const {
     retrieveUserByUserName,
     retrieveAllUsers,
     retrieveRecentMatchesFromPlayer,
-    // retrieveWonMatchesFromPlayer,
-    // totalMatchesFromAPlayerTeam,
-    // totalMatchesFromPlayerByTournament,
-    // totalWinsFromPlayerByTournament,
-    // totalLossesFromPlayerByTournament,
-    totalMatchesFromPlayer,
-    // retrieveTeamsWithAtLeastOneWinFromPlayer,
-    totalWinsFromPlayer,
-    totalDrawsFromPlayer,
-    totalLossesFromPlayer,
-    // orderMatchesByScoringDifference,
     orderMatchesFromTournamentById,
     orderPlayoffMatchesFromTournamentById,
     originateMatch,
     originateManyMatches,
     modifyMatchResult,
     modifyMatchResultToRemoveIt,
-    retrieveMatchById,
-    deleteMatchById,
     retrieveMatchesByTeamName,
     retrieveMatchesByTournamentIds,
     retrieveMatches,
-    // retrieveTournamentNames,
-    retrieveTournamentTeamsByTournamentId,
+    // retrieveTournamentTeamsByTournamentId,
     retrieveTournamentPlayersByTournamentId,
-    modifyTeamUsersFromTournamentByTournamentId,
-    // retrieveRecentTournamentNames,
     retrieveTournaments,
     retrieveTournamentById,
     originateTournament,
-    // retrieveTournaments,
-    modifyTeamsFromTournament,
-    modifyManyMatches,
-} = require("./../service/service.js")
+} = require("./../service")
 
 /* -------------------- HOME -------------------- */
 
@@ -306,16 +287,23 @@ const getTournamentsController = async (req, res) => {
     }
 }
 
+const cloudinary = require("./../cloudinary")
+
+// console.log(cloudinary)
+
 const postTournamentsController = async (req, res) => {
-    const { name, format, players, teams, apa_id } = req.body
+    const { name, format } = req.body
+    const players = JSON.parse(req.body.players)
+    const teams = JSON.parse(req.body.teams)
 
     // TODO: Work the format //
 
-    // console.log(req.body)
-    // console.log(req.file)
+    const apa_id = req.body.apa_id === "null" ? null : req.body.apa_id // El null llega como string en formData, por eso debo validar //
 
     try {
-        const players = await retrieveAllUsers()
+        // Formatting tournament for DB BEGINS //
+
+        // const players = await retrieveAllUsers()
 
         const teamsForDB = teams.map(({ id, name, value }) => {
             let indexOfPlayer = players.findIndex(
@@ -337,10 +325,18 @@ const postTournamentsController = async (req, res) => {
             .map(({ apa_id }) => Number(apa_id))
             .sort((a, b) => (a > b ? 1 : -1))
 
+        // console.log(apaIdsFromTournaments)
+
+        const urls = []
+        const file = req.file
+        const { path } = file
+
         let tournament
 
         if (apa_id === null) {
             const newApaId = Number(apaIdsFromTournaments.at(-1)) + 1
+
+            // console.log(newApaId)
 
             tournament = await originateTournament({
                 name,
@@ -348,7 +344,21 @@ const postTournamentsController = async (req, res) => {
                 teams: teamsForDB,
                 apa_id: newApaId,
             })
+
+            // Uploading tournament image to Cloudinary BEGINS //
+            const uploader = async (path) =>
+                await cloudinary.uploads(path, "tournaments", newApaId)
+
+            const newPath = await uploader(path) // Image upload to Cloudinary //
+            urls.push(newPath)
         } else {
+            // Uploading tournament image to Cloudinary BEGINS //
+            const uploader = async (path) =>
+                await cloudinary.uploads(path, "tournaments", apa_id)
+
+            const newPath = await uploader(path) // Image upload to Cloudinary //
+            urls.push(newPath)
+
             tournament = await originateTournament({
                 name,
                 players,
@@ -357,10 +367,23 @@ const postTournamentsController = async (req, res) => {
             })
         }
 
-        res.status(200).json(tournament)
+        res.status(200).send({ tournament, urls })
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
     }
+
+    // fs.unlinkSync(path) // I think it's not necessary in this case //
+
+    //     res.status(200).json({
+    //       message: 'images uploaded successfully',
+    //       data: urls
+    //     })
+
+    //   } else {
+    //     res.status(405).json({
+    //       err: `${req.method} method not allowed`
+    //     })
+    //   }
 }
 
 const getTournamentByIdController = async (req, res) => {
@@ -411,62 +434,62 @@ const getPlayersFromTournamentController = async (req, res) => {
 
 const { fixture } = require("./../fixture-generation")
 
-const postFixtureController = async (req, res) => {
-    try {
-        const { players, teams } = req.body
-        const { tournament } = req.params
-        const assignmentArray = []
+// const postFixtureController = async (req, res) => {
+//     try {
+//         const { players, teams } = req.body
+//         const { tournament } = req.params
+//         const assignmentArray = []
 
-        const tournamentFromDB = await retrieveTournamentById(tournament)
+//         const tournamentFromDB = await retrieveTournamentById(tournament)
 
-        const teamsFromTournament = tournamentFromDB.teams
+//         const teamsFromTournament = tournamentFromDB.teams
 
-        teams.forEach((teamFromUser, index) => {
-            let { team } = teamsFromTournament.filter(
-                (teamFromTournament) =>
-                    teamFromTournament.team.id == teamFromUser.id
-            )[0] // Me quedo el único elemento de la lista
+//         teams.forEach((teamFromUser, index) => {
+//             let { team } = teamsFromTournament.filter(
+//                 (teamFromTournament) =>
+//                     teamFromTournament.team.id == teamFromUser.id
+//             )[0] // Me quedo el único elemento de la lista
 
-            let assignment = {
-                team,
-                player: players[index],
-            }
+//             let assignment = {
+//                 team,
+//                 player: players[index],
+//             }
 
-            assignmentArray.push(assignment)
-        })
+//             assignmentArray.push(assignment)
+//         })
 
-        // Actualizo "teams" dentro del torneo, para sumar la info de qué jugadores juegan con qué equipos. Es necesario para los standings //
+//         // Actualizo "teams" dentro del torneo, para sumar la info de qué jugadores juegan con qué equipos. Es necesario para los standings //
 
-        // console.log(assignmentArray)
+//         // console.log(assignmentArray)
 
-        const updatedTournament = await modifyTeamsFromTournament(
-            tournament,
-            assignmentArray
-        )
+//         const updatedTournament = await modifyTeamsFromTournament(
+//             tournament,
+//             assignmentArray
+//         )
 
-        const playersForFixtureGeneration = updatedTournament.players // REVISAR
+//         const playersForFixtureGeneration = updatedTournament.players // REVISAR
 
-        const tournamentForFixtureGeneration = {
-            name: updatedTournament.name,
-            id: updatedTournament.id,
-        }
+//         const tournamentForFixtureGeneration = {
+//             name: updatedTournament.name,
+//             id: updatedTournament.id,
+//         }
 
-        const definitiveFixture = fixture(
-            assignmentArray,
-            playersForFixtureGeneration,
-            tournamentForFixtureGeneration
-            // REVISAR
-        ) // GENERO EL FIXTURE
+//         const definitiveFixture = fixture(
+//             assignmentArray,
+//             playersForFixtureGeneration,
+//             tournamentForFixtureGeneration
+//             // REVISAR
+//         ) // GENERO EL FIXTURE
 
-        if (!definitiveFixture.error) {
-            const newFixture = await originateManyMatches(definitiveFixture)
+//         if (!definitiveFixture.error) {
+//             const newFixture = await originateManyMatches(definitiveFixture)
 
-            res.status(200).send(newFixture)
-        }
-    } catch (err) {
-        res.status(500).send("Something went wrong" + err)
-    }
-}
+//             res.status(200).send(newFixture)
+//         }
+//     } catch (err) {
+//         res.status(500).send("Something went wrong" + err)
+//     }
+// }
 
 const getOriginateGameController = async (req, res) => {
     const tournamentId = req.params.id
@@ -1347,47 +1370,47 @@ const postMatchesController = async (req, res) => {
     }
 }
 
-const putWorldCupTeamAssignmentController = async (req, res) => {
-    const { tournament } = req.params
-    const assignments = req.body
-    try {
-        const playersFromTournament =
-            await retrieveTournamentPlayersByTournamentId(tournament)
-        const teamsFromTournament = await retrieveTournamentTeamsByTournamentId(
-            tournament
-        )
-        let playerName
-        let teamName
-        const teamsWithAssignedPlayers = assignments.map(({ team, user }) => {
-            const filteredPlayerArray = playersFromTournament.filter(
-                ({ id }) => id == user.id
-            )
-            filteredPlayerArray.length
-                ? (playerName = filteredPlayerArray[0].name)
-                : (playerName = "IA")
-            const filteredTeamsArray = teamsFromTournament.filter(
-                (teamFromDB) => teamFromDB.team.id == team.id
-            )
-            if (filteredTeamsArray.length)
-                teamName = filteredTeamsArray[0].team.name
+// const putWorldCupTeamAssignmentController = async (req, res) => {
+//     const { tournament } = req.params
+//     const assignments = req.body
+//     try {
+//         const playersFromTournament =
+//             await retrieveTournamentPlayersByTournamentId(tournament)
+//         const teamsFromTournament = await retrieveTournamentTeamsByTournamentId(
+//             tournament
+//         )
+//         let playerName
+//         let teamName
+//         const teamsWithAssignedPlayers = assignments.map(({ team, user }) => {
+//             const filteredPlayerArray = playersFromTournament.filter(
+//                 ({ id }) => id == user.id
+//             )
+//             filteredPlayerArray.length
+//                 ? (playerName = filteredPlayerArray[0].name)
+//                 : (playerName = "IA")
+//             const filteredTeamsArray = teamsFromTournament.filter(
+//                 (teamFromDB) => teamFromDB.team.id == team.id
+//             )
+//             if (filteredTeamsArray.length)
+//                 teamName = filteredTeamsArray[0].team.name
 
-            return {
-                team: { name: teamName, id: team.id, group: team.group },
-                player: { name: playerName, id: user.id },
-            }
-        })
-        // console.log(teamsWithAssignedPlayers)
-        const teamsWithAssignedPlayersFromDB =
-            await modifyTeamUsersFromTournamentByTournamentId(
-                tournament,
-                teamsWithAssignedPlayers
-            )
-        // console.log(teamsWithAssignedPlayersFromDB)
-        res.status(200).send(teamsWithAssignedPlayersFromDB)
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
-    }
-}
+//             return {
+//                 team: { name: teamName, id: team.id, group: team.group },
+//                 player: { name: playerName, id: user.id },
+//             }
+//         })
+//         // console.log(teamsWithAssignedPlayers)
+//         const teamsWithAssignedPlayersFromDB =
+//             await modifyTeamUsersFromTournamentByTournamentId(
+//                 tournament,
+//                 teamsWithAssignedPlayers
+//             )
+//         // console.log(teamsWithAssignedPlayersFromDB)
+//         res.status(200).send(teamsWithAssignedPlayersFromDB)
+//     } catch (err) {
+//         return res.status(500).send("Something went wrong!" + err)
+//     }
+// }
 
 const getWorldCupStandingsController = async (req, res) => {
     const { tournament } = req.params
@@ -2176,30 +2199,6 @@ const getAllTimeGeneralStatsController = async (req, res) => {
                 .reduce((acc, curr) => {
                     return acc[curr] ? ++acc[curr] : (acc[curr] = 1), acc
                 }, {})
-            // let goalsFor =
-            //     matches
-            //         .filter(({ playerP1 }) => playerP1.id == _id)
-            //         .reduce((acc, curr) => {
-            //             return acc + curr.scoreP1
-            //         }, 0) +
-            //     matches
-            //         .filter(({ playerP2 }) => playerP2.id == _id)
-            //         .reduce((acc, curr) => {
-            //             return acc + curr.scoreP2
-            //         }, 0)
-            // let goalsAgainst =
-            //     matches
-            //         .filter(({ playerP1 }) => playerP1.id == _id)
-            //         .reduce((acc, curr) => {
-            //             return acc + curr.scoreP2
-            //         }, 0) +
-            //     matches
-            //         .filter(({ playerP2 }) => playerP2.id == _id)
-            //         .reduce((acc, curr) => {
-            //             return acc + curr.scoreP1
-            //         }, 0)
-            // let scoringDifference = goalsFor - goalsAgainst
-            // let points = wins * 3 + draws
 
             stats.push({
                 player: { name: nickname, id: _id },
@@ -2209,19 +2208,6 @@ const getAllTimeGeneralStatsController = async (req, res) => {
                 bestTeam,
             })
         })
-        // let sortedStandings = standings.sort(function (a, b) {
-        //     if (a.points > b.points) return -1
-        //     if (a.points < b.points) return 1
-
-        //     if (a.scoringDifference > b.scoringDifference) return -1
-        //     if (a.scoringDifference < b.scoringDifference) return 1
-
-        //     if (a.goalsFor > b.goalsFor) return -1
-        //     if (a.goalsFor < b.goalsFor) return 1
-
-        //     if (a.goalsAgainst > b.goalsAgainst) return 1
-        //     if (a.goalsAgainst < b.goalsAgainst) return -1
-        // })
 
         res.status(200).send(stats)
     } catch (err) {
@@ -2363,171 +2349,15 @@ const getAllTimeFaceToFaceController = async (req, res) => {
     }
 }
 
-const hasANumberOfMatchesAchievement = async (
-    amount,
-    amoutOfMatchesFromPlayer
-) => {
-    let hasAchievement = false
-    if (amoutOfMatchesFromPlayer >= amount) hasAchievement = true
-    return hasAchievement
-}
+// const majorUpdatesController = async (req, res) => {
+//     try {
+//         const matches = await modifyManyMatches()
 
-const hasANumberOfWinsAchievement = async (amount, amountOfWinsFromPlayer) => {
-    let hasAchievement = false
-    if (amountOfWinsFromPlayer >= amount) hasAchievement = true
-    return hasAchievement
-}
-
-const hasANumberOfDrawsAchievement = async (
-    amount,
-    amountOfDrawsFromPlayer
-) => {
-    let hasAchievement = false
-    if (amountOfDrawsFromPlayer >= amount) hasAchievement = true
-    return hasAchievement
-}
-
-const achievements = async (req, res) => {
-    try {
-        const responseArray = []
-        const players = await retrieveAllUsers()
-        players.forEach(async (player, index) => {
-            let amoutOfMatchesFromPlayer = await totalMatchesFromPlayer(
-                player.name
-            )
-            let amountOfWinsFromPlayer = await totalWinsFromPlayer(player.name)
-            let amountOfDrawsFromPlayer = await totalDrawsFromPlayer(
-                player.name
-            )
-            let hasAHundredMatches = await hasANumberOfMatchesAchievement(
-                100,
-                amoutOfMatchesFromPlayer
-            )
-            let hasTwoHundredAndFiftyMatches =
-                await hasANumberOfMatchesAchievement(
-                    250,
-                    amoutOfMatchesFromPlayer
-                )
-            let hasFiveHundredMatches = await hasANumberOfMatchesAchievement(
-                500,
-                amoutOfMatchesFromPlayer
-            )
-
-            let hasAThousandMatches = await hasANumberOfMatchesAchievement(
-                1000,
-                amoutOfMatchesFromPlayer
-            )
-
-            let hasTwentyFiveWins = await hasANumberOfWinsAchievement(
-                25,
-                amountOfWinsFromPlayer
-            )
-
-            let hasFiftyWins = await hasANumberOfWinsAchievement(
-                50,
-                amountOfWinsFromPlayer
-            )
-
-            let hasAHundredWins = await hasANumberOfWinsAchievement(
-                100,
-                amountOfWinsFromPlayer
-            )
-
-            let hasAHundredAndFiftyWins = await hasANumberOfWinsAchievement(
-                150,
-                amountOfWinsFromPlayer
-            )
-
-            let hasTwoHundredAndFiftyWins = await hasANumberOfWinsAchievement(
-                250,
-                amountOfWinsFromPlayer
-            )
-
-            let hasTwentyFiveDraws = await hasANumberOfDrawsAchievement(
-                25,
-                amountOfDrawsFromPlayer
-            )
-
-            let hasFiftyDraws = await hasANumberOfDrawsAchievement(
-                50,
-                amountOfDrawsFromPlayer
-            )
-
-            let hasSeventyFiveDraws = await hasANumberOfDrawsAchievement(
-                75,
-                amountOfDrawsFromPlayer
-            )
-
-            let hasAHundredDraws = await hasANumberOfDrawsAchievement(
-                100,
-                amountOfDrawsFromPlayer
-            )
-            Promise.all([
-                hasAHundredMatches,
-                hasTwoHundredAndFiftyMatches,
-                hasFiveHundredMatches,
-                hasAThousandMatches,
-                hasTwentyFiveWins,
-                hasFiftyWins,
-                hasAHundredWins,
-                hasAHundredAndFiftyWins,
-                hasTwoHundredAndFiftyWins,
-                hasTwentyFiveDraws,
-                hasFiftyDraws,
-                hasSeventyFiveDraws,
-                hasAHundredDraws,
-            ])
-                .then((values) => {
-                    let hasAHundredMatches = values[0]
-                    let hasTwoHundredAndFiftyMatches = values[1]
-                    let hasFiveHundredMatches = values[2]
-                    let hasAThousandMatches = values[3]
-                    let hasTwentyFiveWins = values[4]
-                    let hasFiftyWins = values[5]
-                    let hasAHundredWins = values[6]
-                    let hasAHundredAndFiftyWins = values[7]
-                    let hasTwoHundredAndFiftyWins = values[8]
-                    let hasTwentyFiveDraws = values[9]
-                    let hasFiftyDraws = values[10]
-                    let hasSeventyFiveDraws = values[11]
-                    let hasAHundredDraws = values[12]
-                    return {
-                        player,
-                        hasAHundredMatches,
-                        hasTwoHundredAndFiftyMatches,
-                        hasFiveHundredMatches,
-                        hasAThousandMatches,
-                        hasTwentyFiveWins,
-                        hasFiftyWins,
-                        hasAHundredWins,
-                        hasAHundredAndFiftyWins,
-                        hasTwoHundredAndFiftyWins,
-                        hasTwentyFiveDraws,
-                        hasFiftyDraws,
-                        hasSeventyFiveDraws,
-                        hasAHundredDraws,
-                    }
-                })
-                .then((result) => {
-                    responseArray.push(result)
-                    if (responseArray.length === players.length)
-                        res.send(responseArray)
-                })
-        })
-    } catch (err) {
-        console.log(err)
-    }
-}
-
-const majorUpdatesController = async (req, res) => {
-    try {
-        const matches = await modifyManyMatches()
-
-        res.send(matches)
-    } catch (err) {
-        console.log(err)
-    }
-}
+//         res.send(matches)
+//     } catch (err) {
+//         console.log(err)
+//     }
+// }
 
 module.exports = {
     getHomeController,
@@ -2538,10 +2368,9 @@ module.exports = {
     getTournamentsController,
     postTournamentsController,
     getTournamentByIdController,
-    // getTournamentsPlayoffsController,
     getFixtureByTournamentIdController,
     getPlayersFromTournamentController,
-    postFixtureController,
+    // postFixtureController,
     getStandingsFromTournamentController,
     getStandingsPlayerInfoFromTournamentController,
     getPlayoffsTableController,
@@ -2555,7 +2384,7 @@ module.exports = {
     postOriginateGameController,
     putModifyGameController,
     putRemoveGameController,
-    putWorldCupTeamAssignmentController,
+    // putWorldCupTeamAssignmentController,
     getWorldCupStandingsController,
     getWorldCupPlayoffTeamsController,
     postWorldCupNewMatchController,
@@ -2565,6 +2394,5 @@ module.exports = {
     getAllTimeStandingsController,
     getAllTimeGeneralStatsController,
     getAllTimeFaceToFaceController,
-    achievements,
-    majorUpdatesController,
+    // majorUpdatesController,
 }
