@@ -4,15 +4,14 @@ const getMatchesByTournamentId = async (req, res) => {
     try {
         // AHORA DEBO TRAER LOS PARTIDOS DE UN TORNEO
         const { tournament } = req.params
-        const { page = 0, player, team } = req.query
-
-        console.log(req.query)
-        console.log(JSON.parse(req.query.algo))
+        const { page = 0, team } = req.query
+        let players
+        if (req.query.players) players = JSON.parse(req.query.players)
 
         const matches = await retrieveMatchesByTournamentIds(
             [tournament],
-            page,
-            player,
+            Number(page),
+            players,
             team
         )
         res.status(200).json(matches)

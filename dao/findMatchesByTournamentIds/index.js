@@ -1,26 +1,54 @@
 const matchesModel = require("./../models/matches.js")
 
-const findMatchesByTournamentIds = async (ids, page, player, team) => {
+const findMatchesByTournamentIds = async (ids, page, players, team) => {
     const limit = 10 // Here I define the amount of results per page //
     let matches = []
     let amountOfTotalMatches
-    // console.log(ids)
+    console.log(ids)
     console.log(page)
-    console.log(player)
-    console.log(typeof team)
+    console.log(players)
+    console.log(team)
     if (ids.length == 1) {
-        if (player && team) {
+        if (!players && !team) {
+            matches = await matchesModel
+                .find({
+                    "tournament.id": ids[0],
+                })
+                .limit(limit * 1)
+                .skip(page * limit)
+
+            amountOfTotalMatches = await matchesModel.countDocuments({
+                "tournament.id": ids[0],
+            })
+        } else if (!players && team) {
+            console.log("solo equipo")
+            matches = await matchesModel
+                .find({
+                    $and: [
+                        { "tournament.id": ids[0] },
+                        { $or: [{ "teamP1.id": team }, { "teamP2.id": team }] },
+                    ],
+                })
+                .limit(limit * 1)
+                .skip(page * limit)
+
+            amountOfTotalMatches = await matchesModel.countDocuments({
+                $and: [
+                    { "tournament.id": ids[0] },
+                    { $or: [{ "teamP1.id": team }, { "teamP2.id": team }] },
+                ],
+            })
+        } else if (players.length == 1 && !team) {
             matches = await matchesModel
                 .find({
                     $and: [
                         { "tournament.id": ids[0] },
                         {
                             $or: [
-                                { "playerP1.id": player },
-                                { "playerP2.id": player },
+                                { "playerP1.id": players },
+                                { "playerP2.id": players },
                             ],
                         },
-                        { $or: [{ "teamP1.id": team }, { "teamP2.id": team }] },
                     ],
                 })
                 .limit(limit * 1)
@@ -31,14 +59,13 @@ const findMatchesByTournamentIds = async (ids, page, player, team) => {
                     { "tournament.id": ids[0] },
                     {
                         $or: [
-                            { "playerP1.id": player },
-                            { "playerP2.id": player },
+                            { "playerP1.id": players },
+                            { "playerP2.id": players },
                         ],
                     },
-                    { $or: [{ "teamP1.id": team }, { "teamP2.id": team }] },
                 ],
             })
-        } else if (player && !team) {
+        } else if (players.length == 1 && team) {
             matches = await matchesModel
                 .find(
                     {
@@ -46,8 +73,14 @@ const findMatchesByTournamentIds = async (ids, page, player, team) => {
                             { "tournament.id": ids[0] },
                             {
                                 $or: [
-                                    { "playerP1.id": player },
-                                    { "playerP2.id": player },
+                                    { "playerP1.id": players },
+                                    { "playerP2.id": players },
+                                ],
+                            },
+                            {
+                                $or: [
+                                    { "teamP1.id": team },
+                                    { "teamP2.id": team },
                                 ],
                             },
                         ],
@@ -62,20 +95,33 @@ const findMatchesByTournamentIds = async (ids, page, player, team) => {
                     { "tournament.id": ids[0] },
                     {
                         $or: [
-                            { "playerP1.id": player },
-                            { "playerP2.id": player },
+                            { "playerP1.id": players },
+                            { "playerP2.id": players },
                         ],
                     },
+                    { $or: [{ "teamP1.id": team }, { "teamP2.id": team }] },
                 ],
             })
-        } else if (!player && team) {
-            console.log("solo equipo")
+        } else if (players.length == 2 && !team) {
             matches = await matchesModel
                 .find({
                     $and: [
                         { "tournament.id": ids[0] },
                         {
-                            $or: [{ "teamP1.id": team }, { "teamP2.id": team }],
+                            $or: [
+                                {
+                                    $and: [
+                                        { "playerP1.id": players.at(0) },
+                                        { "playerP2.id": players.at(1) },
+                                    ],
+                                },
+                                {
+                                    $and: [
+                                        { "playerP1.id": players.at(1) },
+                                        { "playerP2.id": players.at(0) },
+                                    ],
+                                },
+                            ],
                         },
                     ],
                 })
@@ -86,15 +132,52 @@ const findMatchesByTournamentIds = async (ids, page, player, team) => {
                 $and: [
                     { "tournament.id": ids[0] },
                     {
-                        $or: [{ "teamP1.id": team }, { "teamP2.id": team }],
+                        $or: [
+                            {
+                                $and: [
+                                    { "playerP1.id": players.at(0) },
+                                    { "playerP2.id": players.at(1) },
+                                ],
+                            },
+                            {
+                                $and: [
+                                    { "playerP1.id": players.at(1) },
+                                    { "playerP2.id": players.at(0) },
+                                ],
+                            },
+                        ],
                     },
                 ],
             })
-        } else {
+        } else if (players.length == 2 && team) {
             matches = await matchesModel
                 .find(
                     {
-                        "tournament.id": ids[0],
+                        $and: [
+                            { "tournament.id": ids[0] },
+                            {
+                                $or: [
+                                    {
+                                        $and: [
+                                            { "playerP1.id": players.at(0) },
+                                            { "playerP2.id": players.at(1) },
+                                        ],
+                                    },
+                                    {
+                                        $and: [
+                                            { "playerP1.id": players.at(1) },
+                                            { "playerP2.id": players.at(0) },
+                                        ],
+                                    },
+                                ],
+                            },
+                            {
+                                $or: [
+                                    { "teamP1.id": team },
+                                    { "teamP2.id": team },
+                                ],
+                            },
+                        ],
                     }
                     // type: "regular", // Activar a futuro //
                 )
@@ -102,60 +185,81 @@ const findMatchesByTournamentIds = async (ids, page, player, team) => {
                 .skip(page * limit)
 
             amountOfTotalMatches = await matchesModel.countDocuments({
-                "tournament.id": ids[0],
+                $and: [
+                    { "tournament.id": ids[0] },
+                    {
+                        $or: [
+                            {
+                                $and: [
+                                    { "playerP1.id": players.at(0) },
+                                    { "playerP2.id": players.at(1) },
+                                ],
+                            },
+                            {
+                                $and: [
+                                    { "playerP1.id": players.at(1) },
+                                    { "playerP2.id": players.at(0) },
+                                ],
+                            },
+                        ],
+                    },
+                    {
+                        $or: [{ "teamP1.id": team }, { "teamP2.id": team }],
+                    },
+                ],
             })
         }
     }
 
-    if (ids.length > 1) {
-        // console.log("más de un ID")
-        const query = ids.map((id, index) => {
-            return {
-                "tournament.id": id,
-            }
-        })
+    // if (ids.length > 1) {
+    //     // console.log("más de un ID")
+    //     const query = ids.map((id, index) => {
+    //         return {
+    //             "tournament.id": id,
+    //         }
+    //     })
 
-        if (player && team) {
-            matches = matchesModel
-                .find({
-                    $or: query,
-                    $or: [{ "playerP1.id": player }, { "playerP2.id": player }],
-                    $or: [{ "teamP1.id": team }, { "teamP2.id": team }],
-                })
-                .limit(limit * 1)
-                .skip(page * limit)
+    //     if (player && team) {
+    //         matches = matchesModel
+    //             .find({
+    //                 $or: query,
+    //                 $or: [{ "playerP1.id": player }, { "playerP2.id": player }],
+    //                 $or: [{ "teamP1.id": team }, { "teamP2.id": team }],
+    //             })
+    //             .limit(limit * 1)
+    //             .skip(page * limit)
 
-            amountOfTotalMatches = await matchesModel.countDocuments({
-                $or: query,
-                $or: [{ "playerP1.id": player }, { "playerP2.id": player }],
-                $or: [{ "teamP1.id": team }, { "teamP2.id": team }],
-            })
-        } else if (player && !team) {
-            matches = matchesModel
-                .find({
-                    $or: query,
-                    $or: [{ "playerP1.id": player }, { "playerP2.id": player }],
-                })
-                .limit(limit * 1)
-                .skip(page * limit)
+    //         amountOfTotalMatches = await matchesModel.countDocuments({
+    //             $or: query,
+    //             $or: [{ "playerP1.id": player }, { "playerP2.id": player }],
+    //             $or: [{ "teamP1.id": team }, { "teamP2.id": team }],
+    //         })
+    //     } else if (player && !team) {
+    //         matches = matchesModel
+    //             .find({
+    //                 $or: query,
+    //                 $or: [{ "playerP1.id": player }, { "playerP2.id": player }],
+    //             })
+    //             .limit(limit * 1)
+    //             .skip(page * limit)
 
-            amountOfTotalMatches = await matchesModel.countDocuments({
-                $or: query,
-                $or: [{ "playerP1.id": player }, { "playerP2.id": player }],
-            })
-        } else {
-            matches = matchesModel
-                .find({
-                    $or: query,
-                })
-                .limit(limit * 1)
-                .skip(page * limit)
+    //         amountOfTotalMatches = await matchesModel.countDocuments({
+    //             $or: query,
+    //             $or: [{ "playerP1.id": player }, { "playerP2.id": player }],
+    //         })
+    //     } else {
+    //         matches = matchesModel
+    //             .find({
+    //                 $or: query,
+    //             })
+    //             .limit(limit * 1)
+    //             .skip(page * limit)
 
-            amountOfTotalMatches = await matchesModel.countDocuments({
-                $or: query,
-            })
-        }
-    }
+    //         amountOfTotalMatches = await matchesModel.countDocuments({
+    //             $or: query,
+    //         })
+    //     }
+    // }
 
     return {
         matches,
