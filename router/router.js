@@ -43,7 +43,8 @@ const {
     postTournaments,
     getTournamentById,
     getPlayersByTournamentId,
-    getMatchesByTournamentId,
+    getTeamInformationByTournamentId,
+    getFixtureByTournamentId,
     postMatchByTournamentId,
     putMatchByTournamentId,
     putRemoveMatchByTournamentId,
@@ -111,12 +112,15 @@ tournaments.get("/:tournament", getTournamentById)
 
 // homeR.post("/tournaments/:tournament/fixture", postFixtureController)
 
+tournaments.get("/:tournament/fixture", getFixtureByTournamentId)
+
 tournaments.get("/:tournament/players", getPlayersByTournamentId)
 
-tournaments.get("/:tournament/matches", getMatchesByTournamentId)
+// tournaments.get("/:tournament/teams", getTeamsByTournamentId)
+
+tournaments.get("/:tournament/teams/:team", getTeamInformationByTournamentId)
 
 // tournaments.get("/:tournament/matches/create-game/", getOriginateGameController)
-
 tournaments.post("/:tournament/matches/create-game/", postMatchByTournamentId)
 
 tournaments.put(

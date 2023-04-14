@@ -4,7 +4,7 @@ const getAllTimeStandings = require("./getAllTimeStandings")
 const getHome = require("./getHome")
 const getIsUserAuthenticated = require("./getIsUserAuthenticated")
 const getMatches = require("./getMatches")
-const getMatchesByTournamentId = require("./getMatchesByTournamentId")
+const getFixtureByTournamentId = require("./getFixtureByTournamentId")
 const getPlayersByTournamentId = require("./getPlayersByTournamentId")
 const getPlayoffsBracketByTournamentId = require("./getPlayoffsBracketByTournamentId")
 const getPlayoffsPlayerInfoByTournamentId = require("./getPlayoffsPlayerInfoByTournamentId")
@@ -14,6 +14,7 @@ const getStandingsPlayerInfoByTournamentId = require("./getStandingsPlayerInfoBy
 const getStandingsTableByTournamentId = require("./getStandingsTableByTournamentId")
 const getStatistics = require("./getStatistics")
 const getStreaks = require("./getStreaks")
+const getTeamInformationByTournamentId = require("./getTeamInformationByTournamentId")
 const getTournamentById = require("./getTournamentById")
 const getTournaments = require("./getTournaments")
 const getUsers = require("./getUsers")
@@ -37,7 +38,7 @@ module.exports = {
     getHome,
     getIsUserAuthenticated,
     getMatches,
-    getMatchesByTournamentId,
+    getFixtureByTournamentId,
     getPlayersByTournamentId,
     getPlayoffsBracketByTournamentId,
     getPlayoffsPlayerInfoByTournamentId,
@@ -47,6 +48,7 @@ module.exports = {
     getStandingsTableByTournamentId,
     getStatistics,
     getStreaks,
+    getTeamInformationByTournamentId,
     getTournamentById,
     getTournaments,
     getUsers,

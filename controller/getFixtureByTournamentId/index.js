@@ -1,6 +1,6 @@
-const { retrieveMatchesByTournamentIds } = require("./../../service")
+const { retrieveFixtureByTournamentIds } = require("./../../service")
 
-const getMatchesByTournamentId = async (req, res) => {
+const getFixtureByTournamentId = async (req, res) => {
     try {
         // AHORA DEBO TRAER LOS PARTIDOS DE UN TORNEO
         const { tournament } = req.params
@@ -8,7 +8,7 @@ const getMatchesByTournamentId = async (req, res) => {
         let players
         if (req.query.players) players = JSON.parse(req.query.players)
 
-        const matches = await retrieveMatchesByTournamentIds(
+        const matches = await retrieveFixtureByTournamentIds(
             [tournament],
             Number(page),
             players,
@@ -21,4 +21,4 @@ const getMatchesByTournamentId = async (req, res) => {
     }
 }
 
-module.exports = getMatchesByTournamentId
+module.exports = getFixtureByTournamentId

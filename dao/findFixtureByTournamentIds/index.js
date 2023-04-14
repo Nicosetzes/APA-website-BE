@@ -1,6 +1,6 @@
 const matchesModel = require("./../models/matches.js")
 
-const findMatchesByTournamentIds = async (ids, page, players, team) => {
+const findFixtureByTournamentIds = async (ids, page, players, team) => {
     const limit = 10 // Here I define the amount of results per page //
     let matches = []
     let amountOfTotalMatches
@@ -268,4 +268,4 @@ const findMatchesByTournamentIds = async (ids, page, players, team) => {
     }
 }
 
-module.exports = findMatchesByTournamentIds
+module.exports = findFixtureByTournamentIds
