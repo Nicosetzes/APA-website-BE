@@ -1,5 +1,5 @@
 const {
-    retrieveMatchesByTournamentIds,
+    retrieveAllMatchesByTournamentId,
     retrieveTournamentById,
 } = require("./../../service")
 
@@ -11,7 +11,7 @@ const getPlayoffsUpdatedWinsByTournamentId = async (req, res) => {
 
         const { teams } = playoffs
 
-        const matches = await retrieveMatchesByTournamentIds([tournament])
+        const matches = await retrieveAllMatchesByTournamentId(tournament)
 
         const winsByTeam = []
 

@@ -1,4 +1,7 @@
-const { retrieveFixtureByTournamentIds } = require("./../../service")
+const {
+    retrieveTournamentById,
+    retrieveFixtureByTournamentIds,
+} = require("./../../service")
 
 const getFixtureByTournamentId = async (req, res) => {
     try {
@@ -8,13 +11,15 @@ const getFixtureByTournamentId = async (req, res) => {
         let players
         if (req.query.players) players = JSON.parse(req.query.players)
 
+        const tournamentFromDB = await retrieveTournamentById(tournament)
+
         const matches = await retrieveFixtureByTournamentIds(
             [tournament],
             Number(page),
             players,
             team
         )
-        res.status(200).json(matches)
+        res.status(200).json({ matches, tournament: tournamentFromDB })
         // Agregar excepción en caso de error
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)

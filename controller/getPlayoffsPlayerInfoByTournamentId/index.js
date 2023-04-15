@@ -1,6 +1,6 @@
 const {
     retrieveTournamentById,
-    retrieveMatchesByTournamentIds,
+    retrieveAllMatchesByTournamentId,
 } = require("./../../service")
 
 const getPlayoffsPlayerInfoByTournamentId = async (req, res) => {
@@ -13,7 +13,7 @@ const getPlayoffsPlayerInfoByTournamentId = async (req, res) => {
 
         const idsFromParents = parents.map(({ id }) => id)
 
-        const matches = await retrieveMatchesByTournamentIds([tournament])
+        const matches = await retrieveAllMatchesByTournamentId(tournament)
 
         const playoffsPlayerStats = []
 

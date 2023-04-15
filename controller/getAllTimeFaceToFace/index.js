@@ -1,9 +1,9 @@
-const { retrieveAllUsers, retrieveMatches } = require("./../../service")
+const { retrieveAllUsers, retrieveAllMatches } = require("./../../service")
 
 const getAllTimeFaceToFace = async (req, res) => {
     try {
         const players = await retrieveAllUsers()
-        const matches = await retrieveMatches()
+        const matches = await retrieveAllMatches()
 
         const allMatchups = players.flatMap((v, i) =>
             players.slice(i + 1).map((w) => {

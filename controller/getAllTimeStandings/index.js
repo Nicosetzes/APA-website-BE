@@ -1,9 +1,9 @@
-const { retrieveAllUsers, retrieveMatches } = require("./../../service")
+const { retrieveAllUsers, retrieveAllMatches } = require("./../../service")
 
 const getAllTimeStandings = async (req, res) => {
     try {
         const players = await retrieveAllUsers()
-        const matches = await retrieveMatches()
+        const matches = await retrieveAllMatches()
 
         const standings = []
 

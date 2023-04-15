@@ -1,4 +1,4 @@
-const { retrieveAllUsers, retrieveMatches } = require("./../../service")
+const { retrieveAllUsers, retrieveAllMatches } = require("./../../service")
 
 const getStatistics = async (req, res) => {
     try {
@@ -14,7 +14,7 @@ const getStatistics = async (req, res) => {
         const playerDraws = []
         const playerLosses = []
 
-        const matches = await retrieveMatches({})
+        const matches = await retrieveAllMatches()
 
         const amountOfRecentMatchesToDisplay = 8
 
