@@ -5,13 +5,11 @@ const cloudinary = require("./../../cloudinary")
 // console.log(cloudinary)
 
 const postTournaments = async (req, res) => {
-    const { name, format } = req.body
-    const players = JSON.parse(req.body.players)
-    const teams = JSON.parse(req.body.teams)
+    const { name, format, players, teams, cloudinaryId } = req.body
 
     // TODO: Work the format //
 
-    const apa_id = req.body.apa_id === "null" ? null : req.body.apa_id // El null llega como string en formData, por eso debo validar //
+    const apa_id = req.body.apa_id == null ? null : req.body.apa_id // El null llega como string en formData, por eso debo validar //
 
     try {
         // Formatting tournament for DB BEGINS //
@@ -40,47 +38,21 @@ const postTournaments = async (req, res) => {
 
         // console.log(apaIdsFromTournaments)
 
-        const urls = []
-        const file = req.file
-        const { path } = file
-
         let tournament
 
-        if (apa_id === null) {
-            const newApaId = Number(apaIdsFromTournaments.at(-1)) + 1
+        const newApaId = Number(apaIdsFromTournaments.at(-1)) + 1
 
-            // console.log(newApaId)
+        // console.log(newApaId)
 
-            tournament = await originateTournament({
-                name,
-                players,
-                teams: teamsForDB,
-                apa_id: newApaId,
-            })
+        tournament = await originateTournament({
+            name,
+            players,
+            teams: teamsForDB,
+            apa_id: apa_id == null ? newApaId : apa_id,
+            cloudinary_id: cloudinaryId,
+        })
 
-            // Uploading tournament image to Cloudinary BEGINS //
-            const uploader = async (path) =>
-                await cloudinary.uploads(path, "tournaments", newApaId)
-
-            const newPath = await uploader(path) // Image upload to Cloudinary //
-            urls.push(newPath)
-        } else {
-            // Uploading tournament image to Cloudinary BEGINS //
-            const uploader = async (path) =>
-                await cloudinary.uploads(path, "tournaments", apa_id)
-
-            const newPath = await uploader(path) // Image upload to Cloudinary //
-            urls.push(newPath)
-
-            tournament = await originateTournament({
-                name,
-                players,
-                teams: teamsForDB,
-                apa_id,
-            })
-        }
-
-        res.status(200).send({ tournament, urls })
+        res.status(200).json(tournament)
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
     }

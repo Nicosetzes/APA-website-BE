@@ -4,10 +4,6 @@ const findFixtureByTournamentIds = async (ids, page, players, team) => {
     const limit = 10 // Here I define the amount of results per page //
     let matches = []
     let amountOfTotalMatches
-    console.log(ids)
-    console.log(page)
-    console.log(players)
-    console.log(team)
     if (ids.length == 1) {
         if (!players && !team) {
             matches = await matchesModel
@@ -21,7 +17,6 @@ const findFixtureByTournamentIds = async (ids, page, players, team) => {
                 "tournament.id": ids[0],
             })
         } else if (!players && team) {
-            console.log("solo equipo")
             matches = await matchesModel
                 .find({
                     $and: [
