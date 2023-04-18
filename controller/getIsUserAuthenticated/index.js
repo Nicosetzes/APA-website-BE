@@ -44,13 +44,13 @@ const getIsUserAuthenticated = async (req, res) => {
                 secure: process.env.NODE_ENV === "development" ? false : true,
             })
             .status(200)
-            .json({
+            .send({
                 auth: true,
                 user: userInfo,
                 message: `Hola ${nickname}, bienvenid@`,
             })
     } catch (err) {
-        return res.status(500).json({
+        return res.status(500).send({
             auth: false,
             message: `Error inesperado, intente más tarde`,
         }) // Revisar código de error //

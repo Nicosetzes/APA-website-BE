@@ -35,9 +35,10 @@ const {
     postWorldCupMatchesByTournamentId,
     getStreaks,
     getUsers,
+    getUserProfile,
     postRegister,
     postLogin,
-    postLogout,
+    getLogout,
     getIsUserAuthenticated,
     getTournaments,
     postTournaments,
@@ -92,11 +93,13 @@ root.get("/streaks", getStreaks)
 
 users.get("/", getUsers)
 
+users.get("/profile", getUserProfile)
+
 users.post("/register", postRegister)
 
 users.post("/login", postLogin)
 
-users.post("/logout", postLogout)
+users.get("/logout", getLogout)
 
 users.get("/isUserAuthenticated", getIsUserAuthenticated)
 
@@ -104,9 +107,7 @@ users.get("/isUserAuthenticated", getIsUserAuthenticated)
 
 tournaments.get("/", getTournaments)
 
-const upload = require("./multer")
-
-tournaments.post("/", upload.single("file"), postTournaments)
+tournaments.post("/", postTournaments)
 
 tournaments.get("/:tournament", getTournamentById)
 

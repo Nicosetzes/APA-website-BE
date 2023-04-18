@@ -2,17 +2,17 @@ const { retrieveUserById } = require("./../../service")
 
 const jwt = require("jsonwebtoken")
 
-const postLogout = async (req, res) => {
+const getLogout = async (req, res) => {
     const token = req.cookies.jwt
     if (!token)
         return res
             .status(400)
-            .json({ auth: false, message: "Primero debe iniciar sesión" }) // Revisar código de error //
+            .send({ auth: false, message: "Primero debe iniciar sesión" }) // Revisar código de error //
     let decodedToken
     try {
         decodedToken = jwt.verify(token, process.env.TOKEN_SECRET)
     } catch (error) {
-        res.status(400).json({
+        res.status(400).send({
             auth: false,
             message: "Sesión no válida, error en las credenciales",
         })
@@ -28,13 +28,16 @@ const postLogout = async (req, res) => {
                 secure: process.env.NODE_ENV === "development" ? false : true,
             })
             .status(200)
-            .json({ auth: false, message: `Adiós ${nickname}` })
+            .send({
+                auth: false,
+                message: `${nickname}, su sesión ha sido cerrada con éxito`,
+            })
     } catch (err) {
-        return res.status(500).json({
+        return res.status(500).send({
             auth: false,
             message: `Error inesperado, intente más tarde`,
         }) // Revisar código de error //
     }
 }
 
-module.exports = postLogout
+module.exports = getLogout

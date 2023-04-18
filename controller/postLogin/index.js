@@ -24,7 +24,7 @@ const postLogin = async (req, res) => {
         const { error } = schemaLogin.validate(req.body)
 
         if (error)
-            return res.status(400).json({
+            return res.status(400).send({
                 auth: false,
                 message: error.details[0].message,
             })
@@ -34,14 +34,14 @@ const postLogin = async (req, res) => {
         const user = await retrieveUserByUserName(email)
 
         if (!user)
-            return res.status(400).json({
+            return res.status(400).send({
                 auth: false,
                 message: "El usuario ingresado no existe",
             })
 
         const isPasswordValid = await bcrypt.compare(password, user.password)
         if (!isPasswordValid)
-            return res.status(400).json({
+            return res.status(400).send({
                 auth: false,
                 message: "La contraseña ingresada no es correcta",
             })
@@ -57,11 +57,6 @@ const postLogin = async (req, res) => {
             }
         )
 
-        const userInfo = {
-            email: user.email,
-            nickname: user.nickname,
-        }
-
         return res
             .cookie("jwt", token, {
                 withCredentials: true,
@@ -71,13 +66,13 @@ const postLogin = async (req, res) => {
                 secure: process.env.NODE_ENV === "development" ? false : true,
             })
             .status(200)
-            .json({
+            .send({
                 auth: true,
-                userInfo,
+                id: user._id,
                 message: `Bienvenid@ ${user.nickname}`,
             })
     } catch (err) {
-        return res.status(500).json({
+        return res.status(500).send({
             auth: false,
             message: `Error inesperado, intente más tarde`,
         })

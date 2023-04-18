@@ -17,7 +17,9 @@ const getAllTimeStandings = async (req, res) => {
             ).length
             let draws = matches.filter(
                 ({ playerP1, playerP2, outcome }) =>
-                    outcome.draw && (playerP1.id == _id || playerP2.id == _id)
+                    outcome.draw &&
+                    !outcome.penalties &&
+                    (playerP1.id == _id || playerP2.id == _id)
             ).length
             let losses = matches.filter(
                 ({ outcome }) => outcome.playerThatLost?.id == _id
