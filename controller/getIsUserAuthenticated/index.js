@@ -40,7 +40,7 @@ const getIsUserAuthenticated = async (req, res) => {
             .cookie("jwt", newToken, {
                 withCredentials: true,
                 maxAge: 1000 * 60 * 60 * 6, // 6 horas //
-                sameSite: true, // Prueba, estando en true debería ser "strict" según la docu. Seteandolo en lax funciona en localhost, pero no en internet //
+                // Borré el atributo sameSite, para ver si las cookies se despliegan en el browser outside localHost //
                 httpOnly: process.env.NODE_ENV === "production",
                 secure: process.env.NODE_ENV === "production",
             })
