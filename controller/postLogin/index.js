@@ -61,7 +61,7 @@ const postLogin = async (req, res) => {
             .cookie("jwt", token, {
                 withCredentials: true,
                 maxAge: 1000 * 60 * 60 * 6, // 6 horas //
-                sameSite: "lax", // Meaning a cookie is only set when the domain in the URL of the browser matches the domain of the cookie, thus eliminating third party’s domains //
+                sameSite: true, // Prueba, estando en true debería ser "strict" según la docu. Seteandolo en lax funciona en localhost, pero no en internet //
                 httpOnly: process.env.NODE_ENV === "production",
                 secure: process.env.NODE_ENV === "production",
             })
