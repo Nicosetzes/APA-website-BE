@@ -6,7 +6,11 @@ const jwtKey = process.env.TOKEN_SECRET
 const getIsUserAuthenticated = async (req, res) => {
     const token = req.cookies.jwt
 
-    if (!token) return res.status(200).json({ auth: false }) // Revisar código de error //
+    if (!token)
+        return res
+            .status(400)
+            .json({ auth: false, message: "Inicie sesión por favor" }) // Revisar código de error //
+
     let decodedToken
     try {
         decodedToken = jwt.verify(token, process.env.TOKEN_SECRET)
@@ -27,27 +31,24 @@ const getIsUserAuthenticated = async (req, res) => {
             jwtKey,
             {
                 //   algorithm: "HS256",
-                expiresIn: "4h",
+                expiresIn: "6h",
             }
         )
-        const { email, nickname } = user // TODO: Add user roles
-        const userInfo = {
-            email,
-            nickname,
-        }
+        const { _id, nickname } = user // TODO: Add user roles
+
         return res
             .cookie("jwt", newToken, {
                 withCredentials: true,
-                maxAge: 1000 * 60 * 60 * 4, // 4 horas //
-                sameSite: "none",
-                httpOnly: true,
-                secure: process.env.NODE_ENV === "development" ? false : true,
+                maxAge: 1000 * 60 * 60 * 6, // 6 horas //
+                sameSite: "lax", // Meaning a cookie is only set when the domain in the URL of the browser matches the domain of the cookie, thus eliminating third party’s domains //
+                httpOnly: process.env.NODE_ENV === "production",
+                secure: process.env.NODE_ENV === "production",
             })
             .status(200)
             .send({
                 auth: true,
-                user: userInfo,
-                message: `Hola ${nickname}, bienvenid@`,
+                id: _id,
+                message: `Hola ${nickname}, su sesión está activa`,
             })
     } catch (err) {
         return res.status(500).send({

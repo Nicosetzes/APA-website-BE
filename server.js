@@ -18,10 +18,15 @@ app.use(
         origin:
             process.env.NODE_ENV == "development"
                 ? "http://localhost:3000"
-                : "https://apa-website-fe.vercel.app",
+                : [
+                      "https://apa-website-fe.vercel.app",
+                      "https://sitioapa.com.ar",
+                  ], // Pruebo si funciona agregando el nuevo dominio en forma de array //
         credentials: true,
     })
-) // IMPORTANTE: Tiene que ser así, intenté usar [] para permitir más de un dominio en production pero esta feature de CORS no fuciona en Vercel! //
+)
+
+// IMPORTANTE: Tiene que ser así, intenté usar [] para permitir más de un dominio en production pero esta feature de CORS no fuciona en Vercel! //
 
 /* -------------------- DATABASE -------------------- */
 

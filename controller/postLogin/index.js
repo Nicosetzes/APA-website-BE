@@ -53,17 +53,17 @@ const postLogin = async (req, res) => {
             jwtKey,
             {
                 //   algorithm: "HS256",
-                expiresIn: "4h",
+                expiresIn: "6h",
             }
         )
 
         return res
             .cookie("jwt", token, {
                 withCredentials: true,
-                maxAge: 1000 * 60 * 60 * 4, // 4 horas //
-                sameSite: "none",
-                httpOnly: true,
-                secure: process.env.NODE_ENV === "development" ? false : true,
+                maxAge: 1000 * 60 * 60 * 6, // 6 horas //
+                sameSite: "lax", // Meaning a cookie is only set when the domain in the URL of the browser matches the domain of the cookie, thus eliminating third party’s domains //
+                httpOnly: process.env.NODE_ENV === "production",
+                secure: process.env.NODE_ENV === "production",
             })
             .status(200)
             .send({
