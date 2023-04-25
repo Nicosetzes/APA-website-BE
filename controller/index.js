@@ -3,6 +3,7 @@ const getAllTimeGeneralStatistics = require("./getAllTimeGeneralStatistics")
 const getAllTimeStandings = require("./getAllTimeStandings")
 const getHome = require("./getHome")
 const getIsUserAuthenticated = require("./getIsUserAuthenticated")
+const getLogout = require("./getLogout")
 const getMatches = require("./getMatches")
 const getFixtureByTournamentId = require("./getFixtureByTournamentId")
 const getPlayersByTournamentId = require("./getPlayersByTournamentId")
@@ -23,7 +24,7 @@ const getWorldCupPlayoffMatchesByTournamentId = require("./getWorldCupPlayoffMat
 const getWorldCupPlayoffTeamsByTournamentId = require("./getWorldCupPlayoffTeamsByTournamentId")
 const getWorldCupStandingsByTournamentId = require("./getWorldCupStandingsByTournamentId")
 const postLogin = require("./postLogin")
-const getLogout = require("./getLogout")
+// const majorUpdatesController = require("./majorUpdatesController")
 const postMatch = require("./postMatch")
 const postMatchByTournamentId = require("./postMatchByTournamentId")
 const postRegister = require("./postRegister")
@@ -58,6 +59,7 @@ module.exports = {
     getWorldCupPlayoffMatchesByTournamentId,
     getWorldCupPlayoffTeamsByTournamentId,
     getWorldCupStandingsByTournamentId,
+    // majorUpdatesController,
     postLogin,
     postMatch,
     postMatchByTournamentId,

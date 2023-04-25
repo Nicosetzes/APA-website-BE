@@ -1,3 +1,4 @@
+// const modifyManyMatches = require("./modifyManyMatches")
 const modifyMatchResult = require("./modifyMatchResult")
 const modifyMatchResultToRemoveIt = require("./modifyMatchResultToRemoveIt")
 const orderMatchesFromTournamentById = require("./orderMatchesFromTournamentById")
@@ -23,6 +24,7 @@ const retrieveUserById = require("./retrieveUserById")
 const retrieveUserByUserName = require("./retrieveUserByUserName")
 
 module.exports = {
+    // modifyManyMatches,
     modifyMatchResult,
     modifyMatchResultToRemoveIt,
     orderMatchesFromTournamentById,

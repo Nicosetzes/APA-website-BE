@@ -59,6 +59,7 @@ const {
     getAllTimeStandings,
     getAllTimeGeneralStatistics,
     getAllTimeFaceToFace,
+    // majorUpdatesController,
 } = require("./../controller")
 
 /* -------------------- isAUTH -------------------- */
@@ -72,6 +73,8 @@ root.get("/", getHome)
 root.get("/matches", getMatches)
 
 root.post("/matches", postMatch) // Provisoria, luego puede ser modificada //
+
+// root.get("/update", majorUpdatesController)
 
 root.get("/world-cup/:tournament/standings", getWorldCupStandingsByTournamentId)
 
@@ -174,8 +177,6 @@ statistics.get("/all-time/standings", getAllTimeStandings)
 statistics.get("/all-time/general-stats", getAllTimeGeneralStatistics)
 
 statistics.get("/all-time/face-to-face", getAllTimeFaceToFace)
-
-// homeR.get("/update", majorUpdatesController)
 
 module.exports = {
     root,
