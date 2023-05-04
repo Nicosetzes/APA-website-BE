@@ -1,3 +1,6 @@
+const countMatchesFromPlayer = require("./countMatchesFromPlayer")
+const countMatchLossesFromPlayer = require("./countMatchLossesFromPlayer")
+const countMatchWinsFromPlayer = require("./countMatchWinsFromPlayer")
 const createManyMatches = require("./createManyMatches")
 const createMatch = require("./createMatch")
 const createTournament = require("./createTournament")
@@ -24,6 +27,9 @@ const updateMatchResult = require("./updateMatchResult")
 const updateMatchResultToRemoveIt = require("./updateMatchResultToRemoveIt")
 
 module.exports = {
+    countMatchesFromPlayer,
+    countMatchLossesFromPlayer,
+    countMatchWinsFromPlayer,
     createManyMatches,
     createMatch,
     createTournament,

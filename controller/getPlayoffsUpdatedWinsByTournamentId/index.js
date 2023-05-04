@@ -11,7 +11,12 @@ const getPlayoffsUpdatedWinsByTournamentId = async (req, res) => {
 
         const { teams } = playoffs
 
-        const matches = await retrieveAllMatchesByTournamentId(tournament)
+        let invalid = true // Traigo todos los partidos, incluso los simulados //
+
+        const matches = await retrieveAllMatchesByTournamentId(
+            tournament,
+            invalid
+        )
 
         const winsByTeam = []
 

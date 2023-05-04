@@ -1,3 +1,6 @@
+const calculateMatchesFromPlayer = require("./calculateMatchesFromPlayer")
+const calculateMatchLossesFromPlayer = require("./calculateMatchLossesFromPlayer")
+const calculateMatchWinsFromPlayer = require("./calculateMatchWinsFromPlayer")
 // const modifyManyMatches = require("./modifyManyMatches")
 const modifyMatchResult = require("./modifyMatchResult")
 const modifyMatchResultToRemoveIt = require("./modifyMatchResultToRemoveIt")
@@ -24,6 +27,9 @@ const retrieveUserById = require("./retrieveUserById")
 const retrieveUserByUserName = require("./retrieveUserByUserName")
 
 module.exports = {
+    calculateMatchesFromPlayer,
+    calculateMatchLossesFromPlayer,
+    calculateMatchWinsFromPlayer,
     // modifyManyMatches,
     modifyMatchResult,
     modifyMatchResultToRemoveIt,

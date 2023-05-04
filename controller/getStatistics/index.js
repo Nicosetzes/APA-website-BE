@@ -1,13 +1,15 @@
-const { retrieveAllUsers, retrieveAllMatches } = require("./../../service")
+const {
+    // calculateMatchesFromPlayer,
+    // calculateMatchLossesFromPlayer,
+    // calculateMatchWinsFromPlayer,
+    retrieveAllUsers,
+    retrieveAllMatches,
+} = require("./../../service")
 
 const getStatistics = async (req, res) => {
     try {
         const players = await retrieveAllUsers()
-        const response = {
-            playerStats: [],
-            recentMatches: [],
-            accolades: {},
-        }
+        const playerStats = []
         let count = 0
 
         const playerWins = []
@@ -16,72 +18,39 @@ const getStatistics = async (req, res) => {
 
         const matches = await retrieveAllMatches()
 
-        const amountOfRecentMatchesToDisplay = 8
-
-        for (let {
-            playerP1,
-            playerP2,
-            teamP1,
-            teamP2,
-            scoreP1,
-            scoreP2,
-            tournament,
-            id,
-            updatedAt,
-        } of matches) {
-            response.recentMatches.push({
-                playerP1,
-                playerP2,
-                teamP1,
-                teamP2,
-                scoreP1,
-                scoreP2,
-                tournament: tournament.name,
-                date: updatedAt
-                    ? new Date(updatedAt).toLocaleString()
-                    : new Date(
-                          parseInt(id.substring(0, 8), 16) * 1000
-                      ).toLocaleDateString(),
-            })
-            if (
-                response.recentMatches.length === amountOfRecentMatchesToDisplay
-            )
-                break
-        }
-
-        players.forEach(async ({ nickname, _id }) => {
+        players.forEach(async ({ nickname, id }) => {
             let totalMatches = matches.filter(
                 ({ playerP1, playerP2 }) =>
-                    playerP1.name === nickname || playerP2.name === nickname
+                    playerP1.id === id || playerP2.id === id
             ).length
 
             let wins = matches.filter(
-                ({ outcome }) => outcome?.playerThatWon?.name === nickname
+                ({ outcome }) => outcome?.playerThatWon?.id === id
             ).length
 
             let losses = matches.filter(
-                ({ outcome }) => outcome?.playerThatLost?.name === nickname
+                ({ outcome }) => outcome?.playerThatLost?.id === id
             ).length
 
             let draws = totalMatches - wins - losses
 
             playerWins.push({
-                player: nickname,
+                player: { id, name: nickname },
                 wins,
             })
 
             playerDraws.push({
-                player: nickname,
+                player: { id, name: nickname },
                 draws,
             })
 
             playerLosses.push({
-                player: nickname,
+                player: { id, name: nickname },
                 losses,
             })
 
-            response.playerStats.push({
-                player: nickname,
+            playerStats.push({
+                player: { id, name: nickname },
                 wins,
                 draws,
                 losses,
@@ -93,28 +62,7 @@ const getStatistics = async (req, res) => {
 
             count++
             if (count === players.length) {
-                let sortedPlayerWins = playerWins.sort((a, b) =>
-                    a.wins > b.wins ? -1 : 1
-                )
-                let sortedPlayerDraws = playerDraws.sort((a, b) =>
-                    a.draws > b.draws ? -1 : 1
-                )
-                let sortedPlayerLosses = playerLosses.sort((a, b) =>
-                    a.losses > b.losses ? -1 : 1
-                )
-                response.accolades.mostWins = {
-                    player: sortedPlayerWins[0].player,
-                    wins: sortedPlayerWins[0].wins,
-                }
-                response.accolades.mostDraws = {
-                    player: sortedPlayerDraws[0].player,
-                    draws: sortedPlayerDraws[0].draws,
-                }
-                response.accolades.mostLosses = {
-                    player: sortedPlayerLosses[0].player,
-                    losses: sortedPlayerLosses[0].losses,
-                }
-                res.status(200).send(response)
+                res.status(200).send({ playerStats })
             }
         })
     } catch (err) {
