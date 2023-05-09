@@ -1,85 +1,114 @@
 const { modifyMatchResult } = require("./../../service")
 
 const putMatchByTournamentId = async (req, res) => {
-    //TODO: Accomodate matches inside each tournament, maybe?
-    const matchId = req.params.match
+    const { match } = req.params
     try {
-        // const tournament = await retrieveTournamentById(tournamentId)
-
-        let {
+        const {
             playerP1,
-            playerP2,
             teamP1,
-            teamP2,
+            seedP1,
             scoreP1,
-            scoreP2,
             penaltyScoreP1,
+            playerP2,
+            teamP2,
+            seedP2,
+            scoreP2,
             penaltyScoreP2,
         } = req.body
 
         let outcome
 
-        if (scoreP1 - scoreP2 !== 0) {
-            scoreP1 > scoreP2
-                ? (outcome = {
-                      playerThatWon: playerP1,
-                      teamThatWon: teamP1,
-                      scoreFromTeamThatWon: scoreP1,
-                      playerThatLost: playerP2,
-                      teamThatLost: teamP2,
-                      scoreFromTeamThatLost: scoreP2,
-                      draw: false,
-                      scoringDifference: Math.abs(scoreP1 - scoreP2), // Es indistinto el orden, pues calculo valor absoluto.
-                  })
-                : (outcome = {
-                      playerThatWon: playerP2,
-                      teamThatWon: teamP2,
-                      scoreFromTeamThatWon: scoreP2,
-                      playerThatLost: playerP1,
-                      teamThatLost: teamP1,
-                      scoreFromTeamThatLost: scoreP1,
-                      draw: false,
-                      scoringDifference: Math.abs(scoreP1 - scoreP2), // Es indistinto el orden, pues calculo valor absoluto.
-                  })
-        } else if (
-            scoreP1 - scoreP2 === 0 &&
-            penaltyScoreP1 &&
-            penaltyScoreP2
-        ) {
-            // Empate, y hubo penales
-            penaltyScoreP1 > penaltyScoreP2
-                ? (outcome = {
-                      playerThatWon: playerP1,
-                      teamThatWon: teamP1,
-                      scoreFromTeamThatWon: penaltyScoreP1,
-                      playerThatLost: playerP2,
-                      teamThatLost: teamP2,
-                      scoreFromTeamThatLost: penaltyScoreP2,
-                      draw: true,
-                      penalties: true,
-                      scoringDifference: 0,
-                  })
-                : (outcome = {
-                      playerThatWon: playerP2,
-                      teamThatWon: teamP2,
-                      scoreFromTeamThatWon: penaltyScoreP2,
-                      playerThatLost: playerP1,
-                      teamThatLost: teamP1,
-                      scoreFromTeamThatLost: penaltyScoreP1,
-                      draw: true,
-                      penalties: true,
-                      scoringDifference: 0,
-                  })
+        if (!seedP1 || !seedP2) {
+            // El partido es de temporada regular (sin seed en outcome, no puede haber penales) //
+            if (scoreP1 - scoreP2 !== 0) {
+                scoreP1 > scoreP2
+                    ? (outcome = {
+                          playerThatWon: playerP1,
+                          teamThatWon: teamP1,
+                          scoreFromTeamThatWon: scoreP1,
+                          playerThatLost: playerP2,
+                          teamThatLost: teamP2,
+                          scoreFromTeamThatLost: scoreP2,
+                          draw: false,
+                          scoringDifference: Math.abs(scoreP1 - scoreP2), // Es indistinto el orden, pues calculo valor absoluto.
+                      })
+                    : (outcome = {
+                          playerThatWon: playerP2,
+                          teamThatWon: teamP2,
+                          scoreFromTeamThatWon: scoreP2,
+                          playerThatLost: playerP1,
+                          teamThatLost: teamP1,
+                          scoreFromTeamThatLost: scoreP1,
+                          draw: false,
+                          scoringDifference: Math.abs(scoreP1 - scoreP2), // Es indistinto el orden, pues calculo valor absoluto.
+                      })
+            } else {
+                // Empate, pero no hubo penales!
+                outcome = {
+                    draw: true,
+                    penalties: false,
+                }
+            }
         } else {
-            // Empate, pero no hubo penales!
-            outcome = {
-                draw: true,
-                penalties: false,
+            // El partido es de playin o de playoffs (le agrego seed en outcome, puede haber penales) //
+            if (scoreP1 - scoreP2 !== 0) {
+                scoreP1 > scoreP2
+                    ? (outcome = {
+                          playerThatWon: playerP1,
+                          teamThatWon: teamP1,
+                          seedFromTeamThatWon: seedP1,
+                          scoreFromTeamThatWon: scoreP1,
+                          playerThatLost: playerP2,
+                          teamThatLost: teamP2,
+                          seedFromTeamThatLost: seedP2,
+                          scoreFromTeamThatLost: scoreP2,
+                          draw: false,
+                          scoringDifference: Math.abs(scoreP1 - scoreP2), // Es indistinto el orden, pues calculo valor absoluto.
+                      })
+                    : (outcome = {
+                          playerThatWon: playerP2,
+                          teamThatWon: teamP2,
+                          seedFromTeamThatWon: seedP2,
+                          scoreFromTeamThatWon: scoreP2,
+                          playerThatLost: playerP1,
+                          teamThatLost: teamP1,
+                          seedFromTeamThatLost: seedP1,
+                          scoreFromTeamThatLost: scoreP1,
+                          draw: false,
+                          scoringDifference: Math.abs(scoreP1 - scoreP2), // Es indistinto el orden, pues calculo valor absoluto.
+                      })
+            } else {
+                // Empate, y hubo penales (no puede haber empate sin penales) //
+                penaltyScoreP1 > penaltyScoreP2
+                    ? (outcome = {
+                          playerThatWon: playerP1,
+                          teamThatWon: teamP1,
+                          seedFromTeamThatWon: seedP1,
+                          scoreFromTeamThatWon: penaltyScoreP1,
+                          playerThatLost: playerP2,
+                          teamThatLost: teamP2,
+                          seedFromTeamThatLost: seedP2,
+                          scoreFromTeamThatLost: penaltyScoreP2,
+                          draw: true,
+                          penalties: true,
+                      })
+                    : (outcome = {
+                          playerThatWon: playerP2,
+                          teamThatWon: teamP2,
+                          seedFromTeamThatWon: seedP2,
+                          scoreFromTeamThatWon: penaltyScoreP2,
+                          playerThatLost: playerP1,
+                          teamThatLost: teamP1,
+                          seedFromTeamThatLost: seedP1,
+                          scoreFromTeamThatLost: penaltyScoreP1,
+                          draw: true,
+                          penalties: true,
+                      })
             }
         }
 
         const uploadedMatch = await modifyMatchResult(
-            matchId,
+            match,
             scoreP1,
             scoreP2,
             outcome

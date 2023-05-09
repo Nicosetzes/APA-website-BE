@@ -1,7 +1,7 @@
 const { sortMatchesFromTournamentById } = require("./../../dao")
 
-const orderMatchesFromTournamentById = async (tournamentId) => {
-    return await sortMatchesFromTournamentById(tournamentId)
+const orderMatchesFromTournamentById = async (tournamentId, group) => {
+    return await sortMatchesFromTournamentById(tournamentId, group)
 }
 
 module.exports = orderMatchesFromTournamentById

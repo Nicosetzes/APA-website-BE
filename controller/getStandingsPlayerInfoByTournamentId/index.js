@@ -5,15 +5,30 @@ const {
 
 const getStandingsPlayerInfoByTournamentId = async (req, res) => {
     const { tournament } = req.params
+    const { group } = req.query
 
     try {
-        const tournamentFromDB = await retrieveTournamentById(tournament)
-        const matches = await orderMatchesFromTournamentById(tournament)
-
-        const { players, _id } = tournamentFromDB
-        const tournamentName = tournamentFromDB.name
-
         const playerStats = []
+
+        let teamsFromTournament
+
+        const { id, name, players, teams, groups } =
+            await retrieveTournamentById(tournament)
+
+        // Revisar el siguiente bloque, debería crear una llamada que traiga especificamente los equipos que necesito //
+
+        let matches
+
+        if (!groups.length) {
+            // El torneo no tiene grupos //
+            matches = await orderMatchesFromTournamentById(tournament)
+        } else if (groups.length && !group) {
+            // El torneo tiene grupos, pero no hay selección //
+            matches = await orderMatchesFromTournamentById(tournament, "A")
+        } else {
+            // El torneo tiene grupos, y hay selección //
+            matches = await orderMatchesFromTournamentById(tournament, group)
+        }
 
         players.forEach((player) => {
             let played = matches.filter(
@@ -111,7 +126,7 @@ const getStandingsPlayerInfoByTournamentId = async (req, res) => {
 
             playerStats.push({
                 player: { name: player.name, id: player.id },
-                tournament: { name: tournamentName, id: _id },
+                tournament: { id, name },
                 played,
                 wins,
                 draws,

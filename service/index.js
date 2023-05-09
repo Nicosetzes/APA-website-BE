@@ -1,13 +1,16 @@
 const calculateMatchesFromPlayer = require("./calculateMatchesFromPlayer")
 const calculateMatchLossesFromPlayer = require("./calculateMatchLossesFromPlayer")
 const calculateMatchWinsFromPlayer = require("./calculateMatchWinsFromPlayer")
-// const modifyManyMatches = require("./modifyManyMatches")
+const modifyManyMatches = require("./modifyManyMatches")
 const modifyMatchResult = require("./modifyMatchResult")
 const modifyMatchResultToRemoveIt = require("./modifyMatchResultToRemoveIt")
 const orderMatchesFromTournamentById = require("./orderMatchesFromTournamentById")
 const orderPlayoffMatchesFromTournamentById = require("./orderPlayoffMatchesFromTournamentById")
+const originateFixtureByTournamentId = require("./originateFixtureByTournamentId")
 const originateManyMatches = require("./originateManyMatches")
 const originateMatch = require("./originateMatch")
+const originatePlayinByTournamentId = require("./originatePlayinByTournamentId")
+const originatePlayoffByTournamentId = require("./originatePlayoffByTournamentId")
 const originateTournament = require("./originateTournament")
 const originateUser = require("./originateUser")
 const retrieveAllUsers = require("./retrieveAllUsers")
@@ -17,7 +20,9 @@ const retrieveAllMatchesByUserId = require("./retrieveAllMatchesByUserId")
 const retrieveMatches = require("./retrieveMatches")
 const retrieveMatchesByTeamName = require("./retrieveMatchesByTeamName")
 const retrieveMatchesByTournamentId = require("./retrieveMatchesByTournamentId")
-const retrieveFixtureByTournamentIds = require("./retrieveFixtureByTournamentIds")
+const retrieveFixtureByTournamentId = require("./retrieveFixtureByTournamentId")
+const retrievePlayinMatchesByTournamentId = require("./retrievePlayinMatchesByTournamentId")
+const retrievePlayoffMatchesByTournamentId = require("./retrievePlayoffMatchesByTournamentId")
 const retrieveRecentMatchesFromPlayer = require("./retrieveRecentMatchesFromPlayer")
 const retrieveTournamentById = require("./retrieveTournamentById")
 const retrieveTournamentPlayersByTournamentId = require("./retrieveTournamentPlayersByTournamentId")
@@ -30,13 +35,16 @@ module.exports = {
     calculateMatchesFromPlayer,
     calculateMatchLossesFromPlayer,
     calculateMatchWinsFromPlayer,
-    // modifyManyMatches,
+    modifyManyMatches,
     modifyMatchResult,
     modifyMatchResultToRemoveIt,
     orderMatchesFromTournamentById,
     orderPlayoffMatchesFromTournamentById,
+    originateFixtureByTournamentId,
     originateManyMatches,
     originateMatch,
+    originatePlayinByTournamentId,
+    originatePlayoffByTournamentId,
     originateTournament,
     originateUser,
     retrieveAllUsers,
@@ -46,7 +54,9 @@ module.exports = {
     retrieveMatches,
     retrieveMatchesByTeamName,
     retrieveMatchesByTournamentId,
-    retrieveFixtureByTournamentIds,
+    retrieveFixtureByTournamentId,
+    retrievePlayinMatchesByTournamentId,
+    retrievePlayoffMatchesByTournamentId,
     retrieveRecentMatchesFromPlayer,
     retrieveTournamentById,
     retrieveTournamentPlayersByTournamentId,

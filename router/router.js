@@ -44,8 +44,15 @@ const {
     postTournaments,
     getTournamentById,
     getPlayersByTournamentId,
+    postPlayinByTournamentId,
+    postPlayinUpdateByTournamentId,
+    getPlayinMatchesByTournamentId,
+    postPlayoffByTournamentId,
+    postPlayoffUpdateByTournamentId,
+    getPlayoffMatchesByTournamentId,
     getTeamInformationByTournamentId,
     getFixtureByTournamentId,
+    postFixtureByTournamentId,
     postMatchByTournamentId,
     putMatchByTournamentId,
     putRemoveMatchByTournamentId,
@@ -59,7 +66,7 @@ const {
     getAllTimeStandings,
     getAllTimeGeneralStatistics,
     getAllTimeFaceToFace,
-    // majorUpdatesController,
+    majorUpdatesController,
 } = require("./../controller")
 
 /* -------------------- isAUTH -------------------- */
@@ -74,7 +81,7 @@ root.get("/matches", getMatches)
 
 root.post("/matches", postMatch) // Provisoria, luego puede ser modificada //
 
-// root.get("/update", majorUpdatesController)
+root.get("/update", majorUpdatesController)
 
 root.get("/world-cup/:tournament/standings", getWorldCupStandingsByTournamentId)
 
@@ -118,7 +125,25 @@ tournaments.get("/:tournament", getTournamentById)
 
 tournaments.get("/:tournament/fixture", getFixtureByTournamentId)
 
+tournaments.post("/:tournament/fixture", postFixtureByTournamentId)
+
 tournaments.get("/:tournament/players", getPlayersByTournamentId)
+
+// TODO: Create route for /playin //
+
+tournaments.post("/:tournament/playin", postPlayinByTournamentId)
+
+tournaments.post("/:tournament/playin/update", postPlayinUpdateByTournamentId)
+
+tournaments.get("/:tournament/playin/matches", getPlayinMatchesByTournamentId)
+
+// TODO: Create route for /playoff //
+
+tournaments.post("/:tournament/playoff", postPlayoffByTournamentId)
+
+tournaments.post("/:tournament/playoff/update", postPlayoffUpdateByTournamentId)
+
+tournaments.get("/:tournament/playoff/matches", getPlayoffMatchesByTournamentId)
 
 // tournaments.get("/:tournament/teams", getTeamsByTournamentId)
 

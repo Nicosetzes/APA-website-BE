@@ -1,4 +1,4 @@
-// const matchesModel = require("./../models/matches.js")
+const matchesModel = require("./../models/matches.js")
 
 // const updateManyMatches = async () => {
 //     const allMatches = await matchesModel.findById()
@@ -16,20 +16,22 @@
 //     return "ok"
 // }
 
-// const updateManyMatches = async () => {
-//     const updatedMatches = matchesModel.updateMany(
-//         {
-//             "tournament.id": "62c20e041a7df52274d0975b",
-//         },
-//         {
-//             $set: {
-//                 played: true,
-//                 type: "regular",
-//             },
-//         }
-//     )
-//     return updatedMatches
-// }
+const updateManyMatches = async () => {
+    const updatedMatches = matchesModel.updateMany(
+        {
+            "tournament.id": "625f32c9cfe012fb71aae3af",
+            $or: [{ "teamP1.id": "40" }, { "teamP2.id": "40" }],
+            type: "regular",
+        },
+        {
+            $set: {
+                group: "B",
+            },
+        },
+        { timestamps: false }
+    )
+    return updatedMatches
+}
 
 // const updateManyMatches = async () => {
 //     const updatedMatches = matchesModel.updateMany(
@@ -63,4 +65,4 @@
 //     return updatedMatches
 // }
 
-// module.exports = updateManyMatches
+module.exports = updateManyMatches

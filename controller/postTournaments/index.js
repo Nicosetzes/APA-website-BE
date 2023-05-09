@@ -1,4 +1,4 @@
-const { originateTournament, retrieveTournaments } = require("./../../service")
+const { originateTournament } = require("./../../service")
 
 const cloudinary = require("./../../cloudinary")
 
@@ -7,16 +7,18 @@ const cloudinary = require("./../../cloudinary")
 const postTournaments = async (req, res) => {
     const { name, format, players, teams, cloudinaryId } = req.body
 
-    // TODO: Work the format //
-
-    const apa_id = req.body.apa_id == null ? null : req.body.apa_id // El null llega como string en formData, por eso debo validar //
+    // const apa_id = req.body.apa_id == null ? null : req.body.apa_id // El null llega como string en formData, por eso debo validar //
 
     try {
         // Formatting tournament for DB BEGINS //
 
-        // const players = await retrieveAllUsers()
+        // const playersFromDB = await retrieveAllUsers()
 
-        const teamsForDB = teams.map(({ id, name, value }) => {
+        const allGroups = teams.map(({ group }) => group)
+
+        const groups = Array.from(new Set(allGroups))
+
+        const teamsForDB = teams.map(({ id, name, value, group }) => {
             let indexOfPlayer = players.findIndex(
                 (player) => player.id == value
             )
@@ -25,31 +27,19 @@ const postTournaments = async (req, res) => {
                 team: { id, name },
                 player: {
                     id: value,
-                    name: players[indexOfPlayer].nickname,
+                    name: players[indexOfPlayer].name,
                 },
+                group,
             }
         })
 
-        const tournamentsFromDB = await retrieveTournaments()
-
-        const apaIdsFromTournaments = tournamentsFromDB
-            .map(({ apa_id }) => Number(apa_id))
-            .sort((a, b) => (a > b ? 1 : -1))
-
-        // console.log(apaIdsFromTournaments)
-
-        let tournament
-
-        const newApaId = Number(apaIdsFromTournaments.at(-1)) + 1
-
-        // console.log(newApaId)
-
-        tournament = await originateTournament({
+        const tournament = await originateTournament({
             name,
             players,
             teams: teamsForDB,
-            apa_id: apa_id == null ? newApaId : apa_id,
-            cloudinary_id: cloudinaryId,
+            format,
+            groups,
+            // cloudinary_id: cloudinaryId,
         })
 
         res.status(200).json(tournament)

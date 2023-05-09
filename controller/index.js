@@ -6,7 +6,14 @@ const getIsUserAuthenticated = require("./getIsUserAuthenticated")
 const getLogout = require("./getLogout")
 const getMatches = require("./getMatches")
 const getFixtureByTournamentId = require("./getFixtureByTournamentId")
+const postFixtureByTournamentId = require("./postFixtureByTournamentId")
 const getPlayersByTournamentId = require("./getPlayersByTournamentId")
+const postPlayinByTournamentId = require("./postPlayinByTournamentId")
+const postPlayinUpdateByTournamentId = require("./postPlayinUpdateByTournamentId")
+const getPlayinMatchesByTournamentId = require("./getPlayinMatchesByTournamentId")
+const postPlayoffByTournamentId = require("./postPlayoffByTournamentId")
+const postPlayoffUpdateByTournamentId = require("./postPlayoffUpdateByTournamentId")
+const getPlayoffMatchesByTournamentId = require("./getPlayoffMatchesByTournamentId")
 const getPlayoffsBracketByTournamentId = require("./getPlayoffsBracketByTournamentId")
 const getPlayoffsPlayerInfoByTournamentId = require("./getPlayoffsPlayerInfoByTournamentId")
 const getPlayoffsTableByTournamentId = require("./getPlayoffsTableByTournamentId")
@@ -24,7 +31,7 @@ const getWorldCupPlayoffMatchesByTournamentId = require("./getWorldCupPlayoffMat
 const getWorldCupPlayoffTeamsByTournamentId = require("./getWorldCupPlayoffTeamsByTournamentId")
 const getWorldCupStandingsByTournamentId = require("./getWorldCupStandingsByTournamentId")
 const postLogin = require("./postLogin")
-// const majorUpdatesController = require("./majorUpdatesController")
+const majorUpdatesController = require("./majorUpdatesController")
 const postMatch = require("./postMatch")
 const postMatchByTournamentId = require("./postMatchByTournamentId")
 const postRegister = require("./postRegister")
@@ -42,7 +49,14 @@ module.exports = {
     getLogout,
     getMatches,
     getFixtureByTournamentId,
+    postFixtureByTournamentId,
     getPlayersByTournamentId,
+    postPlayinByTournamentId,
+    postPlayinUpdateByTournamentId,
+    getPlayinMatchesByTournamentId,
+    postPlayoffByTournamentId,
+    postPlayoffUpdateByTournamentId,
+    getPlayoffMatchesByTournamentId,
     getPlayoffsBracketByTournamentId,
     getPlayoffsPlayerInfoByTournamentId,
     getPlayoffsTableByTournamentId,
@@ -59,7 +73,7 @@ module.exports = {
     getWorldCupPlayoffMatchesByTournamentId,
     getWorldCupPlayoffTeamsByTournamentId,
     getWorldCupStandingsByTournamentId,
-    // majorUpdatesController,
+    majorUpdatesController,
     postLogin,
     postMatch,
     postMatchByTournamentId,

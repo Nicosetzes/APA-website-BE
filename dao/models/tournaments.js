@@ -8,11 +8,10 @@ const tournamentsSchema = new mongoose.Schema(
         players: { type: Array, require: true, max: 100 },
         teams: { type: Array, require: true, max: 100 },
         outcome: { type: Object, require: true, max: 100 },
-        apa_id: { type: String, require: true, max: 100 },
         ongoing: { type: Boolean, default: true }, // Revisar el default
-        type: { type: String, default: false },
-        parents: { type: Array, require: true, max: 100 },
+        format: { type: String, default: false },
         cloudinary_id: { type: String, require: true, max: 100 },
+        groups: { type: Array, require: true, default: [], max: 8 },
     },
     { collection: "tournaments" }
 )

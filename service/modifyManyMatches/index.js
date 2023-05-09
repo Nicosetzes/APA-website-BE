@@ -1,7 +1,7 @@
-// const { updateManyMatches } = require("./../../dao")
+const { updateManyMatches } = require("./../../dao")
 
-// const modifyManyMatches = async () => {
-//     return await updateManyMatches()
-// }
+const modifyManyMatches = async () => {
+    return await updateManyMatches()
+}
 
-// module.exports = modifyManyMatches
+module.exports = modifyManyMatches

@@ -46,6 +46,10 @@ const matchesSchema = new mongoose.Schema(
         tournament: { type: Object, require: true, max: 100 },
         valid: { type: Boolean, require: false },
         played: { type: Boolean, require: true },
+        group: { type: String, require: false, max: 1 },
+        playoff_id: { type: Number, require: false },
+        seedP1: { type: String, require: false, max: 2 },
+        seedP2: { type: String, require: false, max: 2 },
     },
     { collection, timestamps: true }
 )

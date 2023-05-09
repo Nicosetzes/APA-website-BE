@@ -1,10 +1,14 @@
 const { originateMatch, retrieveTournamentById } = require("./../../service")
 
 const postMatchByTournamentId = async (req, res) => {
-    const tournamentId = req.params.id
+    const tournamentId = req.params.tournament
+
+    console.log(tournamentId)
 
     try {
-        const tournament = await retrieveTournamentById(tournamentId)
+        const { name, id } = await retrieveTournamentById(tournamentId)
+
+        console.log(name, id)
 
         let {
             playerP1,
@@ -16,6 +20,8 @@ const postMatchByTournamentId = async (req, res) => {
             penaltyScoreP1,
             penaltyScoreP2,
             type,
+            valid,
+            playoff_id,
         } = req.body
 
         let outcome
@@ -88,9 +94,11 @@ const postMatchByTournamentId = async (req, res) => {
             scoreP2,
             outcome,
             type,
+            valid,
+            playoff_id: Number(playoff_id),
             tournament: {
-                name: tournament.name,
-                id: tournament.id,
+                id,
+                name,
             },
         }
 
