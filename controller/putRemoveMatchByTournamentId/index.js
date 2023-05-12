@@ -10,7 +10,7 @@ const putRemoveMatchByTournamentId = async (req, res) => {
         deletedResult
             ? res.status(200).json(deletedResult)
             : res.status(500).json({
-                  err: "Match couldn't be deleted because it wasn't found",
+                  message: `El partido de ID ${matchId} no se encuentra en la base de datos`,
               })
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)

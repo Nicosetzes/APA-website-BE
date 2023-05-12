@@ -20,8 +20,8 @@ const postMatchByTournamentId = async (req, res) => {
             penaltyScoreP1,
             penaltyScoreP2,
             type,
-            valid,
-            playoff_id,
+            played,
+            group,
         } = req.body
 
         let outcome
@@ -94,12 +94,12 @@ const postMatchByTournamentId = async (req, res) => {
             scoreP2,
             outcome,
             type,
-            valid,
-            playoff_id: Number(playoff_id),
+            played,
             tournament: {
                 id,
                 name,
             },
+            group,
         }
 
         const createdMatch = await originateMatch(match)
