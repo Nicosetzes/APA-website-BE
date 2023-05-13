@@ -1,10 +1,22 @@
 const { createFixtureByTournamentId } = require("./../../dao")
 const {
-    fixtureGenerationByGroup,
-} = require("./../../fixture-generation-by-group")
+    fixtureGenerationWithoutGroups,
+} = require("./../../fixture-generation/no-groups")
+const {
+    fixtureGenerationWithGroups,
+} = require("./../../fixture-generation/with-groups")
 
-const originateFixtureByTournamentId = async (tournament, players, teams) => {
-    const matches = fixtureGenerationByGroup(tournament, players, teams)
+const originateFixtureByTournamentId = async (
+    tournament,
+    players,
+    teams,
+    groups
+) => {
+    // Ejecuto una función o la otra dependiendo de si el torneo tiene grupos o no //
+
+    const matches = groups
+        ? fixtureGenerationWithGroups(tournament, players, teams)
+        : fixtureGenerationWithoutGroups(tournament, players, teams)
 
     return await createFixtureByTournamentId(matches)
 }

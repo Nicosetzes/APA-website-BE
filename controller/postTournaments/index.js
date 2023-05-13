@@ -7,42 +7,64 @@ const cloudinary = require("./../../cloudinary")
 const postTournaments = async (req, res) => {
     const { name, format, players, teams, cloudinaryId } = req.body
 
-    // const apa_id = req.body.apa_id == null ? null : req.body.apa_id // El null llega como string en formData, por eso debo validar //
-
     try {
         // Formatting tournament for DB BEGINS //
 
-        // const playersFromDB = await retrieveAllUsers()
+        let groups
+        let teamsForDB
+        let newTournament
 
-        const allGroups = teams.map(({ group }) => group)
+        if (format == "world_cup" || format == "league_playin_playoff") {
+            groups = Array.from(new Set(teams.map(({ group }) => group)))
 
-        const groups = Array.from(new Set(allGroups))
+            teamsForDB = teams.map(({ id, name, value, group }) => {
+                let indexOfPlayer = players.findIndex(
+                    (player) => player.id == value
+                )
 
-        const teamsForDB = teams.map(({ id, name, value, group }) => {
-            let indexOfPlayer = players.findIndex(
-                (player) => player.id == value
-            )
+                return {
+                    team: { id, name },
+                    player: {
+                        id: value,
+                        name: players[indexOfPlayer].name,
+                    },
+                    group,
+                }
+            })
 
-            return {
-                team: { id, name },
-                player: {
-                    id: value,
-                    name: players[indexOfPlayer].name,
-                },
-                group,
-            }
-        })
+            newTournament = await originateTournament({
+                name,
+                players,
+                teams: teamsForDB,
+                format,
+                groups,
+                // cloudinary_id: cloudinaryId,
+            })
+        } else {
+            teamsForDB = teams.map(({ id, name, value }) => {
+                let indexOfPlayer = players.findIndex(
+                    (player) => player.id == value
+                )
 
-        const tournament = await originateTournament({
-            name,
-            players,
-            teams: teamsForDB,
-            format,
-            groups,
-            // cloudinary_id: cloudinaryId,
-        })
+                return {
+                    team: { id, name },
+                    player: {
+                        id: value,
+                        name: players[indexOfPlayer].name,
+                    },
+                }
+            })
 
-        res.status(200).json(tournament)
+            newTournament = await originateTournament({
+                name,
+                players,
+                teams: teamsForDB,
+                format,
+                // cloudinary_id: cloudinaryId,
+            })
+        }
+
+        res.status(200).json(newTournament)
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
     }
