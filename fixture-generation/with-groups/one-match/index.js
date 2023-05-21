@@ -1,7 +1,7 @@
 // FUNCIÓN PARA GENERAR EL FIXTURE //
 
 // tournament, players, teams
-const fixtureGenerationWithGroups = (tournament, players, teams) => {
+const fixtureGenerationOneMatch = (tournament, players, teams) => {
     // Calcular cantidad de equipos por jugador: //
     const amountOfTeamsForEachPlayer = teams.length / players.length
     // console.log(amountOfTeamsForEachPlayer)
@@ -148,5 +148,5 @@ const fixtureGenerationWithGroups = (tournament, players, teams) => {
 }
 
 module.exports = {
-    fixtureGenerationWithGroups,
+    fixtureGenerationOneMatch,
 }

@@ -8,16 +8,17 @@ const postFixtureByTournamentId = async (req, res) => {
     const { tournament } = req.params
 
     try {
-        const { id, name, players, teams, groups } =
+        const { id, name, players, teams, groups, format } =
             await retrieveTournamentById(tournament)
 
         const playerIDs = players.map(({ id }) => id)
 
         const tournamentForFixtureGeneration = { id, name }
 
+        const formatForFixtureGeneration = format
+
         let teamsForFixtureGeneration
         let playersForFixtureGeneration
-        let doesTournamentHaveGroups
 
         if (groups.length) {
             // El torneo tiene grupos //
@@ -40,20 +41,17 @@ const postFixtureByTournamentId = async (req, res) => {
                         .name,
                 }
             })
-
-            doesTournamentHaveGroups = true
         } else {
             // El torneo no tiene grupos //
             playersForFixtureGeneration = players
             teamsForFixtureGeneration = teams
-            doesTournamentHaveGroups = false
         }
 
         const fixture = await originateFixtureByTournamentId(
+            formatForFixtureGeneration,
             tournamentForFixtureGeneration,
             playersForFixtureGeneration,
-            teamsForFixtureGeneration,
-            doesTournamentHaveGroups
+            teamsForFixtureGeneration
         )
         res.status(200).json(fixture)
     } catch (err) {

@@ -11,7 +11,11 @@ const postTournaments = async (req, res) => {
         let groups
         let newTournament
 
-        if (format == "world_cup" || format == "league_playin_playoff") {
+        if (
+            format == "world_cup" ||
+            format == "league_playin_playoff" ||
+            format == "champions_league"
+        ) {
             groups = Array.from(new Set(teams.map(({ group }) => group)))
 
             newTournament = await originateTournament({

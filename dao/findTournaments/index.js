@@ -1,7 +1,10 @@
 const tournamentsModel = require("./../models/tournaments.js")
 
-const findTournaments = async (query) => {
-    const tournaments = await tournamentsModel.find(query)
+const findTournaments = async () => {
+    const tournaments = await tournamentsModel.find(
+        {},
+        "name ongoing cloudinary_id"
+    )
     return tournaments
 }
 
