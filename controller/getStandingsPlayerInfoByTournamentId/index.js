@@ -10,10 +10,9 @@ const getStandingsPlayerInfoByTournamentId = async (req, res) => {
     try {
         const playerStats = []
 
-        let teamsFromTournament
-
-        const { id, name, players, teams, groups } =
-            await retrieveTournamentById(tournament)
+        const { id, name, players, groups } = await retrieveTournamentById(
+            tournament
+        )
 
         // Revisar el siguiente bloque, debería crear una llamada que traiga especificamente los equipos que necesito //
 
@@ -135,7 +134,12 @@ const getStandingsPlayerInfoByTournamentId = async (req, res) => {
                 streak,
             })
         })
-        res.send(playerStats)
+
+        const orderedPlayerStats = playerStats.sort((a, b) =>
+            a.points > b.points ? -1 : 1
+        )
+
+        res.send(orderedPlayerStats)
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
     }

@@ -1,5 +1,6 @@
 const {
     orderMatchesFromTournamentById,
+    originateChampionsLeaguePlayoffByTournamentId,
     originatePlayoffWithPlayinByTournamentId,
     originateWorldCupPlayoffByTournamentId,
     retrieveTournamentById,
@@ -49,7 +50,7 @@ const postPlayoffByTournamentId = async (req, res) => {
                 playinMatchesForPlayoffGeneration
             )
         } else {
-            // El formato es world_cup //
+            // El formato es world_cup o champions_league //
             const teamsForPlayoffGeneration = {
                 teamsFromGroupA: teams.filter((team) => team.group == "A"),
                 teamsFromGroupB: teams.filter((team) => team.group == "B"),
@@ -60,11 +61,18 @@ const postPlayoffByTournamentId = async (req, res) => {
                 teamsFromGroupG: teams.filter((team) => team.group == "G"),
                 teamsFromGroupH: teams.filter((team) => team.group == "H"),
             }
-            playoff = await originateWorldCupPlayoffByTournamentId(
-                tournamentForPlayoffGeneration,
-                teamsForPlayoffGeneration,
-                regularMatchesForPlayoffGeneration
-            )
+            playoff =
+                format == "world_cup"
+                    ? await originateWorldCupPlayoffByTournamentId(
+                          tournamentForPlayoffGeneration,
+                          teamsForPlayoffGeneration,
+                          regularMatchesForPlayoffGeneration
+                      )
+                    : await originateChampionsLeaguePlayoffByTournamentId(
+                          tournamentForPlayoffGeneration,
+                          teamsForPlayoffGeneration,
+                          regularMatchesForPlayoffGeneration
+                      )
         }
 
         res.status(200).json({ playoff })

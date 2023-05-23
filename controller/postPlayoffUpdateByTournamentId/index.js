@@ -1,4 +1,5 @@
 const {
+    originateChampionsLeaguePlayoffUpdateByTournamentId,
     originatePlayoffUpdateByTournamentId,
     retrieveTournamentById,
     retrievePlayoffMatchesByTournamentId,
@@ -9,29 +10,38 @@ const postPlayoffUpdateByTournamentId = async (req, res) => {
     const { tournament } = req.params
 
     try {
-        const { id, name } = await retrieveTournamentById(tournament)
+        const { id, name, format } = await retrieveTournamentById(tournament)
 
         const tournamentForService = { id, name }
 
         const matches = await retrievePlayoffMatchesByTournamentId(tournament)
 
-        const updatedMatches = await originatePlayoffUpdateByTournamentId(
-            round,
-            tournamentForService,
-            matches
-        )
+        let updatedMatches
+
+        if (format == "champions_league") {
+            updatedMatches =
+                await originateChampionsLeaguePlayoffUpdateByTournamentId(
+                    round,
+                    tournamentForService,
+                    matches
+                )
+        } else {
+            updatedMatches = await originatePlayoffUpdateByTournamentId(
+                round,
+                tournamentForService,
+                matches
+            )
+        }
 
         updatedMatches.length
             ? res.status(200).json({
                   matches: updatedMatches,
                   message: `Se han generado partidos nuevos (${updatedMatches.length})`,
               })
-            : res
-                  .status(200)
-                  .json({
-                      matches: updatedMatches,
-                      message: `No hay partidos nuevos para generar`,
-                  })
+            : res.status(200).json({
+                  matches: updatedMatches,
+                  message: `No hay partidos nuevos para generar`,
+              })
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
     }
