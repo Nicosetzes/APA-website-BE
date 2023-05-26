@@ -16,16 +16,35 @@ const matchesModel = require("./../models/matches.js")
 //     return "ok"
 // }
 
+// const updateManyMatches = async () => {
+//     const updatedMatches = matchesModel.updateMany(
+//         {
+//             "tournament.id": "646ff40e2524b3187034f790",
+//             $or: [{ "teamP1.id": "40" }, { "teamP2.id": "40" }],
+//             type: "regular",
+//         },
+//         {
+//             $set: {
+//                 group: "B",
+//             },
+//         },
+//         { timestamps: false }
+//     )
+//     return updatedMatches
+// }
+
 const updateManyMatches = async () => {
     const updatedMatches = matchesModel.updateMany(
         {
-            "tournament.id": "625f32c9cfe012fb71aae3af",
-            $or: [{ "teamP1.id": "40" }, { "teamP2.id": "40" }],
-            type: "regular",
+            "tournament.id": "646ff40e2524b3187034f790",
+            "teamP2.id": "459",
         },
         {
             $set: {
-                group: "B",
+                teamP2: {
+                    id: "457",
+                    name: "Newells Old Boys",
+                },
             },
         },
         { timestamps: false }

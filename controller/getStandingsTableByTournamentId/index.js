@@ -12,9 +12,8 @@ const getStandingsTableByTournamentId = async (req, res) => {
 
         let teamsFromTournament
 
-        const { id, name, teams, groups } = await retrieveTournamentById(
-            tournament
-        )
+        const { id, name, format, players, teams, groups } =
+            await retrieveTournamentById(tournament)
 
         // Revisar el siguiente bloque, podría crear una llamada que traiga especificamente los equipos que necesito //
 
@@ -178,11 +177,31 @@ const getStandingsTableByTournamentId = async (req, res) => {
             if (a.goalsAgainst < b.goalsAgainst) return -1
         })
 
+        // Averiguo los equipos que ya no tienen chances de campeonar si el formato es league //
+
+        if (format == "league") {
+            // Calculo la cantidad total de partidos que juega cada equipo en el torneo //
+            const amountOfMatchesForEachTeam =
+                sortedStandings.length - sortedStandings.length / players.length
+
+            // En caso de format == "league", reescribo sortedStandings con la nueva info //
+            sortedStandings = sortedStandings.map((team, index) => {
+                let amountOfPotentialPointsThatTeamCanHaveAtTheEnd =
+                    (amountOfMatchesForEachTeam - team.played) * 3 + team.points
+                if (
+                    amountOfPotentialPointsThatTeamCanHaveAtTheEnd <
+                    sortedStandings.at(0).points
+                )
+                    return { ...team, chances: false }
+                else return { ...team }
+            })
+        }
+
         res.status(200).send({
             id,
             name,
             activeGroup: group,
-            sortedStandings,
+            standings: sortedStandings,
         })
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
