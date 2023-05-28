@@ -4,6 +4,7 @@ const calculateMatchWinsFromPlayer = require("./calculateMatchWinsFromPlayer")
 const modifyManyMatches = require("./modifyManyMatches")
 const modifyMatchResult = require("./modifyMatchResult")
 const modifyMatchResultToRemoveIt = require("./modifyMatchResultToRemoveIt")
+const modifySquad = require("./modifySquad")
 const orderMatchesFromTournamentById = require("./orderMatchesFromTournamentById")
 const orderPlayoffMatchesFromTournamentById = require("./orderPlayoffMatchesFromTournamentById")
 const originateChampionsLeaguePlayoffByTournamentId = require("./originateChampionsLeaguePlayoffByTournamentId")
@@ -42,6 +43,7 @@ module.exports = {
     modifyManyMatches,
     modifyMatchResult,
     modifyMatchResultToRemoveIt,
+    modifySquad,
     orderMatchesFromTournamentById,
     orderPlayoffMatchesFromTournamentById,
     originateChampionsLeaguePlayoffByTournamentId,

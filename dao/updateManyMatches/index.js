@@ -36,14 +36,14 @@ const matchesModel = require("./../models/matches.js")
 const updateManyMatches = async () => {
     const updatedMatches = matchesModel.updateMany(
         {
-            "tournament.id": "646ff40e2524b3187034f790",
-            "teamP2.id": "459",
+            "tournament.id": "625e0f191b3f1ce6b5ee4756",
+            "teamP2.id": "1065",
         },
         {
             $set: {
                 teamP2: {
-                    id: "457",
-                    name: "Newells Old Boys",
+                    id: "1065",
+                    name: "Central Cordoba",
                 },
             },
         },
