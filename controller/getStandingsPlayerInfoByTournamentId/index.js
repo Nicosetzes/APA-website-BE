@@ -45,6 +45,10 @@ const getStandingsPlayerInfoByTournamentId = async (req, res) => {
 
             let draws = played - wins - losses
 
+            let effectiveness = Number(
+                (((wins * 3 + draws) / (played * 3)) * 100).toFixed(2)
+            )
+
             let points = wins * 3 + draws
 
             let streak = matches
@@ -130,6 +134,7 @@ const getStandingsPlayerInfoByTournamentId = async (req, res) => {
                 wins,
                 draws,
                 losses,
+                effectiveness,
                 points,
                 streak,
             })

@@ -47,6 +47,9 @@ const getAllTimeStandings = async (req, res) => {
                         return acc + curr.scoreP1
                     }, 0)
             let scoringDifference = goalsFor - goalsAgainst
+            let effectiveness = Number(
+                (((wins * 3 + draws) / (played * 3)) * 100).toFixed(2)
+            )
             let points = wins * 3 + draws
 
             standings.push({
@@ -58,6 +61,7 @@ const getAllTimeStandings = async (req, res) => {
                 goalsFor,
                 goalsAgainst,
                 scoringDifference,
+                effectiveness,
                 points,
             })
         })

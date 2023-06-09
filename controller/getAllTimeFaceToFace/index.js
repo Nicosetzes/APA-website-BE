@@ -40,11 +40,32 @@ const getAllTimeFaceToFace = async (req, res) => {
                 return playerThatWon && playerThatWon.id == p1.id
             })
 
-            firstPlayerBestWin = firstPlayerWins.sort((a, b) =>
-                a.outcome.scoringDifference > b.outcome.scoringDifference
-                    ? -1
-                    : 1
-            )[0].outcome
+            // firstPlayerBestWin = firstPlayerWins.sort((a, b) =>
+            //     a.outcome.scoringDifference > b.outcome.scoringDifference
+            //         ? -1
+            //         : 1
+            // )[0].outcome
+
+            firstPlayerBestWin = firstPlayerWins.sort(function (a, b) {
+                if (a.outcome.scoringDifference > b.outcome.scoringDifference)
+                    return -1
+                if (a.outcome.scoringDifference < b.outcome.scoringDifference)
+                    return 1
+
+                if (
+                    a.outcome.scoreFromTeamThatWon >
+                    b.outcome.scoreFromTeamThatWon
+                )
+                    return -1
+                if (
+                    a.outcome.scoreFromTeamThatWon <
+                    b.outcome.scoreFromTeamThatWon
+                )
+                    return 1
+
+                if (a.updatedAt > b.updatedAt) return 1
+                if (a.updatedAt < b.updatedAt) return -1
+            })[0].outcome
 
             firstPlayerAmountOfWins = firstPlayerWins.length
 
@@ -58,11 +79,26 @@ const getAllTimeFaceToFace = async (req, res) => {
                 return playerThatLost && playerThatLost.id == p1.id
             })
 
-            firstPlayerWorstLoss = firstPlayerLosses.sort((a, b) =>
-                a.outcome.scoringDifference > b.outcome.scoringDifference
-                    ? -1
-                    : 1
-            )[0].outcome
+            firstPlayerWorstLoss = firstPlayerLosses.sort(function (a, b) {
+                if (a.outcome.scoringDifference > b.outcome.scoringDifference)
+                    return -1
+                if (a.outcome.scoringDifference < b.outcome.scoringDifference)
+                    return 1
+
+                if (
+                    a.outcome.scoreFromTeamThatLost >
+                    b.outcome.scoreFromTeamThatLost
+                )
+                    return -1
+                if (
+                    a.outcome.scoreFromTeamThatLost <
+                    b.outcome.scoreFromTeamThatLost
+                )
+                    return 1
+
+                if (a.updatedAt > b.updatedAt) return 1
+                if (a.updatedAt < b.updatedAt) return -1
+            })[0].outcome
 
             firstPlayerAmountOfLosses = firstPlayerLosses.length
 
