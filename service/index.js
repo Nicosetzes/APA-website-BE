@@ -1,3 +1,4 @@
+const calculateAllMatchesByTournamentId = require("./calculateAllMatchesByTournamentId")
 const calculateMatchesFromPlayer = require("./calculateMatchesFromPlayer")
 const calculateMatchLossesFromPlayer = require("./calculateMatchLossesFromPlayer")
 const calculateMatchWinsFromPlayer = require("./calculateMatchWinsFromPlayer")
@@ -20,7 +21,8 @@ const originateUser = require("./originateUser")
 const originateWorldCupPlayoffByTournamentId = require("./originateWorldCupPlayoffByTournamentId")
 const retrieveAllUsers = require("./retrieveAllUsers")
 const retrieveAllMatches = require("./retrieveAllMatches")
-const retrieveAllMatchesByTournamentId = require("./retrieveAllMatchesByTournamentId")
+const retrieveAllPlayedMatchesByTournamentId = require("./retrieveAllPlayedMatchesByTournamentId")
+const retrieveAllNotPlayedMatchesByTournamentId = require("./retrieveAllNotPlayedMatchesByTournamentId")
 const retrieveAllMatchesByUserId = require("./retrieveAllMatchesByUserId")
 const retrieveMatches = require("./retrieveMatches")
 const retrieveMatchesByTeamName = require("./retrieveMatchesByTeamName")
@@ -37,6 +39,7 @@ const retrieveUserById = require("./retrieveUserById")
 const retrieveUserByUserName = require("./retrieveUserByUserName")
 
 module.exports = {
+    calculateAllMatchesByTournamentId,
     calculateMatchesFromPlayer,
     calculateMatchLossesFromPlayer,
     calculateMatchWinsFromPlayer,
@@ -59,7 +62,8 @@ module.exports = {
     originateWorldCupPlayoffByTournamentId,
     retrieveAllUsers,
     retrieveAllMatches,
-    retrieveAllMatchesByTournamentId,
+    retrieveAllPlayedMatchesByTournamentId,
+    retrieveAllNotPlayedMatchesByTournamentId,
     retrieveAllMatchesByUserId,
     retrieveMatches,
     retrieveMatchesByTeamName,

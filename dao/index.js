@@ -1,3 +1,4 @@
+const countAllMatchesByTournamentId = require("./countAllMatchesByTournamentId")
 const countMatchesFromPlayer = require("./countMatchesFromPlayer")
 const countMatchLossesFromPlayer = require("./countMatchLossesFromPlayer")
 const countMatchWinsFromPlayer = require("./countMatchWinsFromPlayer")
@@ -9,7 +10,8 @@ const createPlayoffByTournamentId = require("./createPlayoffByTournamentId")
 const createTournament = require("./createTournament")
 const createUser = require("./createUser")
 const findAllMatches = require("./findAllMatches")
-const findAllMatchesByTournamentId = require("./findAllMatchesByTournamentId")
+const findAllNotPlayedMatchesByTournamentId = require("./findAllNotPlayedMatchesByTournamentId")
+const findAllPlayedMatchesByTournamentId = require("./findAllPlayedMatchesByTournamentId")
 const findAllMatchesByUserId = require("./findAllMatchesByUserId")
 const findAllUsers = require("./findAllUsers")
 const findMatches = require("./findMatches")
@@ -33,6 +35,7 @@ const updateMatchResultToRemoveIt = require("./updateMatchResultToRemoveIt")
 const updateSquad = require("./updateSquad")
 
 module.exports = {
+    countAllMatchesByTournamentId,
     countMatchesFromPlayer,
     countMatchLossesFromPlayer,
     countMatchWinsFromPlayer,
@@ -44,7 +47,8 @@ module.exports = {
     createTournament,
     createUser,
     findAllMatches,
-    findAllMatchesByTournamentId,
+    findAllNotPlayedMatchesByTournamentId,
+    findAllPlayedMatchesByTournamentId,
     findAllMatchesByUserId,
     findAllUsers,
     findMatches,

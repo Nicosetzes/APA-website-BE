@@ -1,6 +1,6 @@
 const matchesModel = require("./../models/matches.js")
 
-const findAllMatchesByTournamentId = async (tournament, invalid) => {
+const findAllPlayedMatchesByTournamentId = async (tournament, invalid) => {
     let matches
     invalid
         ? (matches = await matchesModel.find({
@@ -15,4 +15,4 @@ const findAllMatchesByTournamentId = async (tournament, invalid) => {
     return matches
 }
 
-module.exports = findAllMatchesByTournamentId
+module.exports = findAllPlayedMatchesByTournamentId

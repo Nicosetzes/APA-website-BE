@@ -4,6 +4,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
     const limit = 10 // Here I define the amount of results per page //
     let matches = []
     let amountOfTotalMatches
+
     if (!players && !team && !group) {
         matches = await matchesModel
             .find({
@@ -12,6 +13,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
             })
             .limit(limit * 1)
             .skip(page * limit)
+            .sort({ played: 1 })
 
         amountOfTotalMatches = await matchesModel.countDocuments({
             "tournament.id": id,
@@ -25,6 +27,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
             })
             .limit(limit * 1)
             .skip(page * limit)
+            .sort({ played: 1 })
 
         amountOfTotalMatches = await matchesModel.countDocuments({
             "tournament.id": id,
@@ -42,6 +45,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
             })
             .limit(limit * 1)
             .skip(page * limit)
+            .sort({ played: 1 })
 
         amountOfTotalMatches = await matchesModel.countDocuments({
             $and: [
@@ -66,6 +70,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
             })
             .limit(limit * 1)
             .skip(page * limit)
+            .sort({ played: 1 })
 
         amountOfTotalMatches = await matchesModel.countDocuments({
             $and: [
@@ -101,6 +106,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
             )
             .limit(limit * 1)
             .skip(page * limit)
+            .sort({ played: 1 })
 
         amountOfTotalMatches = await matchesModel.countDocuments({
             $and: [
@@ -134,6 +140,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
             })
             .limit(limit * 1)
             .skip(page * limit)
+            .sort({ played: 1 })
 
         amountOfTotalMatches = await matchesModel.countDocuments({
             $and: [
@@ -176,6 +183,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
             })
             .limit(limit * 1)
             .skip(page * limit)
+            .sort({ played: 1 })
 
         amountOfTotalMatches = await matchesModel.countDocuments({
             $and: [
@@ -231,6 +239,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
             )
             .limit(limit * 1)
             .skip(page * limit)
+            .sort({ played: 1 })
 
         amountOfTotalMatches = await matchesModel.countDocuments({
             $and: [
@@ -284,6 +293,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
             })
             .limit(limit * 1)
             .skip(page * limit)
+            .sort({ played: 1 })
 
         amountOfTotalMatches = await matchesModel.countDocuments({
             $and: [
