@@ -3,6 +3,7 @@ const matchesModel = require("./../models/matches.js")
 const findFixtureByTournamentId = async (id, page, players, team, group) => {
     const limit = 10 // Here I define the amount of results per page //
     let matches = []
+    let amountOfNotPlayedMatches
     let amountOfTotalMatches
 
     if (!players && !team && !group) {
@@ -15,8 +16,15 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
             .skip(page * limit)
             .sort({ played: 1 })
 
+        amountOfNotPlayedMatches = await matchesModel.countDocuments({
+            "tournament.id": id,
+            type: "regular",
+            played: false,
+        })
+
         amountOfTotalMatches = await matchesModel.countDocuments({
             "tournament.id": id,
+            type: "regular",
         })
     } else if (!players && !team && group) {
         matches = await matchesModel
@@ -28,6 +36,13 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
             .limit(limit * 1)
             .skip(page * limit)
             .sort({ played: 1 })
+
+        amountOfNotPlayedMatches = await matchesModel.countDocuments({
+            "tournament.id": id,
+            type: "regular",
+            group,
+            played: false,
+        })
 
         amountOfTotalMatches = await matchesModel.countDocuments({
             "tournament.id": id,
@@ -46,6 +61,15 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
             .limit(limit * 1)
             .skip(page * limit)
             .sort({ played: 1 })
+
+        amountOfNotPlayedMatches = await matchesModel.countDocuments({
+            $and: [
+                { "tournament.id": id },
+                { type: "regular" },
+                { played: false },
+                { $or: [{ "teamP1.id": team }, { "teamP2.id": team }] },
+            ],
+        })
 
         amountOfTotalMatches = await matchesModel.countDocuments({
             $and: [
@@ -71,6 +95,20 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
             .limit(limit * 1)
             .skip(page * limit)
             .sort({ played: 1 })
+
+        amountOfNotPlayedMatches = await matchesModel.countDocuments({
+            $and: [
+                { "tournament.id": id },
+                { type: "regular" },
+                { played: false },
+                {
+                    $or: [
+                        { "playerP1.id": players },
+                        { "playerP2.id": players },
+                    ],
+                },
+            ],
+        })
 
         amountOfTotalMatches = await matchesModel.countDocuments({
             $and: [
@@ -108,6 +146,21 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
             .skip(page * limit)
             .sort({ played: 1 })
 
+        amountOfNotPlayedMatches = await matchesModel.countDocuments({
+            $and: [
+                { "tournament.id": id },
+                { type: "regular" },
+                { played: false },
+                {
+                    $or: [
+                        { "playerP1.id": players },
+                        { "playerP2.id": players },
+                    ],
+                },
+                { $or: [{ "teamP1.id": team }, { "teamP2.id": team }] },
+            ],
+        })
+
         amountOfTotalMatches = await matchesModel.countDocuments({
             $and: [
                 { "tournament.id": id },
@@ -141,6 +194,23 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
             .limit(limit * 1)
             .skip(page * limit)
             .sort({ played: 1 })
+
+        amountOfNotPlayedMatches = await matchesModel.countDocuments({
+            $and: [
+                { "tournament.id": id },
+                { type: "regular" },
+                { played: false },
+                {
+                    $or: [
+                        { "playerP1.id": players },
+                        { "playerP2.id": players },
+                    ],
+                },
+                {
+                    group,
+                },
+            ],
+        })
 
         amountOfTotalMatches = await matchesModel.countDocuments({
             $and: [
@@ -184,6 +254,30 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
             .limit(limit * 1)
             .skip(page * limit)
             .sort({ played: 1 })
+
+        amountOfNotPlayedMatches = await matchesModel.countDocuments({
+            $and: [
+                { "tournament.id": id },
+                { type: "regular" },
+                { played: false },
+                {
+                    $or: [
+                        {
+                            $and: [
+                                { "playerP1.id": players.at(0) },
+                                { "playerP2.id": players.at(1) },
+                            ],
+                        },
+                        {
+                            $and: [
+                                { "playerP1.id": players.at(1) },
+                                { "playerP2.id": players.at(0) },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        })
 
         amountOfTotalMatches = await matchesModel.countDocuments({
             $and: [
@@ -241,6 +335,31 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
             .skip(page * limit)
             .sort({ played: 1 })
 
+        amountOfNotPlayedMatches = await matchesModel.countDocuments({
+            $and: [
+                { "tournament.id": id },
+                { type: "regular" },
+                { played: false },
+                {
+                    $or: [
+                        {
+                            $and: [
+                                { "playerP1.id": players.at(0) },
+                                { "playerP2.id": players.at(1) },
+                            ],
+                        },
+                        {
+                            $and: [
+                                { "playerP1.id": players.at(1) },
+                                { "playerP2.id": players.at(0) },
+                            ],
+                        },
+                    ],
+                },
+                { $or: [{ "teamP1.id": team }, { "teamP2.id": team }] },
+            ],
+        })
+
         amountOfTotalMatches = await matchesModel.countDocuments({
             $and: [
                 { "tournament.id": id },
@@ -295,6 +414,33 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
             .skip(page * limit)
             .sort({ played: 1 })
 
+        amountOfNotPlayedMatches = await matchesModel.countDocuments({
+            $and: [
+                { "tournament.id": id },
+                { type: "regular" },
+                { played: false },
+                {
+                    $or: [
+                        {
+                            $and: [
+                                { "playerP1.id": players.at(0) },
+                                { "playerP2.id": players.at(1) },
+                            ],
+                        },
+                        {
+                            $and: [
+                                { "playerP1.id": players.at(1) },
+                                { "playerP2.id": players.at(0) },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    group,
+                },
+            ],
+        })
+
         amountOfTotalMatches = await matchesModel.countDocuments({
             $and: [
                 { "tournament.id": id },
@@ -323,6 +469,8 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
     }
     return {
         matches,
+        amountOfNotPlayedMatches,
+        amountOfTotalMatches,
         totalPages: Math.ceil(amountOfTotalMatches / limit),
         currentPage: Number(page),
     }

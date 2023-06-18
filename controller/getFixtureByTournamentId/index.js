@@ -42,7 +42,7 @@ const getFixtureByTournamentId = async (req, res) => {
             )
         }
 
-        res.status(200).json({ matches })
+        res.status(200).send(matches)
         // Agregar excepción en caso de error
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)

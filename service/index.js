@@ -1,4 +1,5 @@
 const calculateAllMatchesByTournamentId = require("./calculateAllMatchesByTournamentId")
+const calculateAllNotPlayedMatchesByTournamentId = require("./calculateAllNotPlayedMatchesByTournamentId")
 const calculateMatchesFromPlayer = require("./calculateMatchesFromPlayer")
 const calculateMatchLossesFromPlayer = require("./calculateMatchLossesFromPlayer")
 const calculateMatchWinsFromPlayer = require("./calculateMatchWinsFromPlayer")
@@ -40,6 +41,7 @@ const retrieveUserByUserName = require("./retrieveUserByUserName")
 
 module.exports = {
     calculateAllMatchesByTournamentId,
+    calculateAllNotPlayedMatchesByTournamentId,
     calculateMatchesFromPlayer,
     calculateMatchLossesFromPlayer,
     calculateMatchWinsFromPlayer,
