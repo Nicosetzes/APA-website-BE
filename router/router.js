@@ -55,7 +55,6 @@ const {
     getSquadByTeamId,
     putSquadByTeamId,
     getFixtureByTournamentId,
-    getNotPlayedMatchesByTournamentId,
     postFixtureByTournamentId,
     postMatchByTournamentId,
     putMatchByTournamentId,
@@ -128,11 +127,6 @@ tournaments.get("/:tournament", getTournamentById)
 // homeR.post("/tournaments/:tournament/fixture", postFixtureController)
 
 tournaments.get("/:tournament/fixture", getFixtureByTournamentId)
-
-tournaments.get(
-    "/:tournament/fixture/not-played",
-    getNotPlayedMatchesByTournamentId
-)
 
 tournaments.post("/:tournament/fixture", postFixtureByTournamentId)
 

@@ -1,5 +1,4 @@
 const countAllMatchesByTournamentId = require("./countAllMatchesByTournamentId")
-const countAllNotPlayedMatchesByTournamentId = require("./countAllNotPlayedMatchesByTournamentId")
 const countMatchesFromPlayer = require("./countMatchesFromPlayer")
 const countMatchLossesFromPlayer = require("./countMatchLossesFromPlayer")
 const countMatchWinsFromPlayer = require("./countMatchWinsFromPlayer")
@@ -37,7 +36,6 @@ const updateSquad = require("./updateSquad")
 
 module.exports = {
     countAllMatchesByTournamentId,
-    countAllNotPlayedMatchesByTournamentId,
     countMatchesFromPlayer,
     countMatchLossesFromPlayer,
     countMatchWinsFromPlayer,
