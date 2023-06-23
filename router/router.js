@@ -69,6 +69,7 @@ const {
     getAllTimeStandings,
     getAllTimeGeneralStatistics,
     getAllTimeFaceToFace,
+    getAllTimeTeams,
     majorUpdatesController,
 } = require("./../controller")
 
@@ -209,6 +210,8 @@ statistics.get("/all-time/standings", getAllTimeStandings)
 statistics.get("/all-time/general-stats", getAllTimeGeneralStatistics)
 
 statistics.get("/all-time/face-to-face", getAllTimeFaceToFace)
+
+statistics.get("/all-time/teams", getAllTimeTeams)
 
 module.exports = {
     root,
