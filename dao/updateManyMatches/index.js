@@ -34,22 +34,23 @@ const matchesModel = require("./../models/matches.js")
 // }
 
 const updateManyMatches = async () => {
-    const updatedMatches = matchesModel.updateMany(
-        {
-            "tournament.id": "625e0f191b3f1ce6b5ee4756",
-            "teamP2.id": "1065",
-        },
-        {
-            $set: {
-                teamP2: {
-                    id: "1065",
-                    name: "Central Cordoba",
-                },
-            },
-        },
-        { timestamps: false }
-    )
-    return updatedMatches
+    // const updatedMatches = await matchesModel.updateMany(
+    //     {
+    //         "tournament.id": "6457ae8d96efc21b03ba4cfe",
+    //     },
+    //     {
+    //         $set: {
+    //             tournament: {
+    //                 id: "6457ae8d96efc21b03ba4cfe",
+    //                 name: "Superliga Inglesa 2022",
+    //             },
+    //         },
+    //     },
+    //     { timestamps: false }
+    // )
+    // return updatedMatches
+
+    return "edit"
 }
 
 // const updateManyMatches = async () => {
