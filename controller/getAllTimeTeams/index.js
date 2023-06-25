@@ -4,48 +4,69 @@ const getAllTimeTeams = async (req, res) => {
     try {
         const matches = await retrieveAllMatches()
 
-        const allTeams = []
+        const allTeamsWithPlayers = []
 
-        matches.forEach(({ teamP1, teamP2 }) => {
+        matches.forEach(({ playerP1, playerP2, teamP1, teamP2 }) => {
             // The .add method adds a value to a Set, if value is repeated, then it's omitted
-            allTeams.push({ id: teamP1.id, name: teamP1.name })
-            allTeams.push({ id: teamP2.id, name: teamP2.name })
+            allTeamsWithPlayers.push({
+                player: { id: playerP1.id, name: playerP1.name },
+                team: { id: teamP1.id, name: teamP1.name },
+            })
+            allTeamsWithPlayers.push({
+                player: { id: playerP2.id, name: playerP2.name },
+                team: { id: teamP2.id, name: teamP2.name },
+            })
         })
 
-        const uniqueTeams = [
-            ...new Set(allTeams.map((o) => JSON.stringify(o))),
+        const uniqueTeamsWithPlayers = [
+            ...new Set(allTeamsWithPlayers.map((o) => JSON.stringify(o))),
         ].map((string) => JSON.parse(string))
 
-        const initialStats = uniqueTeams.map(({ id, name }) => {
+        const initialStats = uniqueTeamsWithPlayers.map(({ player, team }) => {
             return {
-                id,
-                name,
-                wins: matches.filter(({ teamP1, teamP2, outcome }) => {
-                    let { teamThatWon } = outcome
-                    if (teamThatWon && teamThatWon.id == id) return "win"
-                }).length,
-                draws: matches.filter(({ teamP1, teamP2, outcome }) => {
-                    let { draw } = outcome
+                player,
+                team,
+                wins: matches.filter(({ outcome }) => {
+                    let { playerThatWon, teamThatWon } = outcome
                     if (
-                        draw &&
-                        !outcome.penalties &&
-                        (teamP1.id == id || teamP2.id == id)
+                        playerThatWon &&
+                        playerThatWon.id == player.id &&
+                        teamThatWon.id == team.id
                     )
-                        return "draw"
+                        return "win"
                 }).length,
-                losses: matches.filter(({ teamP1, teamP2, outcome }) => {
-                    let { teamThatLost } = outcome
-                    if (teamThatLost && teamThatLost.id == id) return "loss"
+                draws: matches.filter(
+                    ({ playerP1, teamP1, playerP2, teamP2, outcome }) => {
+                        let { draw } = outcome
+                        if (
+                            draw &&
+                            !outcome.penalties &&
+                            ((playerP1.id == player.id &&
+                                teamP1.id == team.id) ||
+                                (playerP2.id == player.id &&
+                                    teamP2.id == team.id))
+                        )
+                            return "draw"
+                    }
+                ).length,
+                losses: matches.filter(({ outcome }) => {
+                    let { playerThatLost, teamThatLost } = outcome
+                    if (
+                        playerThatLost &&
+                        playerThatLost.id == player.id &&
+                        teamThatLost.id == team.id
+                    )
+                        return "loss"
                 }).length,
             }
         })
 
         const completeStats = initialStats
-            .map(({ id, name, wins, draws, losses }) => {
+            .map(({ player, team, wins, draws, losses }) => {
                 let played = wins + draws + losses
                 return {
-                    id,
-                    name,
+                    player,
+                    team,
                     played,
                     wins,
                     points: wins * 3 + draws,
