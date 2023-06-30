@@ -12,9 +12,9 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                 "tournament.id": id,
                 type: "regular",
             })
+            // .sort({ played: 1 })
             .limit(limit * 1)
             .skip(page * limit)
-            .sort({ played: 1 })
 
         amountOfNotPlayedMatches = await matchesModel.countDocuments({
             "tournament.id": id,
@@ -33,9 +33,9 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                 group,
                 type: "regular",
             })
+            // .sort({ played: 1 })
             .limit(limit * 1)
             .skip(page * limit)
-            .sort({ played: 1 })
 
         amountOfNotPlayedMatches = await matchesModel.countDocuments({
             "tournament.id": id,
@@ -58,9 +58,9 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                     { $or: [{ "teamP1.id": team }, { "teamP2.id": team }] },
                 ],
             })
+            // .sort({ played: 1 })
             .limit(limit * 1)
             .skip(page * limit)
-            .sort({ played: 1 })
 
         amountOfNotPlayedMatches = await matchesModel.countDocuments({
             $and: [
@@ -92,9 +92,9 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                     },
                 ],
             })
+            // .sort({ played: 1 })
             .limit(limit * 1)
             .skip(page * limit)
-            .sort({ played: 1 })
 
         amountOfNotPlayedMatches = await matchesModel.countDocuments({
             $and: [
@@ -142,9 +142,9 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                 }
                 // type: "regular", // Activar a futuro //
             )
+            // .sort({ played: 1 })
             .limit(limit * 1)
             .skip(page * limit)
-            .sort({ played: 1 })
 
         amountOfNotPlayedMatches = await matchesModel.countDocuments({
             $and: [
@@ -191,9 +191,9 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                     },
                 ],
             })
+            // .sort({ played: 1 })
             .limit(limit * 1)
             .skip(page * limit)
-            .sort({ played: 1 })
 
         amountOfNotPlayedMatches = await matchesModel.countDocuments({
             $and: [
@@ -251,9 +251,9 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                     },
                 ],
             })
+            // .sort({ played: 1 })
             .limit(limit * 1)
             .skip(page * limit)
-            .sort({ played: 1 })
 
         amountOfNotPlayedMatches = await matchesModel.countDocuments({
             $and: [
@@ -331,9 +331,9 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                 }
                 // type: "regular", // Activar a futuro //
             )
+            // .sort({ played: 1 })
             .limit(limit * 1)
             .skip(page * limit)
-            .sort({ played: 1 })
 
         amountOfNotPlayedMatches = await matchesModel.countDocuments({
             $and: [
@@ -410,9 +410,9 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                     },
                 ],
             })
+            // .sort({ played: 1 })
             .limit(limit * 1)
             .skip(page * limit)
-            .sort({ played: 1 })
 
         amountOfNotPlayedMatches = await matchesModel.countDocuments({
             $and: [
