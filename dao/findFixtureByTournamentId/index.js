@@ -12,7 +12,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                 "tournament.id": id,
                 type: "regular",
             })
-            // .sort({ played: 1 })
+            .sort({ played: 1, _id: -1 })
             .limit(limit * 1)
             .skip(page * limit)
 
@@ -33,7 +33,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                 group,
                 type: "regular",
             })
-            // .sort({ played: 1 })
+            .sort({ played: 1, _id: -1 })
             .limit(limit * 1)
             .skip(page * limit)
 
@@ -58,7 +58,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                     { $or: [{ "teamP1.id": team }, { "teamP2.id": team }] },
                 ],
             })
-            // .sort({ played: 1 })
+            .sort({ played: 1, _id: -1 })
             .limit(limit * 1)
             .skip(page * limit)
 
@@ -92,7 +92,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                     },
                 ],
             })
-            // .sort({ played: 1 })
+            .sort({ played: 1, _id: -1 })
             .limit(limit * 1)
             .skip(page * limit)
 
@@ -142,7 +142,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                 }
                 // type: "regular", // Activar a futuro //
             )
-            // .sort({ played: 1 })
+            .sort({ played: 1, _id: -1 })
             .limit(limit * 1)
             .skip(page * limit)
 
@@ -191,7 +191,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                     },
                 ],
             })
-            // .sort({ played: 1 })
+            .sort({ played: 1, _id: -1 })
             .limit(limit * 1)
             .skip(page * limit)
 
@@ -251,7 +251,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                     },
                 ],
             })
-            // .sort({ played: 1 })
+            .sort({ played: 1, _id: -1 })
             .limit(limit * 1)
             .skip(page * limit)
 
@@ -331,7 +331,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                 }
                 // type: "regular", // Activar a futuro //
             )
-            // .sort({ played: 1 })
+            .sort({ played: 1, _id: -1 })
             .limit(limit * 1)
             .skip(page * limit)
 
@@ -410,7 +410,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                     },
                 ],
             })
-            // .sort({ played: 1 })
+            .sort({ played: 1, _id: -1 })
             .limit(limit * 1)
             .skip(page * limit)
 
