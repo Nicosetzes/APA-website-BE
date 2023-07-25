@@ -43,6 +43,7 @@ const {
     getTournaments,
     postTournaments,
     getTournamentById,
+    getCalculatorByTournamentId,
     getPlayersByTournamentId,
     postPlayinByTournamentId,
     postPlayinUpdateByTournamentId,
@@ -126,6 +127,8 @@ tournaments.post("/", postTournaments)
 tournaments.get("/:tournament", getTournamentById)
 
 // homeR.post("/tournaments/:tournament/fixture", postFixtureController)
+
+tournaments.get("/:tournament/calculator", getCalculatorByTournamentId)
 
 tournaments.get("/:tournament/fixture", getFixtureByTournamentId)
 
