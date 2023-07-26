@@ -1,4 +1,5 @@
 const {
+    retrieveStandingsForCalculatorByTournamentId,
     retrieveTeamRemainingMatchesByTournamentId,
 } = require("./../../service")
 
@@ -8,8 +9,6 @@ const getCalculatorByTournamentId = async (req, res) => {
         let teamIDs
         if (req.query.teams) teamIDs = JSON.parse(req.query.teams)
 
-        // console.log(teamIDs)
-
         // Necesito calcular los partidos restantes de cada uno de los equipos seleccionados
 
         const teams = await retrieveTeamRemainingMatchesByTournamentId(
@@ -17,9 +16,11 @@ const getCalculatorByTournamentId = async (req, res) => {
             teamIDs
         )
 
-        // console.log(teams)
+        // También traigo todos los equipos del torneo, con la siguiente info: PJ, PG, PE, PP, PTS
 
-        res.status(200).json({ teams, standings: "standings" })
+        const standings = await retrieveStandingsForCalculatorByTournamentId(tournament)
+
+        res.status(200).json({ teams, standings })
         // Agregar excepción en caso de error
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
