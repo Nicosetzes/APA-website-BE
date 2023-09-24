@@ -108,13 +108,13 @@ root.get("/streaks", getStreaks)
 
 users.get("/", getUsers)
 
-users.get("/profile", getUserProfile)
+users.get("/profile", isAuth, getUserProfile)
 
 users.post("/register", postRegister)
 
 users.post("/login", postLogin)
 
-users.get("/logout", getLogout)
+users.get("/logout", isAuth, getLogout)
 
 users.get("/isUserAuthenticated", getIsUserAuthenticated)
 
@@ -122,33 +122,35 @@ users.get("/isUserAuthenticated", getIsUserAuthenticated)
 
 tournaments.get("/", getTournaments)
 
-tournaments.post("/", postTournaments)
+tournaments.post("/", isAuth, postTournaments)
 
 tournaments.get("/:tournament", getTournamentById)
-
-// homeR.post("/tournaments/:tournament/fixture", postFixtureController)
 
 tournaments.get("/:tournament/calculator", getCalculatorByTournamentId)
 
 tournaments.get("/:tournament/fixture", getFixtureByTournamentId)
 
-tournaments.post("/:tournament/fixture", postFixtureByTournamentId)
+tournaments.post("/:tournament/fixture", isAuth, postFixtureByTournamentId)
 
 tournaments.get("/:tournament/players", getPlayersByTournamentId)
 
-// TODO: Create route for /playin //
+tournaments.post("/:tournament/playin", isAuth, postPlayinByTournamentId)
 
-tournaments.post("/:tournament/playin", postPlayinByTournamentId)
-
-tournaments.post("/:tournament/playin/update", postPlayinUpdateByTournamentId)
+tournaments.post(
+    "/:tournament/playin/update",
+    isAuth,
+    postPlayinUpdateByTournamentId
+)
 
 tournaments.get("/:tournament/playin/matches", getPlayinMatchesByTournamentId)
 
-// TODO: Create route for /playoff //
+tournaments.post("/:tournament/playoff", isAuth, postPlayoffByTournamentId)
 
-tournaments.post("/:tournament/playoff", postPlayoffByTournamentId)
-
-tournaments.post("/:tournament/playoff/update", postPlayoffUpdateByTournamentId)
+tournaments.post(
+    "/:tournament/playoff/update",
+    isAuth,
+    postPlayoffUpdateByTournamentId
+)
 
 tournaments.get("/:tournament/playoff/matches", getPlayoffMatchesByTournamentId)
 
@@ -158,18 +160,24 @@ tournaments.get("/:tournament/teams/:team", getTeamInformationByTournamentId)
 
 tournaments.get("/:tournament/teams/:team/squad", getSquadByTeamId)
 
-tournaments.put("/:tournament/teams/:team/squad", putSquadByTeamId)
+tournaments.put("/:tournament/teams/:team/squad", isAuth, putSquadByTeamId)
 
 // tournaments.get("/:tournament/matches/create-game/", getOriginateGameController)
-tournaments.post("/:tournament/matches/create-game/", postMatchByTournamentId)
+tournaments.post(
+    "/:tournament/matches/create-game/",
+    isAuth,
+    postMatchByTournamentId
+)
 
 tournaments.put(
     "/:tournament/matches/update-game/:match",
+    isAuth,
     putMatchByTournamentId
 )
 
 tournaments.put(
     "/:tournament/matches/delete-game/:match",
+    isAuth,
     putRemoveMatchByTournamentId
 )
 
@@ -196,13 +204,6 @@ tournaments.get(
     "/:tournament/playoffs/updated-wins",
     getPlayoffsUpdatedWinsByTournamentId
 )
-
-// //
-
-// homeR.put(
-//     "/world-cup/:tournament/team-assignment",
-//     putWorldCupTeamAssignmentController
-// )
 
 // STATISTICS
 

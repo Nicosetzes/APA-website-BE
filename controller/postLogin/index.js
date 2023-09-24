@@ -49,6 +49,8 @@ const postLogin = async (req, res) => {
         const token = jwt.sign(
             {
                 id: user._id,
+                name: user.nickname,
+                /* In the future I can add role: "user" */
             },
             jwtKey,
             {
@@ -58,7 +60,7 @@ const postLogin = async (req, res) => {
         )
 
         return res
-            .cookie("jwt", token, {
+            .cookie("access_token", token, {
                 withCredentials: true,
                 maxAge: 1000 * 60 * 60 * 6, // 6 horas //
                 // Borré el atributo sameSite, para ver si las cookies se despliegan en el browser outside localHost //

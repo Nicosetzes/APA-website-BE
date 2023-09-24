@@ -4,18 +4,18 @@ const jwt = require("jsonwebtoken")
 const jwtKey = process.env.TOKEN_SECRET
 
 const getIsUserAuthenticated = async (req, res) => {
-    const token = req.cookies.jwt
+    const token = req.cookies.access_token
 
     if (!token)
         return res
-            .status(400)
+            .status(403)
             .json({ auth: false, message: "Inicie sesión por favor" }) // Revisar código de error //
 
     let decodedToken
     try {
         decodedToken = jwt.verify(token, process.env.TOKEN_SECRET)
     } catch (error) {
-        res.status(400).json({
+        res.status(403).json({
             auth: false,
             message: "Sesión no válida, error en las credenciales",
         })
@@ -37,7 +37,7 @@ const getIsUserAuthenticated = async (req, res) => {
         const { _id, nickname } = user // TODO: Add user roles
 
         return res
-            .cookie("jwt", newToken, {
+            .cookie("access_token", newToken, {
                 withCredentials: true,
                 maxAge: 1000 * 60 * 60 * 6, // 6 horas //
                 // Borré el atributo sameSite, para ver si las cookies se despliegan en el browser outside localHost //

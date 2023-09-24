@@ -1,27 +1,11 @@
 const { retrieveUserById } = require("./../../service")
 
-const jwt = require("jsonwebtoken")
-
 const getLogout = async (req, res) => {
-    const token = req.cookies.jwt
-    if (!token)
-        return res
-            .status(400)
-            .send({ auth: false, message: "Primero debe iniciar sesión" }) // Revisar código de error //
-    let decodedToken
     try {
-        decodedToken = jwt.verify(token, process.env.TOKEN_SECRET)
-    } catch (error) {
-        res.status(400).send({
-            auth: false,
-            message: "Sesión no válida, error en las credenciales",
-        })
-    }
-    const { id } = decodedToken
-    try {
-        const { nickname } = await retrieveUserById(id)
+        const { userId } = req
+        const { nickname } = await retrieveUserById(userId)
         return res
-            .clearCookie("jwt", {
+            .clearCookie("access_token", {
                 withCredentials: true,
                 maxAge: 1000 * 60 * 60 * 6, // 6 horas //
                 // Borré el atributo sameSite, para ver si las cookies se despliegan en el browser outside localHost //
