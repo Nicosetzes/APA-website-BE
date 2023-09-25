@@ -6,7 +6,6 @@ const getCalculatorByTournamentId = require("./getCalculatorByTournamentId")
 const getFixtureByTournamentId = require("./getFixtureByTournamentId")
 const getHome = require("./getHome")
 const getIsUserAuthenticated = require("./getIsUserAuthenticated")
-const getLogout = require("./getLogout")
 const getMatches = require("./getMatches")
 const getPlayersByTournamentId = require("./getPlayersByTournamentId")
 const getPlayinMatchesByTournamentId = require("./getPlayinMatchesByTournamentId")
@@ -32,6 +31,7 @@ const getWorldCupStandingsByTournamentId = require("./getWorldCupStandingsByTour
 const majorUpdatesController = require("./majorUpdatesController")
 const postFixtureByTournamentId = require("./postFixtureByTournamentId")
 const postLogin = require("./postLogin")
+const postLogout = require("./postLogout")
 const postMatch = require("./postMatch")
 const postMatchByTournamentId = require("./postMatchByTournamentId")
 const postPlayinByTournamentId = require("./postPlayinByTournamentId")
@@ -54,7 +54,6 @@ module.exports = {
     getFixtureByTournamentId,
     getHome,
     getIsUserAuthenticated,
-    getLogout,
     getMatches,
     getPlayersByTournamentId,
     getPlayinMatchesByTournamentId,
@@ -80,6 +79,7 @@ module.exports = {
     majorUpdatesController,
     postFixtureByTournamentId,
     postLogin,
+    postLogout,
     postMatch,
     postMatchByTournamentId,
     postPlayinByTournamentId,

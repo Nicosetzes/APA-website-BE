@@ -1,6 +1,6 @@
-const { retrieveUserById } = require("./../../service")
+const { retrieveUserById } = require("../../service")
 
-const getLogout = async (req, res) => {
+const postLogout = async (req, res) => {
     try {
         const { userId } = req
         const { nickname } = await retrieveUserById(userId)
@@ -27,4 +27,4 @@ const getLogout = async (req, res) => {
     }
 }
 
-module.exports = getLogout
+module.exports = postLogout

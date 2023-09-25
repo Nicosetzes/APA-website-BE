@@ -38,7 +38,7 @@ const {
     getUserProfile,
     postRegister,
     postLogin,
-    getLogout,
+    postLogout,
     getIsUserAuthenticated,
     getTournaments,
     postTournaments,
@@ -114,7 +114,7 @@ users.post("/register", postRegister)
 
 users.post("/login", postLogin)
 
-users.get("/logout", isAuth, getLogout)
+users.post("/logout", isAuth, postLogout)
 
 users.get("/isUserAuthenticated", getIsUserAuthenticated)
 
