@@ -63,8 +63,10 @@ const postLogin = async (req, res) => {
             .cookie("access_token", token, {
                 withCredentials: true,
                 maxAge: 1000 * 60 * 60 * 6, // 6 horas //
-                // Borré el atributo sameSite, para ver si las cookies se despliegan en el browser outside localHost //
                 httpOnly: process.env.NODE_ENV === "production",
+                /* Si el atributo sameSite NO es especificado, la cookie se guarda en el navegador SOLO en Firefox (no en Chrome, ni en Opera ni en Edge) */
+                /* Pruebo especificando "none", lo que debería eliminar restricciones en los otros navegadores (se especifica "lax" por defecto) */
+                sameSite: "none",
                 secure: process.env.NODE_ENV === "production",
             })
             .status(200)
