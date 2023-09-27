@@ -6,13 +6,6 @@ const tokensModel = require("../../dao/models/tokens")
 const bcrypt = require("bcrypt")
 
 const postRetrievePassword = async (req, res) => {
-    // BODY
-    //     {
-    //     "token":"4f546b55258a10288c7e28650fbebcc51d1252b2a69823f8cd1c65144c69664e",
-    //     "userId":"600205cc5fdfce952e9813d8",
-    //     "password":"kjgjgkflgk.hlkhol"
-    // }
-
     try {
         const { userId, token, password } = req.body
 
