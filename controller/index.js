@@ -39,6 +39,8 @@ const postPlayinUpdateByTournamentId = require("./postPlayinUpdateByTournamentId
 const postPlayoffByTournamentId = require("./postPlayoffByTournamentId")
 const postPlayoffUpdateByTournamentId = require("./postPlayoffUpdateByTournamentId")
 const postRegister = require("./postRegister")
+const postRetrievePassword = require("./postRetrievePassword")
+const postSolicitateNewPassword = require("./postSolicitateNewPassword")
 const postTournaments = require("./postTournaments")
 const postWorldCupMatchesByTournamentId = require("./postWorldCupMatchesByTournamentId")
 const putMatchByTournamentId = require("./putMatchByTournamentId")
@@ -87,6 +89,8 @@ module.exports = {
     postPlayoffByTournamentId,
     postPlayoffUpdateByTournamentId,
     postRegister,
+    postSolicitateNewPassword,
+    postRetrievePassword,
     postTournaments,
     postWorldCupMatchesByTournamentId,
     putMatchByTournamentId,

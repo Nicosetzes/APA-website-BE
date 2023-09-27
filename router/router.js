@@ -39,6 +39,8 @@ const {
     postRegister,
     postLogin,
     postLogout,
+    postSolicitateNewPassword,
+    postRetrievePassword,
     getIsUserAuthenticated,
     getTournaments,
     postTournaments,
@@ -115,6 +117,10 @@ users.post("/register", postRegister)
 users.post("/login", postLogin)
 
 users.post("/logout", isAuth, postLogout)
+
+users.post("/solicitate-password", postSolicitateNewPassword)
+
+users.post("/retrieve-password", postRetrievePassword)
 
 users.get("/isUserAuthenticated", getIsUserAuthenticated)
 
