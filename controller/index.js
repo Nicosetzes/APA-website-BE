@@ -1,5 +1,5 @@
 const getAllTimeFaceToFace = require("./getAllTimeFaceToFace")
-const getAllTimeGeneralStatistics = require("./getAllTimeGeneralStatistics")
+// const getAllTimeGeneralStatistics = require("./getAllTimeGeneralStatistics")
 const getAllTimeStandings = require("./getAllTimeStandings")
 const getAllTimeTeams = require("./getAllTimeTeams")
 const getCalculatorByTournamentId = require("./getCalculatorByTournamentId")
@@ -49,7 +49,7 @@ const putSquadByTeamId = require("./putSquadByTeamId")
 
 module.exports = {
     getAllTimeFaceToFace,
-    getAllTimeGeneralStatistics,
+    // getAllTimeGeneralStatistics,
     getAllTimeStandings,
     getAllTimeTeams,
     getCalculatorByTournamentId,

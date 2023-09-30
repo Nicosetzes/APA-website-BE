@@ -70,7 +70,7 @@ const {
     getPlayoffsUpdatedWinsByTournamentId,
     getStatistics,
     getAllTimeStandings,
-    getAllTimeGeneralStatistics,
+    // getAllTimeGeneralStatistics,
     getAllTimeFaceToFace,
     getAllTimeTeams,
     majorUpdatesController,
@@ -217,7 +217,7 @@ statistics.get("/", getStatistics)
 
 statistics.get("/all-time/standings", getAllTimeStandings)
 
-statistics.get("/all-time/general-stats", getAllTimeGeneralStatistics)
+// statistics.get("/all-time/general-stats", getAllTimeGeneralStatistics)
 
 statistics.get("/all-time/face-to-face", getAllTimeFaceToFace)
 

@@ -40,34 +40,37 @@ const getAllTimeFaceToFace = async (req, res) => {
                 return playerThatWon && playerThatWon.id == p1.id
             })
 
-            // firstPlayerBestWin = firstPlayerWins.sort((a, b) =>
-            //     a.outcome.scoringDifference > b.outcome.scoringDifference
-            //         ? -1
-            //         : 1
-            // )[0].outcome
+            if (firstPlayerWins.length) {
+                /* If user hasn't won any matches, it will still be included (otherwise it breaks) */
+                firstPlayerBestWin = firstPlayerWins.sort(function (a, b) {
+                    if (
+                        a.outcome.scoringDifference >
+                        b.outcome.scoringDifference
+                    )
+                        return -1
+                    if (
+                        a.outcome.scoringDifference <
+                        b.outcome.scoringDifference
+                    )
+                        return 1
 
-            firstPlayerBestWin = firstPlayerWins.sort(function (a, b) {
-                if (a.outcome.scoringDifference > b.outcome.scoringDifference)
-                    return -1
-                if (a.outcome.scoringDifference < b.outcome.scoringDifference)
-                    return 1
+                    if (
+                        a.outcome.scoreFromTeamThatWon >
+                        b.outcome.scoreFromTeamThatWon
+                    )
+                        return -1
+                    if (
+                        a.outcome.scoreFromTeamThatWon <
+                        b.outcome.scoreFromTeamThatWon
+                    )
+                        return 1
 
-                if (
-                    a.outcome.scoreFromTeamThatWon >
-                    b.outcome.scoreFromTeamThatWon
-                )
-                    return -1
-                if (
-                    a.outcome.scoreFromTeamThatWon <
-                    b.outcome.scoreFromTeamThatWon
-                )
-                    return 1
+                    if (a.updatedAt > b.updatedAt) return 1
+                    if (a.updatedAt < b.updatedAt) return -1
+                })[0].outcome
 
-                if (a.updatedAt > b.updatedAt) return 1
-                if (a.updatedAt < b.updatedAt) return -1
-            })[0].outcome
-
-            firstPlayerAmountOfWins = firstPlayerWins.length
+                firstPlayerAmountOfWins = firstPlayerWins.length
+            }
 
             firstPlayerDraws = selectedMatches.filter(({ outcome }) => {
                 let { draw } = outcome
@@ -79,28 +82,37 @@ const getAllTimeFaceToFace = async (req, res) => {
                 return playerThatLost && playerThatLost.id == p1.id
             })
 
-            firstPlayerWorstLoss = firstPlayerLosses.sort(function (a, b) {
-                if (a.outcome.scoringDifference > b.outcome.scoringDifference)
-                    return -1
-                if (a.outcome.scoringDifference < b.outcome.scoringDifference)
-                    return 1
+            if (firstPlayerLosses.length) {
+                /* If user hasn't lost any matches, it will still be included (otherwise it breaks) */
+                firstPlayerWorstLoss = firstPlayerLosses.sort(function (a, b) {
+                    if (
+                        a.outcome.scoringDifference >
+                        b.outcome.scoringDifference
+                    )
+                        return -1
+                    if (
+                        a.outcome.scoringDifference <
+                        b.outcome.scoringDifference
+                    )
+                        return 1
 
-                if (
-                    a.outcome.scoreFromTeamThatLost >
-                    b.outcome.scoreFromTeamThatLost
-                )
-                    return -1
-                if (
-                    a.outcome.scoreFromTeamThatLost <
-                    b.outcome.scoreFromTeamThatLost
-                )
-                    return 1
+                    if (
+                        a.outcome.scoreFromTeamThatLost >
+                        b.outcome.scoreFromTeamThatLost
+                    )
+                        return -1
+                    if (
+                        a.outcome.scoreFromTeamThatLost <
+                        b.outcome.scoreFromTeamThatLost
+                    )
+                        return 1
 
-                if (a.updatedAt > b.updatedAt) return 1
-                if (a.updatedAt < b.updatedAt) return -1
-            })[0].outcome
+                    if (a.updatedAt > b.updatedAt) return 1
+                    if (a.updatedAt < b.updatedAt) return -1
+                })[0].outcome
 
-            firstPlayerAmountOfLosses = firstPlayerLosses.length
+                firstPlayerAmountOfLosses = firstPlayerLosses.length
+            }
 
             firstPlayerGoalsFor =
                 selectedMatches
