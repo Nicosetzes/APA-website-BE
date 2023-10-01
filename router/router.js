@@ -90,19 +90,19 @@ root.post("/matches", postMatch) // Provisoria, luego puede ser modificada //
 
 root.get("/update", majorUpdatesController)
 
-root.get("/world-cup/:tournament/standings", getWorldCupStandingsByTournamentId)
+// root.get("/world-cup/:tournament/standings", getWorldCupStandingsByTournamentId)
 
-root.get(
-    "/world-cup/:tournament/playoffs/matches",
-    getWorldCupPlayoffMatchesByTournamentId
-)
+// root.get(
+//     "/world-cup/:tournament/playoffs/matches",
+//     getWorldCupPlayoffMatchesByTournamentId
+// )
 
-root.get(
-    "/world-cup/:tournament/playoffs/teams",
-    getWorldCupPlayoffTeamsByTournamentId
-)
+// root.get(
+//     "/world-cup/:tournament/playoffs/teams",
+//     getWorldCupPlayoffTeamsByTournamentId
+// )
 
-root.post("/world-cup/:tournament/matches", postWorldCupMatchesByTournamentId)
+// root.post("/world-cup/:tournament/matches", postWorldCupMatchesByTournamentId)
 
 root.get("/streaks", getStreaks)
 
