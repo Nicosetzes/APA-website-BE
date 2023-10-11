@@ -18,6 +18,7 @@ const findMatches = require("./findMatches")
 const findMatchesByTeamName = require("./findMatchesByTeamName")
 const findMatchesByTournamentId = require("./findMatchesByTournamentId")
 const findFixtureByTournamentId = require("./findFixtureByTournamentId")
+const findPlayerMatchesByTournamentId = require("./findPlayerMatchesByTournamentId")
 const findPlayinMatchesByTournamentId = require("./findPlayinMatchesByTournamentId")
 const findPlayoffMatchesByTournamentId = require("./findPlayoffMatchesByTournamentId")
 const findRecentMatchesFromPlayer = require("./findRecentMatchesFromPlayer")
@@ -56,6 +57,7 @@ module.exports = {
     findMatchesByTeamName,
     findMatchesByTournamentId,
     findFixtureByTournamentId,
+    findPlayerMatchesByTournamentId,
     findPlayinMatchesByTournamentId,
     findPlayoffMatchesByTournamentId,
     findRecentMatchesFromPlayer,
@@ -63,7 +65,6 @@ module.exports = {
     findTournamentById,
     findTournamentPlayersByTournamentId,
     findTournaments,
-    // findTournamentTeamsByTournamentId,
     findUserById,
     findUserByUserName,
     sortMatchesFromTournamentById,

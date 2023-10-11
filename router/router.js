@@ -29,10 +29,6 @@ const {
     getHome,
     getMatches,
     postMatch,
-    getWorldCupStandingsByTournamentId,
-    getWorldCupPlayoffMatchesByTournamentId,
-    getWorldCupPlayoffTeamsByTournamentId,
-    postWorldCupMatchesByTournamentId,
     getStreaks,
     getUsers,
     getUserProfile,
@@ -47,6 +43,7 @@ const {
     getTournamentById,
     getCalculatorByTournamentId,
     getPlayersByTournamentId,
+    getPlayerInfoByTournamentId,
     postPlayinByTournamentId,
     postPlayinUpdateByTournamentId,
     getPlayinMatchesByTournamentId,
@@ -90,20 +87,6 @@ root.post("/matches", postMatch) // Provisoria, luego puede ser modificada //
 
 root.get("/update", majorUpdatesController)
 
-// root.get("/world-cup/:tournament/standings", getWorldCupStandingsByTournamentId)
-
-// root.get(
-//     "/world-cup/:tournament/playoffs/matches",
-//     getWorldCupPlayoffMatchesByTournamentId
-// )
-
-// root.get(
-//     "/world-cup/:tournament/playoffs/teams",
-//     getWorldCupPlayoffTeamsByTournamentId
-// )
-
-// root.post("/world-cup/:tournament/matches", postWorldCupMatchesByTournamentId)
-
 root.get("/streaks", getStreaks)
 
 // USERS
@@ -139,6 +122,8 @@ tournaments.get("/:tournament/fixture", getFixtureByTournamentId)
 tournaments.post("/:tournament/fixture", isAuth, postFixtureByTournamentId)
 
 tournaments.get("/:tournament/players", getPlayersByTournamentId)
+
+tournaments.get("/:tournament/players/:player", getPlayerInfoByTournamentId)
 
 tournaments.post("/:tournament/playin", isAuth, postPlayinByTournamentId)
 
