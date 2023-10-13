@@ -8,6 +8,10 @@ const {
 
 const getPlayerInfoByTournamentId = async (req, res) => {
     const { tournament, player } = req.params
+
+    /* It's capturing the player ID, but on FE I'm hitting /:tournament/players?player={id}, NOT /:tournament/players/:player */
+    /* Is /:player and ?player={id} THE SAME for req.params?  */
+
     try {
         const { teams } = await retrieveTournamentById(tournament)
 

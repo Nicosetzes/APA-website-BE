@@ -9,7 +9,7 @@ const findPlayerMatchesByTournamentId = async (tournament, player) => {
                 valid: { $ne: false },
                 $or: [{ "playerP1.id": player }, { "playerP2.id": player }],
             },
-            "playerP1 playerP2 scoreP1 scoreP2 outcome updatedAt"
+            "playerP1 playerP2 teamP1 teamP2 scoreP1 scoreP2 outcome updatedAt"
         )
         .sort({ updatedAt: -1, _id: -1 })
 
