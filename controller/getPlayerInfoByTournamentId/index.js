@@ -26,8 +26,6 @@ const getPlayerInfoByTournamentId = async (req, res) => {
             .filter((team) => team.player.id == player)
             .map(({ team }) => team)
 
-        const stats = []
-
         let totalMatches = matchesFromDB.filter(
             ({ playerP1, playerP2 }) =>
                 playerP1.id == player || playerP2.id == player
@@ -67,7 +65,7 @@ const getPlayerInfoByTournamentId = async (req, res) => {
                 }, 0)
         let scoringDifference = goalsFor - goalsAgainst
 
-        stats.push({
+        const stats = {
             played: totalMatches,
             wins,
             draws,
@@ -78,7 +76,7 @@ const getPlayerInfoByTournamentId = async (req, res) => {
             effectiveness: Number(
                 (((wins * 3 + draws) / (totalMatches * 3)) * 100).toFixed(2)
             ),
-        })
+        }
 
         res.status(200).json({
             player: { id: playerFromDB._id, name: playerFromDB.nickname },
