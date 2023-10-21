@@ -33,21 +33,37 @@ const matchesModel = require("./../models/matches.js")
 //     return updatedMatches
 // }
 
+// const updateManyMatches = async () => {
+
+/* Updating many matches from the DB, this method has been successfully tested on APA */
+
+//     const updatedMatches = await matchesModel.updateMany(
+//         {
+//             played: true,
+//             "tournament.name": "Superliga Internacional 2023/24 (Cancelled)",
+//         },
+//         {
+//             $set: {
+//                 tournament: {
+//                     name: "Superliga Internacional 2023/24 (Cancelled)",
+//                     id: "65296f319f7070f68fa8ec70",
+//                 },
+//             },
+//         },
+//         { timestamps: false }
+//     )
+//     return updatedMatches
+
+//     return "edit"
+// }
+
 const updateManyMatches = async () => {
-    // const updatedMatches = await matchesModel.updateMany(
-    //     {
-    //         "tournament.id": "6457ae8d96efc21b03ba4cfe",
-    //     },
-    //     {
-    //         $set: {
-    //             tournament: {
-    //                 id: "6457ae8d96efc21b03ba4cfe",
-    //                 name: "Superliga Inglesa 2022",
-    //             },
-    //         },
-    //     },
-    //     { timestamps: false }
-    // )
+    /* Deleting many matches from the DB, this method has been successfully tested on APA */
+
+    // const updatedMatches = await matchesModel.deleteMany({
+    //     "tournament.name": "Superliga Internacional 2023/24 (Cancelled)",
+    //     played: false,
+    // })
     // return updatedMatches
 
     return "edit"
