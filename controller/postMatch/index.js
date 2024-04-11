@@ -11,7 +11,9 @@ const postMatch = async (req, res) => {
         penaltyScoreP1,
         penaltyScoreP2,
         type,
+        group,
         tournament,
+        valid,
     } = req.body
 
     try {
@@ -79,14 +81,16 @@ const postMatch = async (req, res) => {
         const match = {
             playerP1,
             teamP1,
-            scoreP1,
             playerP2,
             teamP2,
-            scoreP2,
-            outcome,
             type,
             tournament,
             played: true,
+            group,
+            outcome,
+            scoreP1,
+            scoreP2,
+            valid,
         }
 
         const createdMatch = await originateMatch(match)

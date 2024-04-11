@@ -33,41 +33,39 @@ const matchesModel = require("./../models/matches.js")
 //     return updatedMatches
 // }
 
+const updateManyMatches = async () => {
+    /* Updating many matches from the DB, this method has been successfully tested on APA */
+
+    const updatedMatches = await matchesModel.updateMany(
+        {
+            played: false,
+            "tournament.id": "659dcf45dd45bf53f0748a0d",
+            "playerP1.name": "Lucho",
+            "playerP2.name": "Lucho",
+        },
+        {
+            $set: {
+                valid: false,
+            },
+        },
+        { timestamps: false }
+    )
+    return updatedMatches
+
+    // return "edit"
+}
+
 // const updateManyMatches = async () => {
+//     /* Deleting many matches from the DB, this method has been successfully tested on APA */
 
-/* Updating many matches from the DB, this method has been successfully tested on APA */
-
-//     const updatedMatches = await matchesModel.updateMany(
-//         {
-//             played: true,
-//             "tournament.name": "Superliga Internacional 2023/24 (Cancelled)",
-//         },
-//         {
-//             $set: {
-//                 tournament: {
-//                     name: "Superliga Internacional 2023/24 (Cancelled)",
-//                     id: "65296f319f7070f68fa8ec70",
-//                 },
-//             },
-//         },
-//         { timestamps: false }
-//     )
-//     return updatedMatches
+//     // const updatedMatches = await matchesModel.deleteMany({
+//     //     "tournament.name": "Superliga Internacional 2023/24 (Cancelled)",
+//     //     played: false,
+//     // })
+//     // return updatedMatches
 
 //     return "edit"
 // }
-
-const updateManyMatches = async () => {
-    /* Deleting many matches from the DB, this method has been successfully tested on APA */
-
-    // const updatedMatches = await matchesModel.deleteMany({
-    //     "tournament.name": "Superliga Internacional 2023/24 (Cancelled)",
-    //     played: false,
-    // })
-    // return updatedMatches
-
-    return "edit"
-}
 
 // const updateManyMatches = async () => {
 //     const updatedMatches = matchesModel.updateMany(
