@@ -33,26 +33,49 @@ const matchesModel = require("./../models/matches.js")
 //     return updatedMatches
 // }
 
+// const updateManyMatches = async () => {
+//     /* Updating many matches from the DB, this method has been successfully tested on APA */
+
+//     const updatedMatches = await matchesModel.updateMany(
+//         {
+//             played: false,
+//             "tournament.id": "659dcf45dd45bf53f0748a0d",
+//             "playerP1.name": "Lucho",
+//             "playerP2.name": "Lucho",
+//         },
+//         {
+//             $set: {
+//                 valid: false,
+//             },
+//         },
+//         { timestamps: false }
+//     )
+//     return updatedMatches
+
+//     // return "edit"
+// }
+
 const updateManyMatches = async () => {
     /* Updating many matches from the DB, this method has been successfully tested on APA */
 
-    const updatedMatches = await matchesModel.updateMany(
-        {
-            played: false,
-            "tournament.id": "659dcf45dd45bf53f0748a0d",
-            "playerP1.name": "Lucho",
-            "playerP2.name": "Lucho",
-        },
-        {
-            $set: {
-                valid: false,
-            },
-        },
-        { timestamps: false }
-    )
-    return updatedMatches
+    // const updatedMatches = await matchesModel.updateMany(
+    //     {
+    //         "tournament.id": "646ff40e2524b3187034f790",
+    //         type: "regular",
+    //     },
+    //     {
+    //         $set: {
+    //             tournament: {
+    //                 id: "646ff40e2524b3187034f790",
+    //                 name: "Superliga Argentina 2023",
+    //             },
+    //         },
+    //     },
+    //     { timestamps: false }
+    // )
+    // return updatedMatches
 
-    // return "edit"
+    return "edit"
 }
 
 // const updateManyMatches = async () => {
