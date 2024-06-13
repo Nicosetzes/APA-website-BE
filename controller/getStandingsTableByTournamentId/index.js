@@ -1,6 +1,7 @@
 const {
-    orderMatchesFromTournamentById,
     retrieveTournamentById,
+    orderMatchesFromTournamentById,
+    retrieveAllNotPlayedMatchesByTournamentId,
 } = require("./../../service")
 
 const getStandingsTableByTournamentId = async (req, res) => {
@@ -177,23 +178,55 @@ const getStandingsTableByTournamentId = async (req, res) => {
             if (a.goalsAgainst < b.goalsAgainst) return -1
         })
 
-        // Averiguo los equipos que ya no tienen chances de campeonar si el formato es league //
+        // Averiguo los equipos que ya no tienen chances de campeonar/clasificar a playoff si el formato es league o league_playin_playoff //
 
-        if (format == "league") {
-            // Calculo la cantidad total de partidos que juega cada equipo en el torneo //
-            const amountOfMatchesForEachTeam =
-                sortedStandings.length - sortedStandings.length / players.length
+        /* RECORDATORIO: el cálculo es en función de los puntos, NO de la diferencia de gol */
 
-            // En caso de format == "league", reescribo sortedStandings con la nueva info //
-            sortedStandings = sortedStandings.map((team, index) => {
-                let amountOfPotentialPointsThatTeamCanHaveAtTheEnd =
-                    (amountOfMatchesForEachTeam - team.played) * 3 + team.points
-                if (
-                    amountOfPotentialPointsThatTeamCanHaveAtTheEnd <
-                    sortedStandings.at(0).points
-                )
-                    return { ...team, chances: false }
-                else return { ...team }
+        // Primero, me traigo todos los partidos NO jugados
+
+        const notPlayedMatches =
+            await retrieveAllNotPlayedMatchesByTournamentId(tournament)
+
+        // console.log(notPlayedMatches)
+
+        if (format == "league" || format == "league_playin_playoff") {
+            // Reescribo sortedStandings para agregar la info
+
+            sortedStandings = sortedStandings.map((team) => {
+                // Calculo la cantidad de partidos que le falta a cada equipo
+
+                let amountOfRemainingMatchesForEachTeam =
+                    notPlayedMatches.filter(({ teamP1, teamP2 }) => {
+                        if (
+                            teamP1.id == team.team.id ||
+                            teamP2.id == team.team.id
+                        ) {
+                            return true
+                        }
+                    }).length
+
+                // Calculo la cantidad de puntos que cada equipo podría llegar a tener
+
+                // console.log(amountOfRemainingMatchesForEachTeam)
+                // console.log(typeof amountOfRemainingMatchesForEachTeam)
+                // console.log(points)
+                // console.log(typeof points)
+
+                let pointsThatTeamCouldHaveAtTheEnd =
+                    amountOfRemainingMatchesForEachTeam * 3 + team.points
+
+                /* Calculo la posición a superar. 
+                Si es formato liga, será el 1ro,
+                si es formato league_playin_playoff, será el 10mo */
+
+                let position = format == "league" ? 0 : 9
+
+                // Evalúo si cada equipo puede alcanzar la posición
+
+                return pointsThatTeamCouldHaveAtTheEnd <
+                    sortedStandings.at(position).points
+                    ? { ...team, chances: false }
+                    : { ...team }
             })
         }
 

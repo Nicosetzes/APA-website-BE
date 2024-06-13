@@ -19,7 +19,8 @@ const getPlayerInfoByTournamentId = async (req, res) => {
 
         const matchesFromDB = await retrievePlayerMatchesByTournamentId(
             tournament,
-            player
+            player,
+            true
         )
 
         const teamsFromDB = teams

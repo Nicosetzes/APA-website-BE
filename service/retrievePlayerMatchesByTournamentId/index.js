@@ -1,7 +1,22 @@
 const { findPlayerMatchesByTournamentId } = require("./../../dao")
 
-const retrievePlayerMatchesByTournamentId = async (tournament, player) => {
-    return await findPlayerMatchesByTournamentId(tournament, player)
+const retrievePlayerMatchesByTournamentId = async (
+    tournament,
+    player,
+    valid
+) => {
+    console.log(valid)
+
+    let matches = await findPlayerMatchesByTournamentId(
+        tournament,
+        player,
+        valid
+    )
+    return valid
+        ? matches.filter(({ valid }) => {
+              return valid !== false
+          })
+        : matches
 }
 
 module.exports = retrievePlayerMatchesByTournamentId

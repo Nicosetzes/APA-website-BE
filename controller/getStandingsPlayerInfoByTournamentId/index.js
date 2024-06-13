@@ -20,13 +20,25 @@ const getStandingsPlayerInfoByTournamentId = async (req, res) => {
 
         if (!groups.length) {
             // El torneo no tiene grupos //
-            matches = await orderMatchesFromTournamentById(tournament)
+            matches = await orderMatchesFromTournamentById(
+                tournament,
+                null,
+                true
+            )
         } else if (groups.length && !group) {
             // El torneo tiene grupos, pero no hay selección //
-            matches = await orderMatchesFromTournamentById(tournament, "A")
+            matches = await orderMatchesFromTournamentById(
+                tournament,
+                "A",
+                true
+            )
         } else {
             // El torneo tiene grupos, y hay selección //
-            matches = await orderMatchesFromTournamentById(tournament, group)
+            matches = await orderMatchesFromTournamentById(
+                tournament,
+                group,
+                true
+            )
         }
 
         players.forEach((player) => {
