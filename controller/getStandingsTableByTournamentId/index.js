@@ -189,8 +189,8 @@ const getStandingsTableByTournamentId = async (req, res) => {
 
         // console.log(notPlayedMatches)
 
-        if (format == "league" || format == "league_playin_playoff") {
-            // Reescribo sortedStandings para agregar la info
+        if (format == "league") {
+            // Reescribo sortedStandings para agregar la info en formato = league
 
             sortedStandings = sortedStandings.map((team) => {
                 // Calculo la cantidad de partidos que le falta a cada equipo
@@ -207,26 +207,80 @@ const getStandingsTableByTournamentId = async (req, res) => {
 
                 // Calculo la cantidad de puntos que cada equipo podría llegar a tener
 
-                // console.log(amountOfRemainingMatchesForEachTeam)
-                // console.log(typeof amountOfRemainingMatchesForEachTeam)
-                // console.log(points)
-                // console.log(typeof points)
-
                 let pointsThatTeamCouldHaveAtTheEnd =
                     amountOfRemainingMatchesForEachTeam * 3 + team.points
 
-                /* Calculo la posición a superar. 
-                Si es formato liga, será el 1ro,
-                si es formato league_playin_playoff, será el 10mo */
-
-                let position = format == "league" ? 0 : 9
-
-                // Evalúo si cada equipo puede alcanzar la posición
+                // Evalúo si cada equipo puede alcanzar la 1ra posición
 
                 return pointsThatTeamCouldHaveAtTheEnd <
-                    sortedStandings.at(position).points
-                    ? { ...team, chances: false }
+                    sortedStandings.at(0).points
+                    ? { ...team, eliminated: true }
                     : { ...team }
+            })
+        }
+
+        if (format == "league_playin_playoff") {
+            // Calculo la cantidad de puntos que podría sumar el 7mo clasificado
+
+            let amountOfPotentialPointsFor7thTeam =
+                notPlayedMatches.filter(({ teamP1, teamP2 }) => {
+                    if (
+                        teamP1.id == sortedStandings.at(6).team.id ||
+                        teamP2.id == sortedStandings.at(6).team.id
+                    ) {
+                        return true
+                    }
+                }).length *
+                    3 +
+                sortedStandings.at(6).points
+
+            // Calculo la cantidad de puntos que podría sumar el 10mo clasificado
+
+            let amountOfPotentialPointsFor11thTeam =
+                notPlayedMatches.filter(({ teamP1, teamP2 }) => {
+                    if (
+                        teamP1.id == sortedStandings.at(10).team.id ||
+                        teamP2.id == sortedStandings.at(10).team.id
+                    ) {
+                        return true
+                    }
+                }).length *
+                    3 +
+                sortedStandings.at(10).points
+
+            // Reescribo sortedStandings para agregar la info en formato league_playin_playoff
+
+            sortedStandings = sortedStandings.map((team) => {
+                // Calculo la cantidad de puntos que cada equipo podría sumar
+
+                let amountOfPotentialPointsForTeam =
+                    notPlayedMatches.filter(({ teamP1, teamP2 }) => {
+                        if (
+                            teamP1.id == team.team.id ||
+                            teamP2.id == team.team.id
+                        ) {
+                            return true
+                        }
+                    }).length *
+                        3 +
+                    team.points
+
+                /* Calcularé 3 cosas: 
+                    1) si cada equipo ya está clasificado de manera directa
+                    2) si cada equipo ya está clasificado como mínimo al playin
+                    2) si cada equipo ya quedó fuera del playin
+                */
+
+                return {
+                    ...team,
+                    directlyQualified:
+                        team.points > amountOfPotentialPointsFor7thTeam,
+                    playinQualified:
+                        team.points > amountOfPotentialPointsFor11thTeam,
+                    eliminated:
+                        amountOfPotentialPointsForTeam <
+                        sortedStandings.at(9).points,
+                }
             })
         }
 
