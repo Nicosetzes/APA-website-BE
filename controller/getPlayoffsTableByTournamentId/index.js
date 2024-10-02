@@ -1,6 +1,7 @@
 const {
-    retrieveTournamentById,
     orderMatchesFromTournamentById,
+    retrieveTournamentById,
+    retrievePlayinMatchesByTournamentId,
 } = require("./../../service")
 
 const getPlayoffsTableByTournamentId = async (req, res) => {
@@ -12,6 +13,10 @@ const getPlayoffsTableByTournamentId = async (req, res) => {
         const matches = await orderMatchesFromTournamentById(tournament)
 
         if (format == "league_playin_playoff") {
+            const playinMatches = await retrievePlayinMatchesByTournamentId(
+                tournament
+            )
+
             const teamsFromGroupA = teams.filter(({ group }) => group == "A")
 
             const teamsFromGroupB = teams.filter(({ group }) => group == "B")
@@ -188,6 +193,94 @@ const getPlayoffsTableByTournamentId = async (req, res) => {
                 if (a.goalsAgainst > b.goalsAgainst) return 1
                 if (a.goalsAgainst < b.goalsAgainst) return -1
             })
+
+            const areThereAnyWinnersFromPlayinMatches = playinMatches.filter(
+                ({ played }) => played
+            )
+
+            if (areThereAnyWinnersFromPlayinMatches.length) {
+                const higherPlayinTeams = []
+
+                const lowerPlayinTeams = []
+
+                // Recorro los partidos jugados de playin y analizo cada caso.
+                // Agrego los 2 ganadores de los duelos 7 vs 8 a higherPlayinTeams
+                // Agrego los 2 ganadores de la 2da ronda de playin a lowerPlayinTeams
+
+                areThereAnyWinnersFromPlayinMatches.forEach(
+                    ({
+                        outcome: { seedFromTeamThatWon: winnerSeed },
+                        playoff_id,
+                    }) => {
+                        if (playoff_id == "1")
+                            higherPlayinTeams.push(
+                                sortedStandingsFromGroupA.at(
+                                    Number(winnerSeed) - 1
+                                )
+                            )
+                        if (playoff_id == "3")
+                            higherPlayinTeams.push(
+                                sortedStandingsFromGroupB.at(
+                                    Number(winnerSeed) - 1
+                                )
+                            )
+                        if (playoff_id == "5")
+                            lowerPlayinTeams.push(
+                                sortedStandingsFromGroupA.at(
+                                    Number(winnerSeed) - 1
+                                )
+                            )
+
+                        if (playoff_id == "6")
+                            lowerPlayinTeams.push(
+                                sortedStandingsFromGroupB.at(
+                                    Number(winnerSeed) - 1
+                                )
+                            )
+                    }
+                )
+
+                // Ordeno los equipos de cada mini-grupo
+
+                const sortedHigherPlayinTeams = higherPlayinTeams.sort(
+                    (a, b) => {
+                        if (a.points > b.points) return -1
+                        if (a.points < b.points) return 1
+
+                        if (a.scoringDifference > b.scoringDifference) return -1
+                        if (a.scoringDifference < b.scoringDifference) return 1
+
+                        if (a.goalsFor > b.goalsFor) return -1
+                        if (a.goalsFor < b.goalsFor) return 1
+
+                        if (a.goalsAgainst > b.goalsAgainst) return 1
+                        if (a.goalsAgainst < b.goalsAgainst) return -1
+                    }
+                )
+
+                const sortedLowerPlayinTeams = lowerPlayinTeams.sort((a, b) => {
+                    if (a.points > b.points) return -1
+                    if (a.points < b.points) return 1
+
+                    if (a.scoringDifference > b.scoringDifference) return -1
+                    if (a.scoringDifference < b.scoringDifference) return 1
+
+                    if (a.goalsFor > b.goalsFor) return -1
+                    if (a.goalsFor < b.goalsFor) return 1
+
+                    if (a.goalsAgainst > b.goalsAgainst) return 1
+                    if (a.goalsAgainst < b.goalsAgainst) return -1
+                })
+
+                // Sumo los clasificados del playin a la tabla general.
+                // Hacerlo de esta forma me permite priorizar los que clasificaron en la 1ra ronda del playin por sobre los que lo hicieron en la 2da.
+                // Utilizo .push para mutar el array original (por scope), con spread operator puedo concatenar y mutar al mismo tiempo
+
+                allPlayoffTeamsSorted.push(
+                    ...sortedHigherPlayinTeams,
+                    ...sortedLowerPlayinTeams
+                )
+            }
 
             return res.status(200).json({ standings: allPlayoffTeamsSorted })
         } else {

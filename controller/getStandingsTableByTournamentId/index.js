@@ -246,7 +246,7 @@ const getStandingsTableByTournamentId = async (req, res) => {
                     }
                 }).length *
                     3 +
-                sortedStandings.at(10).points
+                sortedStandings.at(10)?.points // Agrego ? por si el torneo no tiene más de 10 equipos en la zona
 
             // Reescribo sortedStandings para agregar la info en formato league_playin_playoff
 
