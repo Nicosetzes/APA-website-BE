@@ -14,6 +14,7 @@ const putMatchByTournamentId = async (req, res) => {
             seedP2,
             scoreP2,
             penaltyScoreP2,
+            valid,
         } = req.body
 
         let outcome
@@ -111,7 +112,8 @@ const putMatchByTournamentId = async (req, res) => {
             match,
             scoreP1,
             scoreP2,
-            outcome
+            outcome,
+            valid
         )
 
         uploadedMatch
