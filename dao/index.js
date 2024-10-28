@@ -35,6 +35,7 @@ const updateManyMatches = require("./updateManyMatches")
 const updateMatchResult = require("./updateMatchResult")
 const updateMatchResultToRemoveIt = require("./updateMatchResultToRemoveIt")
 const updateSquad = require("./updateSquad")
+const updateTournamentOutcome = require("./updateTournamentOutcome")
 
 module.exports = {
     countAllMatchesByTournamentId,
@@ -73,4 +74,5 @@ module.exports = {
     updateMatchResult,
     updateMatchResultToRemoveIt,
     updateSquad,
+    updateTournamentOutcome,
 }

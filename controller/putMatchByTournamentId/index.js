@@ -1,7 +1,10 @@
-const { modifyMatchResult } = require("./../../service")
+const {
+    modifyMatchResult,
+    modifyTournamentOutcome,
+} = require("./../../service")
 
 const putMatchByTournamentId = async (req, res) => {
-    const { match } = req.params
+    const { tournament, match } = req.params
     try {
         const {
             playerP1,
@@ -15,6 +18,7 @@ const putMatchByTournamentId = async (req, res) => {
             scoreP2,
             penaltyScoreP2,
             valid,
+            isThisTheFinal,
         } = req.body
 
         let outcome
@@ -115,6 +119,19 @@ const putMatchByTournamentId = async (req, res) => {
             outcome,
             valid
         )
+
+        if (isThisTheFinal) {
+            // Nuevo servicio: actualizo el campeón y el subcampeón del torneo si isThisTheFinal = true
+            const champion = {
+                team: outcome.teamThatWon,
+                player: outcome.playerThatWon,
+            }
+            const finalist = {
+                team: outcome.teamThatLost,
+                player: outcome.playerThatLost,
+            }
+            await modifyTournamentOutcome(tournament, champion, finalist)
+        }
 
         uploadedMatch
             ? res.status(200).send(uploadedMatch)

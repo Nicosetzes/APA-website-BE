@@ -13,7 +13,10 @@ const tournamentsSchema = new mongoose.Schema(
         cloudinary_id: { type: String, require: true, max: 100 },
         groups: { type: Array, require: true, default: [], max: 8 },
     },
-    { collection: "tournaments" }
+    {
+        collection: "tournaments",
+        timestamps: true,
+    }
 )
 
 module.exports = mongoose.model(collection, tournamentsSchema)

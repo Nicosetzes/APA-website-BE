@@ -1,15 +1,20 @@
 const { retrieveTournaments } = require("./../../service")
 
 const getTournaments = async (req, res) => {
+    const { status } = req.query
+
     try {
-        const tournaments = await retrieveTournaments()
+        let finalized
 
-        const activeTournaments = tournaments.filter(({ ongoing }) => ongoing)
-        const inactiveTournaments = tournaments.filter(
-            ({ ongoing }) => !ongoing
-        )
+        if (status == "finalized") {
+            finalized = true
+        }
 
-        res.status(200).json({ activeTournaments, inactiveTournaments })
+        const tournamentsFromDB = await retrieveTournaments(finalized)
+
+        // res.status(200).json({ activeTournaments, inactiveTournaments })
+
+        res.status(200).json(tournamentsFromDB)
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
     }
