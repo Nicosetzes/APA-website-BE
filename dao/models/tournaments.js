@@ -12,6 +12,7 @@ const tournamentsSchema = new mongoose.Schema(
         format: { type: String, default: false },
         cloudinary_id: { type: String, require: true, max: 100 },
         groups: { type: Array, require: true, default: [], max: 8 },
+        valid: { type: Boolean, require: false },
     },
     {
         collection: "tournaments",

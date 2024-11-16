@@ -4,12 +4,15 @@ const findTournaments = async (finalized) => {
     let tournaments = finalized
         ? await tournamentsModel
               .find(
-                  { outcome: { $exists: true } },
+                  { outcome: { $exists: true }, valid: { $ne: false } },
                   "name cloudinary_id outcome"
               )
               .sort({ createdAt: 1, id: -1 })
         : await tournamentsModel
-              .find({}, "name ongoing cloudinary_id outcome")
+              .find(
+                  { valid: { $ne: false } },
+                  "name ongoing cloudinary_id outcome"
+              )
               .sort({ createdAt: 1, id: -1 })
     return tournaments
 }
