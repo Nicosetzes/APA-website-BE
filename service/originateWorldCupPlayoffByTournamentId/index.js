@@ -483,23 +483,11 @@ const originateWorldCupPlayoffByTournamentId = async (
 
     const playoffMatches = [
         {
-            playerP1: {
-                id: sortedStandingsFromGroupA.at(0).player.id,
-                name: sortedStandingsFromGroupA.at(0).player.name,
-            },
-            teamP1: {
-                id: sortedStandingsFromGroupA.at(0).team.id,
-                name: sortedStandingsFromGroupA.at(0).team.name,
-            },
+            playerP1: sortedStandingsFromGroupA.at(0).player,
+            teamP1: sortedStandingsFromGroupA.at(0).team,
             seedP1: "1A",
-            playerP2: {
-                id: sortedStandingsFromGroupB.at(1).player.id,
-                name: sortedStandingsFromGroupB.at(1).player.name,
-            },
-            teamP2: {
-                id: sortedStandingsFromGroupB.at(1).team.id,
-                name: sortedStandingsFromGroupB.at(1).team.name,
-            },
+            playerP2: sortedStandingsFromGroupB.at(1).player,
+            teamP2: sortedStandingsFromGroupB.at(1).team,
             seedP2: "2B",
             type: "playoff",
             tournament,
@@ -507,23 +495,11 @@ const originateWorldCupPlayoffByTournamentId = async (
             playoff_id: 1,
         },
         {
-            playerP1: {
-                id: sortedStandingsFromGroupC.at(0).player.id,
-                name: sortedStandingsFromGroupC.at(0).player.name,
-            },
-            teamP1: {
-                id: sortedStandingsFromGroupC.at(0).team.id,
-                name: sortedStandingsFromGroupC.at(0).team.name,
-            },
+            playerP1: sortedStandingsFromGroupC.at(0).player,
+            teamP1: sortedStandingsFromGroupC.at(0).team,
             seedP1: "1C",
-            playerP2: {
-                id: sortedStandingsFromGroupD.at(1).player.id,
-                name: sortedStandingsFromGroupD.at(1).player.name,
-            },
-            teamP2: {
-                id: sortedStandingsFromGroupD.at(1).team.id,
-                name: sortedStandingsFromGroupD.at(1).team.name,
-            },
+            playerP2: sortedStandingsFromGroupD.at(1).player,
+            teamP2: sortedStandingsFromGroupD.at(1).team,
             seedP2: "2D",
             type: "playoff",
             tournament,
@@ -531,23 +507,11 @@ const originateWorldCupPlayoffByTournamentId = async (
             playoff_id: 2,
         },
         {
-            playerP1: {
-                id: sortedStandingsFromGroupE.at(0).player.id,
-                name: sortedStandingsFromGroupE.at(0).player.name,
-            },
-            teamP1: {
-                id: sortedStandingsFromGroupE.at(0).team.id,
-                name: sortedStandingsFromGroupE.at(0).team.name,
-            },
+            playerP1: sortedStandingsFromGroupE.at(0).player,
+            teamP1: sortedStandingsFromGroupE.at(0).team,
             seedP1: "1E",
-            playerP2: {
-                id: sortedStandingsFromGroupF.at(1).player.id,
-                name: sortedStandingsFromGroupF.at(1).player.name,
-            },
-            teamP2: {
-                id: sortedStandingsFromGroupF.at(1).team.id,
-                name: sortedStandingsFromGroupF.at(1).team.name,
-            },
+            playerP2: sortedStandingsFromGroupF.at(1).player,
+            teamP2: sortedStandingsFromGroupF.at(1).team,
             seedP2: "2F",
             type: "playoff",
             tournament,
@@ -555,23 +519,11 @@ const originateWorldCupPlayoffByTournamentId = async (
             playoff_id: 3,
         },
         {
-            playerP1: {
-                id: sortedStandingsFromGroupG.at(0).player.id,
-                name: sortedStandingsFromGroupG.at(0).player.name,
-            },
-            teamP1: {
-                id: sortedStandingsFromGroupG.at(0).team.id,
-                name: sortedStandingsFromGroupG.at(0).team.name,
-            },
+            playerP1: sortedStandingsFromGroupG.at(0).player,
+            teamP1: sortedStandingsFromGroupG.at(0).team,
             seedP1: "1G",
-            playerP2: {
-                id: sortedStandingsFromGroupH.at(1).player.id,
-                name: sortedStandingsFromGroupH.at(1).player.name,
-            },
-            teamP2: {
-                id: sortedStandingsFromGroupH.at(1).team.id,
-                name: sortedStandingsFromGroupH.at(1).team.name,
-            },
+            playerP2: sortedStandingsFromGroupH.at(1).player,
+            teamP2: sortedStandingsFromGroupH.at(1).team,
             seedP2: "2H",
             type: "playoff",
             tournament,
@@ -579,23 +531,11 @@ const originateWorldCupPlayoffByTournamentId = async (
             playoff_id: 4,
         },
         {
-            playerP1: {
-                id: sortedStandingsFromGroupB.at(0).player.id,
-                name: sortedStandingsFromGroupB.at(0).player.name,
-            },
-            teamP1: {
-                id: sortedStandingsFromGroupB.at(0).team.id,
-                name: sortedStandingsFromGroupB.at(0).team.name,
-            },
+            playerP1: sortedStandingsFromGroupB.at(0).player,
+            teamP1: sortedStandingsFromGroupB.at(0).team,
             seedP1: "1B",
-            playerP2: {
-                id: sortedStandingsFromGroupA.at(1).player.id,
-                name: sortedStandingsFromGroupA.at(1).player.name,
-            },
-            teamP2: {
-                id: sortedStandingsFromGroupA.at(1).team.id,
-                name: sortedStandingsFromGroupA.at(1).team.name,
-            },
+            playerP2: sortedStandingsFromGroupA.at(1).player,
+            teamP2: sortedStandingsFromGroupA.at(1).team,
             seedP2: "2A",
             type: "playoff",
             tournament,
@@ -603,23 +543,11 @@ const originateWorldCupPlayoffByTournamentId = async (
             playoff_id: 5,
         },
         {
-            playerP1: {
-                id: sortedStandingsFromGroupD.at(0).player.id,
-                name: sortedStandingsFromGroupD.at(0).player.name,
-            },
-            teamP1: {
-                id: sortedStandingsFromGroupD.at(0).team.id,
-                name: sortedStandingsFromGroupD.at(0).team.name,
-            },
+            playerP1: sortedStandingsFromGroupD.at(0).player,
+            teamP1: sortedStandingsFromGroupD.at(0).team,
             seedP1: "1D",
-            playerP2: {
-                id: sortedStandingsFromGroupC.at(1).player.id,
-                name: sortedStandingsFromGroupC.at(1).player.name,
-            },
-            teamP2: {
-                id: sortedStandingsFromGroupC.at(1).team.id,
-                name: sortedStandingsFromGroupC.at(1).team.name,
-            },
+            playerP2: sortedStandingsFromGroupC.at(1).player,
+            teamP2: sortedStandingsFromGroupC.at(1).team,
             seedP2: "2C",
             type: "playoff",
             tournament,
@@ -627,23 +555,11 @@ const originateWorldCupPlayoffByTournamentId = async (
             playoff_id: 6,
         },
         {
-            playerP1: {
-                id: sortedStandingsFromGroupF.at(0).player.id,
-                name: sortedStandingsFromGroupF.at(0).player.name,
-            },
-            teamP1: {
-                id: sortedStandingsFromGroupF.at(0).team.id,
-                name: sortedStandingsFromGroupF.at(0).team.name,
-            },
+            playerP1: sortedStandingsFromGroupF.at(0).player,
+            teamP1: sortedStandingsFromGroupF.at(0).team,
             seedP1: "1F",
-            playerP2: {
-                id: sortedStandingsFromGroupE.at(1).player.id,
-                name: sortedStandingsFromGroupE.at(1).player.name,
-            },
-            teamP2: {
-                id: sortedStandingsFromGroupE.at(1).team.id,
-                name: sortedStandingsFromGroupE.at(1).team.name,
-            },
+            playerP2: sortedStandingsFromGroupE.at(1).player,
+            teamP2: sortedStandingsFromGroupE.at(1).team,
             seedP2: "2E",
             type: "playoff",
             tournament,
@@ -651,23 +567,11 @@ const originateWorldCupPlayoffByTournamentId = async (
             playoff_id: 7,
         },
         {
-            playerP1: {
-                id: sortedStandingsFromGroupH.at(0).player.id,
-                name: sortedStandingsFromGroupH.at(0).player.name,
-            },
-            teamP1: {
-                id: sortedStandingsFromGroupH.at(0).team.id,
-                name: sortedStandingsFromGroupH.at(0).team.name,
-            },
+            playerP1: sortedStandingsFromGroupH.at(0).player,
+            teamP1: sortedStandingsFromGroupH.at(0).team,
             seedP1: "1H",
-            playerP2: {
-                id: sortedStandingsFromGroupG.at(1).player.id,
-                name: sortedStandingsFromGroupG.at(1).player.name,
-            },
-            teamP2: {
-                id: sortedStandingsFromGroupG.at(1).team.id,
-                name: sortedStandingsFromGroupG.at(1).team.name,
-            },
+            playerP2: sortedStandingsFromGroupG.at(1).player,
+            teamP2: sortedStandingsFromGroupG.at(1).team,
             seedP2: "2G",
             type: "playoff",
             tournament,
