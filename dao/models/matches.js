@@ -50,6 +50,8 @@ const matchesSchema = new mongoose.Schema(
         playoff_id: { type: Number, require: false },
         seedP1: { type: String, require: false, max: 2 },
         seedP2: { type: String, require: false, max: 2 },
+        playerP3: { type: Object, require: true, max: 100 },
+        playerP4: { type: Object, require: true, max: 100 },
     },
     { collection, timestamps: true }
 )

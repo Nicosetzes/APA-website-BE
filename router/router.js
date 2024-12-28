@@ -57,7 +57,9 @@ const {
     getFixtureByTournamentId,
     postFixtureByTournamentId,
     postMatchByTournamentId,
+    postTagTeamsMatchByTournamentId,
     putMatchByTournamentId,
+    putTagTeamsMatchByTournamentId,
     putRemoveMatchByTournamentId,
     getStandingsTableByTournamentId,
     getStandingsPlayerInfoByTournamentId,
@@ -160,10 +162,22 @@ tournaments.post(
     postMatchByTournamentId
 )
 
+tournaments.post(
+    "/:tournament/matches/create-tag-teams-match/",
+    isAuth,
+    postTagTeamsMatchByTournamentId
+)
+
 tournaments.put(
     "/:tournament/matches/update-game/:match",
     isAuth,
     putMatchByTournamentId
+)
+
+tournaments.put(
+    "/:tournament/matches/update-tag-teams-match/:match",
+    isAuth,
+    putTagTeamsMatchByTournamentId
 )
 
 tournaments.put(

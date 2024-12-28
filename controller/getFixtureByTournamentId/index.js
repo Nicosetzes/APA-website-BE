@@ -18,7 +18,7 @@ const getFixtureByTournamentId = async (req, res) => {
             const { groups } = await retrieveTournamentById(tournament)
             // Si el torneo es sin grupos, no mando group a DAO //
             // Si el torneo es con grupos, le mando el primer grupo por defecto //
-            matches = !groups.length
+            matches = !groups?.length
                 ? await retrieveFixtureByTournamentId(
                       tournament,
                       Number(page),
@@ -33,6 +33,7 @@ const getFixtureByTournamentId = async (req, res) => {
                       groups[0]
                   )
         } else {
+            console.log("llegué acaaa")
             matches = await retrieveFixtureByTournamentId(
                 tournament,
                 Number(page),

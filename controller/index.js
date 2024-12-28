@@ -35,6 +35,7 @@ const postLogin = require("./postLogin")
 const postLogout = require("./postLogout")
 const postMatch = require("./postMatch")
 const postMatchByTournamentId = require("./postMatchByTournamentId")
+const postTagTeamsMatchByTournamentId = require("./postTagTeamsMatchByTournamentId")
 const postPlayinByTournamentId = require("./postPlayinByTournamentId")
 const postPlayinUpdateByTournamentId = require("./postPlayinUpdateByTournamentId")
 const postPlayoffByTournamentId = require("./postPlayoffByTournamentId")
@@ -45,6 +46,7 @@ const postSolicitateNewPassword = require("./postSolicitateNewPassword")
 const postTournaments = require("./postTournaments")
 const postWorldCupMatchesByTournamentId = require("./postWorldCupMatchesByTournamentId")
 const putMatchByTournamentId = require("./putMatchByTournamentId")
+const putTagTeamsMatchByTournamentId = require("./putTagTeamsMatchByTournamentId")
 const putRemoveMatchByTournamentId = require("./putRemoveMatchByTournamentId")
 const putSquadByTeamId = require("./putSquadByTeamId")
 
@@ -86,6 +88,7 @@ module.exports = {
     postLogout,
     postMatch,
     postMatchByTournamentId,
+    postTagTeamsMatchByTournamentId,
     postPlayinByTournamentId,
     postPlayinUpdateByTournamentId,
     postPlayoffByTournamentId,
@@ -96,6 +99,7 @@ module.exports = {
     postTournaments,
     postWorldCupMatchesByTournamentId,
     putMatchByTournamentId,
+    putTagTeamsMatchByTournamentId,
     putRemoveMatchByTournamentId,
     putSquadByTeamId,
 }

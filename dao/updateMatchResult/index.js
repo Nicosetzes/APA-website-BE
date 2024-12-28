@@ -24,6 +24,7 @@ const updateMatchResult = async (matchId, scoreP1, scoreP2, outcome, valid) => {
                   },
                   { new: true } // Returns the updated document, not the original
               )
+
     return uploadedMatch
 }
 

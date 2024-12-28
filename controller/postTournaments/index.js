@@ -27,6 +27,7 @@ const postTournaments = async (req, res) => {
                 // cloudinary_id: cloudinaryId,
             })
         } else {
+            console.log("entré aca")
             newTournament = await originateTournament({
                 name,
                 players,
