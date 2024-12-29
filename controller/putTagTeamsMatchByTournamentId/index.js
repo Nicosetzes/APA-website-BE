@@ -88,8 +88,6 @@ const putTagTeamsMatchByTournamentId = async (req, res) => {
             outcome
         )
 
-        console.log(uploadedMatch)
-
         uploadedMatch
             ? res.status(200).send(uploadedMatch)
             : res.status(500).send({ error: "Match wasn't found in the DB" })

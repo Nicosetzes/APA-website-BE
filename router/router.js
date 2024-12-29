@@ -62,6 +62,7 @@ const {
     putTagTeamsMatchByTournamentId,
     putRemoveMatchByTournamentId,
     getStandingsTableByTournamentId,
+    getTagTeamsStandingsTableByTournamentId,
     getStandingsPlayerInfoByTournamentId,
     getPlayoffsTableByTournamentId,
     getPlayoffsPlayerInfoByTournamentId,
@@ -187,6 +188,11 @@ tournaments.put(
 )
 
 tournaments.get("/:tournament/standings/table", getStandingsTableByTournamentId)
+
+tournaments.get(
+    "/:tournament/tag-teams-standings/table",
+    getTagTeamsStandingsTableByTournamentId
+)
 
 tournaments.get(
     "/:tournament/standings/player-info",
