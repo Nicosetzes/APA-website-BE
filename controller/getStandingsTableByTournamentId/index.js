@@ -18,10 +18,10 @@ const getStandingsTableByTournamentId = async (req, res) => {
 
         // Revisar el siguiente bloque, podría crear una llamada que traiga especificamente los equipos que necesito //
 
-        if (!groups.length) {
+        if (!groups?.length) {
             // El torneo no tiene grupos //
             teamsFromTournament = teams
-        } else if (groups.length && !group) {
+        } else if (groups?.length && !group) {
             // El torneo tiene grupos, pero no hay selección //
             teamsFromTournament = teams.filter((team) => team.group == "A")
         } else {
