@@ -32,7 +32,7 @@
         "validatorjs": "^3.22.1"
     },
     "engines": {
-        "node": "18.x"
+        "node": "22.x"
     },
     "devDependencies": {
         "nodemon": "^2.0.19"
