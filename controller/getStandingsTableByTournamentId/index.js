@@ -9,160 +9,196 @@ const getStandingsTableByTournamentId = async (req, res) => {
     const { group } = req.query
 
     try {
-        const standings = []
-
         let teamsFromTournament
 
-        const { id, name, format, players, teams, groups } =
+        const { id, name, format, teams, groups } =
             await retrieveTournamentById(tournament)
 
-        // Revisar el siguiente bloque, podría crear una llamada que traiga especificamente los equipos que necesito //
-
         if (!groups?.length) {
-            // El torneo no tiene grupos //
             teamsFromTournament = teams
         } else if (groups?.length && !group) {
-            // El torneo tiene grupos, pero no hay selección //
             teamsFromTournament = teams.filter((team) => team.group == "A")
         } else {
-            // El torneo tiene grupos, y hay selección //
             teamsFromTournament = teams.filter((team) => team.group == group)
         }
 
         const matches = await orderMatchesFromTournamentById(tournament, group)
 
-        teamsFromTournament.forEach(async ({ team, player }) => {
-            let played = matches.filter(
-                ({ teamP1, teamP2 }) =>
-                    teamP1.id == team.id || teamP2.id == team.id
-            ).length
-            let wins = matches.filter(
-                ({ outcome }) => outcome?.teamThatWon?.id == team.id
-            ).length
-            let draws = matches.filter(
-                ({ teamP1, teamP2, outcome }) =>
-                    (teamP1.id == team.id || teamP2.id == team.id) &&
-                    outcome?.draw
-            ).length
-            let losses = matches.filter(
-                ({ outcome }) => outcome?.teamThatLost?.id == team.id
-            ).length
-            let goalsFor =
-                matches
-                    .filter(({ teamP1 }) => teamP1.id == team.id)
-                    .reduce((acc, curr) => {
-                        return acc + curr.scoreP1
-                    }, 0) +
-                matches
-                    .filter(({ teamP2 }) => teamP2.id == team.id)
-                    .reduce((acc, curr) => {
-                        return acc + curr.scoreP2
-                    }, 0)
-            let goalsAgainst =
-                matches
-                    .filter(({ teamP1 }) => teamP1.id == team.id)
-                    .reduce((acc, curr) => {
-                        return acc + curr.scoreP2
-                    }, 0) +
-                matches
-                    .filter(({ teamP2 }) => teamP2.id == team.id)
-                    .reduce((acc, curr) => {
-                        return acc + curr.scoreP1
-                    }, 0)
-            let scoringDifference = goalsFor - goalsAgainst
-            let points = wins * 3 + draws
-            let streak = matches
-                .filter(
-                    ({ teamP1, teamP2 }) =>
-                        teamP1.id === team.id || teamP2.id === team.id
-                )
-                .splice(0, 5) // REVISAR //
-                .map(
-                    ({
-                        outcome,
-                        id,
+        // Build standings in a single pass over matches
+        const statsMap = new Map()
+
+        const ensureTeam = (teamObj, playerObj) => {
+            if (!statsMap.has(teamObj.id)) {
+                statsMap.set(teamObj.id, {
+                    team: teamObj,
+                    player: playerObj,
+                    played: 0,
+                    wins: 0,
+                    draws: 0,
+                    losses: 0,
+                    goalsFor: 0,
+                    goalsAgainst: 0,
+                    scoringDifference: 0,
+                    points: 0,
+                    streak: [], // we'll fill most-recent first, reverse later
+                })
+            }
+            return statsMap.get(teamObj.id)
+        }
+
+        for (const m of matches) {
+            const {
+                playerP1,
+                teamP1,
+                scoreP1,
+                playerP2,
+                teamP2,
+                scoreP2,
+                outcome,
+                id,
+                updatedAt,
+            } = m
+
+            const t1 = ensureTeam(teamP1, playerP1)
+            const t2 = ensureTeam(teamP2, playerP2)
+
+            // Update played
+            t1.played += 1
+            t2.played += 1
+
+            // Goals for/against
+            t1.goalsFor += scoreP1 || 0
+            t1.goalsAgainst += scoreP2 || 0
+            t2.goalsFor += scoreP2 || 0
+            t2.goalsAgainst += scoreP1 || 0
+
+            // Results and points
+            if (outcome?.draw) {
+                t1.draws += 1
+                t2.draws += 1
+                t1.points += 1
+                t2.points += 1
+            } else if (outcome?.teamThatWon?.id === teamP1.id) {
+                t1.wins += 1
+                t2.losses += 1
+                t1.points += 3
+            } else if (outcome?.teamThatWon?.id === teamP2.id) {
+                t2.wins += 1
+                t1.losses += 1
+                t2.points += 3
+            } else if (outcome?.teamThatLost?.id === teamP1.id) {
+                // Fallback if only teamThatLost is set
+                t1.losses += 1
+                t2.wins += 1
+                t2.points += 3
+            } else if (outcome?.teamThatLost?.id === teamP2.id) {
+                t2.losses += 1
+                t1.wins += 1
+                t1.points += 3
+            }
+
+            // Streak entries: use match order (already desc by updatedAt)
+            const dateStr = updatedAt
+                ? new Date(updatedAt).toLocaleString()
+                : new Date(
+                      parseInt(String(id).substring(0, 8), 16) * 1000
+                  ).toLocaleDateString()
+
+            if (t1.streak.length < 5) {
+                if (outcome?.draw) {
+                    t1.streak.push({
+                        outcome: "d",
                         playerP1,
                         teamP1,
                         scoreP1,
                         playerP2,
                         teamP2,
                         scoreP2,
-                        updatedAt,
-                    }) => {
-                        const {
-                            playerThatWon,
-                            teamThatWon,
-                            scoreFromTeamThatWon,
-                            playerThatLost,
-                            teamThatLost,
-                            scoreFromTeamThatLost,
-                        } = outcome
-                        if (teamThatWon && teamThatWon.id === team.id)
-                            return {
-                                outcome: "w",
-                                playerP1: playerThatWon,
-                                teamP1: teamThatWon,
-                                scoreP1: scoreFromTeamThatWon,
-                                playerP2: playerThatLost,
-                                teamP2: teamThatLost,
-                                scoreP2: scoreFromTeamThatLost,
-                                date: updatedAt
-                                    ? new Date(updatedAt).toLocaleString()
-                                    : new Date(
-                                          parseInt(id.substring(0, 8), 16) *
-                                              1000
-                                      ).toLocaleDateString(),
-                            }
-                        if (teamThatLost && teamThatLost.id === team.id)
-                            return {
-                                outcome: "l",
-                                playerP1: playerThatLost,
-                                teamP1: teamThatLost,
-                                scoreP1: scoreFromTeamThatLost,
-                                playerP2: playerThatWon,
-                                teamP2: teamThatWon,
-                                scoreP2: scoreFromTeamThatWon,
-                                date: updatedAt
-                                    ? new Date(updatedAt).toLocaleString()
-                                    : new Date(
-                                          parseInt(id.substring(0, 8), 16) *
-                                              1000
-                                      ).toLocaleDateString(),
-                            }
-                        if (outcome.draw)
-                            return {
-                                outcome: "d",
-                                playerP1,
-                                teamP1,
-                                scoreP1,
-                                playerP2,
-                                teamP2,
-                                scoreP2,
-                                date: updatedAt
-                                    ? new Date(updatedAt).toLocaleString()
-                                    : new Date(
-                                          parseInt(id.substring(0, 8), 16) *
-                                              1000
-                                      ).toLocaleDateString(),
-                            }
-                    }
-                )
-                .reverse()
+                        date: dateStr,
+                    })
+                } else if (outcome?.teamThatWon?.id === teamP1.id) {
+                    t1.streak.push({
+                        outcome: "w",
+                        playerP1: outcome.playerThatWon || playerP1,
+                        teamP1: outcome.teamThatWon || teamP1,
+                        scoreP1: outcome.scoreFromTeamThatWon ?? scoreP1,
+                        playerP2: outcome.playerThatLost || playerP2,
+                        teamP2: outcome.teamThatLost || teamP2,
+                        scoreP2: outcome.scoreFromTeamThatLost ?? scoreP2,
+                        date: dateStr,
+                    })
+                } else if (outcome?.teamThatLost?.id === teamP1.id) {
+                    t1.streak.push({
+                        outcome: "l",
+                        playerP1: outcome.playerThatLost || playerP1,
+                        teamP1: outcome.teamThatLost || teamP1,
+                        scoreP1: outcome.scoreFromTeamThatLost ?? scoreP1,
+                        playerP2: outcome.playerThatWon || playerP2,
+                        teamP2: outcome.teamThatWon || teamP2,
+                        scoreP2: outcome.scoreFromTeamThatWon ?? scoreP2,
+                        date: dateStr,
+                    })
+                }
+            }
 
-            standings.push({
+            if (t2.streak.length < 5) {
+                if (outcome?.draw) {
+                    t2.streak.push({
+                        outcome: "d",
+                        playerP1,
+                        teamP1,
+                        scoreP1,
+                        playerP2,
+                        teamP2,
+                        scoreP2,
+                        date: dateStr,
+                    })
+                } else if (outcome?.teamThatWon?.id === teamP2.id) {
+                    t2.streak.push({
+                        outcome: "w",
+                        playerP1: outcome.playerThatWon || playerP2,
+                        teamP1: outcome.teamThatWon || teamP2,
+                        scoreP1: outcome.scoreFromTeamThatWon ?? scoreP2,
+                        playerP2: outcome.playerThatLost || playerP1,
+                        teamP2: outcome.teamThatLost || teamP1,
+                        scoreP2: outcome.scoreFromTeamThatLost ?? scoreP1,
+                        date: dateStr,
+                    })
+                } else if (outcome?.teamThatLost?.id === teamP2.id) {
+                    t2.streak.push({
+                        outcome: "l",
+                        playerP1: outcome.playerThatLost || playerP2,
+                        teamP1: outcome.teamThatLost || teamP2,
+                        scoreP1: outcome.scoreFromTeamThatLost ?? scoreP2,
+                        playerP2: outcome.playerThatWon || playerP1,
+                        teamP2: outcome.teamThatWon || teamP1,
+                        scoreP2: outcome.scoreFromTeamThatWon ?? scoreP1,
+                        date: dateStr,
+                    })
+                }
+            }
+        }
+
+        // Finalize derived stats and keep only teams from tournament/groups
+        const standings = []
+        for (const { team, player } of teamsFromTournament) {
+            const s = statsMap.get(team.id) || {
                 team,
                 player,
-                played,
-                wins,
-                draws,
-                losses,
-                goalsFor,
-                goalsAgainst,
-                scoringDifference,
-                points,
-                streak,
-            })
-        })
+                played: 0,
+                wins: 0,
+                draws: 0,
+                losses: 0,
+                goalsFor: 0,
+                goalsAgainst: 0,
+                points: 0,
+                streak: [],
+            }
+            s.scoringDifference = (s.goalsFor || 0) - (s.goalsAgainst || 0)
+            // Reverse streak to oldest->newest as prior behavior required
+            s.streak = [...s.streak].reverse()
+            standings.push(s)
+        }
 
         let sortedStandings = standings.sort(function (a, b) {
             if (a.points > b.points) return -1
@@ -178,39 +214,29 @@ const getStandingsTableByTournamentId = async (req, res) => {
             if (a.goalsAgainst < b.goalsAgainst) return -1
         })
 
-        // Averiguo los equipos que ya no tienen chances de campeonar/clasificar a playoff si el formato es league o league_playin_playoff //
-
-        /* RECORDATORIO: el cálculo es en función de los puntos, NO de la diferencia de gol */
-
-        // Primero, me traigo todos los partidos NO jugados
-
         const notPlayedMatches =
-            await retrieveAllNotPlayedMatchesByTournamentId(tournament)
-
-        // console.log(notPlayedMatches)
+            await retrieveAllNotPlayedMatchesByTournamentId(tournament, group)
 
         if (format == "league") {
-            // Reescribo sortedStandings para agregar la info en formato = league
+            // Precompute remaining matches by team with a single pass
+            const remainingByTeam = new Map()
+            for (const { teamP1, teamP2 } of notPlayedMatches) {
+                remainingByTeam.set(
+                    teamP1.id,
+                    (remainingByTeam.get(teamP1.id) || 0) + 1
+                )
+                remainingByTeam.set(
+                    teamP2.id,
+                    (remainingByTeam.get(teamP2.id) || 0) + 1
+                )
+            }
 
             sortedStandings = sortedStandings.map((team) => {
-                // Calculo la cantidad de partidos que le falta a cada equipo
-
                 let amountOfRemainingMatchesForEachTeam =
-                    notPlayedMatches.filter(({ teamP1, teamP2 }) => {
-                        if (
-                            teamP1.id == team.team.id ||
-                            teamP2.id == team.team.id
-                        ) {
-                            return true
-                        }
-                    }).length
-
-                // Calculo la cantidad de puntos que cada equipo podría llegar a tener
+                    remainingByTeam.get(team.team.id) || 0
 
                 let pointsThatTeamCouldHaveAtTheEnd =
                     amountOfRemainingMatchesForEachTeam * 3 + team.points
-
-                // Evalúo si cada equipo puede alcanzar la 1ra posición
 
                 return pointsThatTeamCouldHaveAtTheEnd <
                     sortedStandings.at(0).points
@@ -220,56 +246,31 @@ const getStandingsTableByTournamentId = async (req, res) => {
         }
 
         if (format == "league_playin_playoff") {
-            // Calculo la cantidad de puntos que podría sumar el 7mo clasificado
+            // Precompute remaining matches per team once (reuse if league already computed above)
+            const remainingByTeam = new Map()
+            for (const { teamP1, teamP2 } of notPlayedMatches) {
+                remainingByTeam.set(
+                    teamP1.id,
+                    (remainingByTeam.get(teamP1.id) || 0) + 1
+                )
+                remainingByTeam.set(
+                    teamP2.id,
+                    (remainingByTeam.get(teamP2.id) || 0) + 1
+                )
+            }
 
             let amountOfPotentialPointsFor7thTeam =
-                notPlayedMatches.filter(({ teamP1, teamP2 }) => {
-                    if (
-                        teamP1.id == sortedStandings.at(6).team.id ||
-                        teamP2.id == sortedStandings.at(6).team.id
-                    ) {
-                        return true
-                    }
-                }).length *
-                    3 +
+                (remainingByTeam.get(sortedStandings.at(6).team.id) || 0) * 3 +
                 sortedStandings.at(6).points
 
-            // Calculo la cantidad de puntos que podría sumar el 10mo clasificado
-
             let amountOfPotentialPointsFor11thTeam =
-                notPlayedMatches.filter(({ teamP1, teamP2 }) => {
-                    if (
-                        teamP1.id == sortedStandings.at(10).team.id ||
-                        teamP2.id == sortedStandings.at(10).team.id
-                    ) {
-                        return true
-                    }
-                }).length *
+                (remainingByTeam.get(sortedStandings.at(10)?.team.id) || 0) *
                     3 +
-                sortedStandings.at(10)?.points // Agrego ? por si el torneo no tiene más de 10 equipos en la zona
-
-            // Reescribo sortedStandings para agregar la info en formato league_playin_playoff
+                sortedStandings.at(10)?.points
 
             sortedStandings = sortedStandings.map((team) => {
-                // Calculo la cantidad de puntos que cada equipo podría sumar
-
                 let amountOfPotentialPointsForTeam =
-                    notPlayedMatches.filter(({ teamP1, teamP2 }) => {
-                        if (
-                            teamP1.id == team.team.id ||
-                            teamP2.id == team.team.id
-                        ) {
-                            return true
-                        }
-                    }).length *
-                        3 +
-                    team.points
-
-                /* Calcularé 3 cosas: 
-                    1) si cada equipo ya está clasificado de manera directa
-                    2) si cada equipo ya está clasificado como mínimo al playin
-                    2) si cada equipo ya quedó fuera del playin
-                */
+                    (remainingByTeam.get(team.team.id) || 0) * 3 + team.points
 
                 return {
                     ...team,

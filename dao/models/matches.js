@@ -36,11 +36,6 @@ const matchesSchema = new mongoose.Schema(
             type: String,
             require: true,
             max: 100,
-            // enum: {
-            //     values: ["regular, playin, playoff"],
-            //     message: "{VALUE} es un valor inválido",
-            // },
-            // default: "regular",
         },
         outcome: { type: Object, require: true, max: 100 },
         tournament: { type: Object, require: true, max: 100 },

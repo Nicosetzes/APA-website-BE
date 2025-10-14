@@ -10,18 +10,23 @@ const putMatchByTournamentId = async (req, res) => {
             playerP1,
             teamP1,
             seedP1,
-            scoreP1,
-            penaltyScoreP1,
+            scoreP1: scoreP1AsString,
+            penaltyScoreP1: penaltyScoreP1AsString,
             playerP2,
             teamP2,
             seedP2,
-            scoreP2,
-            penaltyScoreP2,
+            scoreP2: scoreP2AsString,
+            penaltyScoreP2: penaltyScoreP2AsString,
             valid,
             isThisTheFinal,
         } = req.body
 
         let outcome
+
+        const scoreP1 = Number(scoreP1AsString)
+        const scoreP2 = Number(scoreP2AsString)
+        const penaltyScoreP1 = Number(penaltyScoreP1AsString)
+        const penaltyScoreP2 = Number(penaltyScoreP2AsString)
 
         if (!seedP1 || !seedP2) {
             // El partido es de temporada regular (sin seed en outcome, no puede haber penales) //
@@ -35,7 +40,7 @@ const putMatchByTournamentId = async (req, res) => {
                           teamThatLost: teamP2,
                           scoreFromTeamThatLost: scoreP2,
                           draw: false,
-                          scoringDifference: Math.abs(scoreP1 - scoreP2), // Es indistinto el orden, pues calculo valor absoluto.
+                          scoringDifference: Math.abs(scoreP1 - scoreP2),
                       })
                     : (outcome = {
                           playerThatWon: playerP2,
@@ -45,7 +50,7 @@ const putMatchByTournamentId = async (req, res) => {
                           teamThatLost: teamP1,
                           scoreFromTeamThatLost: scoreP1,
                           draw: false,
-                          scoringDifference: Math.abs(scoreP1 - scoreP2), // Es indistinto el orden, pues calculo valor absoluto.
+                          scoringDifference: Math.abs(scoreP1 - scoreP2),
                       })
             } else {
                 // Empate, pero no hubo penales!
@@ -121,7 +126,6 @@ const putMatchByTournamentId = async (req, res) => {
         )
 
         if (isThisTheFinal) {
-            // Nuevo servicio: actualizo el campeón y el subcampeón del torneo si isThisTheFinal = true
             const champion = {
                 team: outcome.teamThatWon,
                 player: outcome.playerThatWon,

@@ -33,7 +33,6 @@ const getFixtureByTournamentId = async (req, res) => {
                       groups[0]
                   )
         } else {
-            console.log("llegué acaaa")
             matches = await retrieveFixtureByTournamentId(
                 tournament,
                 Number(page),
