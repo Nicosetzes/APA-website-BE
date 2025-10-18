@@ -1,49 +1,64 @@
 const matchesModel = require("./../models/matches.js")
 
-const findMatches = async (page, teamName) => {
-    const limit = 10 // Here I define the amount of results per page //
-    let matches
-    let amountOfTotalMatches
+const findMatches = async (page, teamName, date, played) => {
+    const limit = 10 // Results per page
 
-    // console.log(typeof teamName)
+    // Build filter dynamically
+    const filter = { valid: { $ne: false } }
 
-    if (!teamName) {
-        matches = await matchesModel
-            .find({
-                played: { $ne: false },
-                valid: { $ne: false },
-            })
-            .limit(limit * 1)
-            .skip(page * limit)
-            .sort({ updatedAt: -1, _id: -1 })
-
-        amountOfTotalMatches = await matchesModel.countDocuments({
-            played: { $ne: false },
-            valid: { $ne: false },
-        })
+    // played can be "true" or "false" or undefined
+    if (typeof played !== "undefined") {
+        const playedBool = String(played).toLowerCase() === "true"
+        filter.played = playedBool
     } else {
-        matches = await matchesModel
-            .find({
-                played: { $ne: false },
-                valid: { $ne: false },
-                $or: [
-                    { "teamP1.name": { $regex: teamName, $options: "i" } },
-                    { "teamP2.name": { $regex: teamName, $options: "i" } },
-                ],
-            })
-            .limit(limit * 1)
-            .skip(page * limit)
-            .sort({ updatedAt: -1, _id: -1 })
-
-        amountOfTotalMatches = await matchesModel.countDocuments({
-            played: { $ne: false },
-            valid: { $ne: false },
-            $or: [
-                { "teamP1.name": { $regex: teamName, $options: "i" } },
-                { "teamP2.name": { $regex: teamName, $options: "i" } },
-            ],
-        })
+        // backward compatibility: default to played != false (same as before)
+        filter.played = { $ne: false }
     }
+
+    if (teamName) {
+        filter.$or = [
+            { "teamP1.name": { $regex: teamName, $options: "i" } },
+            { "teamP2.name": { $regex: teamName, $options: "i" } },
+        ]
+    }
+
+    if (date) {
+        const d = new Date(date)
+        if (!isNaN(d.getTime())) {
+            const start = new Date(
+                Date.UTC(
+                    d.getUTCFullYear(),
+                    d.getUTCMonth(),
+                    d.getUTCDate(),
+                    0,
+                    0,
+                    0,
+                    0
+                )
+            )
+            const end = new Date(
+                Date.UTC(
+                    d.getUTCFullYear(),
+                    d.getUTCMonth(),
+                    d.getUTCDate() + 1,
+                    0,
+                    0,
+                    0,
+                    0
+                )
+            )
+            filter.updatedAt = { $gte: start, $lt: end }
+        }
+    }
+
+    const [matches, amountOfTotalMatches] = await Promise.all([
+        matchesModel
+            .find(filter)
+            .limit(limit)
+            .skip(page * limit)
+            .sort({ updatedAt: -1, _id: -1 }),
+        matchesModel.countDocuments(filter),
+    ])
 
     return {
         matches,
