@@ -74,6 +74,8 @@ const {
     getAllTimeFaceToFace,
     getAllTimeTeams,
     majorUpdatesController,
+    postDailyRecapByTournamentId,
+    getDailyRecapByTournamentId,
 } = require("./../controller")
 
 /* -------------------- isAUTH -------------------- */
@@ -174,6 +176,16 @@ tournaments.put(
     isAuth,
     putMatchByTournamentId
 )
+// DAILY RECAP
+// POST: create/update recap for a date
+tournaments.post(
+    "/:tournament/daily-recap",
+    // isAuth,
+    postDailyRecapByTournamentId
+)
+
+// GET: retrieve recap for a specific date (?date=YYYY-MM-DD) or latest if omitted
+tournaments.get("/:tournament/daily-recap", getDailyRecapByTournamentId)
 
 tournaments.put(
     "/:tournament/matches/update-tag-teams-match/:match",
@@ -215,6 +227,8 @@ tournaments.get(
     "/:tournament/playoffs/updated-wins",
     getPlayoffsUpdatedWinsByTournamentId
 )
+
+// (duplicate daily recap POST removed)
 
 // STATISTICS
 

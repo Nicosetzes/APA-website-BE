@@ -36,6 +36,8 @@ const updateMatchResult = require("./updateMatchResult")
 const updateMatchResultToRemoveIt = require("./updateMatchResultToRemoveIt")
 const updateSquad = require("./updateSquad")
 const updateTournamentOutcome = require("./updateTournamentOutcome")
+const upsertDailyRecapByTournamentId = require("./upsertDailyRecapByTournamentId")
+const getDailyRecapByTournamentId = require("./getDailyRecapByTournamentId")
 
 module.exports = {
     countAllMatchesByTournamentId,
@@ -75,4 +77,6 @@ module.exports = {
     updateMatchResultToRemoveIt,
     updateSquad,
     updateTournamentOutcome,
+    upsertDailyRecapByTournamentId,
+    getDailyRecapByTournamentId,
 }

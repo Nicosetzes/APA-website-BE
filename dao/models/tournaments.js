@@ -13,6 +13,7 @@ const tournamentsSchema = new mongoose.Schema(
         cloudinary_id: { type: String, require: true, max: 100 },
         groups: { type: Array, require: false, default: undefined, max: 8 },
         valid: { type: Boolean, require: false },
+        daily_recap: { type: Object, require: false, default: {} },
     },
     {
         collection: "tournaments",
