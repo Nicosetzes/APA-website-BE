@@ -128,7 +128,7 @@ tournaments.post("/:tournament/fixture", isAuth, postFixtureByTournamentId)
 
 tournaments.get("/:tournament/players", getPlayersByTournamentId)
 
-tournaments.get("/:tournament/players/:player", getPlayerInfoByTournamentId)
+tournaments.get("/:tournament/players/info", getPlayerInfoByTournamentId)
 
 tournaments.post("/:tournament/playin", isAuth, postPlayinByTournamentId)
 
