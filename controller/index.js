@@ -7,8 +7,10 @@ const getFixtureByTournamentId = require("./getFixtureByTournamentId")
 const getHome = require("./getHome")
 const getIsUserAuthenticated = require("./getIsUserAuthenticated")
 const getMatches = require("./getMatches")
+const getMatchesSummaryByDate = require("./getMatchesSummaryByDate")
 const getPlayerInfoByTournamentId = require("./getPlayerInfoByTournamentId")
 const getPlayersByTournamentId = require("./getPlayersByTournamentId")
+const getPlayerStatsSummaryByTournamentId = require("./getPlayerStatsSummaryByTournamentId")
 const getPlayinMatchesByTournamentId = require("./getPlayinMatchesByTournamentId")
 const getPlayoffsBracketByTournamentId = require("./getPlayoffsBracketByTournamentId")
 const getPlayoffMatchesByTournamentId = require("./getPlayoffMatchesByTournamentId")
@@ -16,6 +18,7 @@ const getPlayoffsPlayerInfoByTournamentId = require("./getPlayoffsPlayerInfoByTo
 const getPlayoffsTableByTournamentId = require("./getPlayoffsTableByTournamentId")
 const getPlayoffsUpdatedWinsByTournamentId = require("./getPlayoffsUpdatedWinsByTournamentId")
 const getStandingsPlayerInfoByTournamentId = require("./getStandingsPlayerInfoByTournamentId")
+const getStandingsSummaryByTournamentId = require("./getStandingsSummaryByTournamentId")
 const getStandingsTableByTournamentId = require("./getStandingsTableByTournamentId")
 const getTagTeamsStandingsTableByTournamentId = require("./getTagTeamsStandingsTableByTournamentId")
 const getStatistics = require("./getStatistics")
@@ -87,6 +90,9 @@ module.exports = {
     getWorldCupPlayoffTeamsByTournamentId,
     getWorldCupStandingsByTournamentId,
     majorUpdatesController,
+    getMatchesSummaryByDate,
+    getStandingsSummaryByTournamentId,
+    getPlayerStatsSummaryByTournamentId,
     postFixtureByTournamentId,
     postLogin,
     postLogout,

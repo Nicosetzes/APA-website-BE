@@ -41,7 +41,13 @@ mongoose
 
 /* -------------------- ROUTER -------------------- */
 
-const { root, users, tournaments, statistics } = require("./router/router.js")
+const {
+    root,
+    users,
+    tournaments,
+    statistics,
+    summary,
+} = require("./router/router.js")
 
 app.get("/", (req, res) => {
     res.send("Express on Vercel")
@@ -51,6 +57,7 @@ app.use("/api", root)
 app.use("/api/users", users)
 app.use("/api/tournaments", tournaments)
 app.use("/api/statistics", statistics)
+app.use("/api/summary", summary)
 
 // DEFINO RUTAS INEXISTENTES //
 

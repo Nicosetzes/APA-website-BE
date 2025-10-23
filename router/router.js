@@ -12,16 +12,19 @@ const root = Router()
 const users = Router()
 const tournaments = Router()
 const statistics = Router()
+const summary = Router()
 
-root.use(express.json()) // Ya definí a nivel aplicación, revisar si es necesario //
-users.use(express.json()) // Ya definí a nivel aplicación, revisar si es necesario //
-tournaments.use(express.json()) // Ya definí a nivel aplicación, revisar si es necesario //
-statistics.use(express.json()) // Ya definí a nivel aplicación, revisar si es necesario //
+root.use(express.json())
+users.use(express.json())
+tournaments.use(express.json())
+statistics.use(express.json())
+summary.use(express.json())
 
-root.use(express.urlencoded({ extended: true })) // Ya definí a nivel aplicación, revisar si es necesario //
-users.use(express.urlencoded({ extended: true })) // Ya definí a nivel aplicación, revisar si es necesario //
-tournaments.use(express.urlencoded({ extended: true })) // Ya definí a nivel aplicación, revisar si es necesario //
-statistics.use(express.urlencoded({ extended: true })) // Ya definí a nivel aplicación, revisar si es necesario //
+root.use(express.urlencoded({ extended: true }))
+users.use(express.urlencoded({ extended: true }))
+tournaments.use(express.urlencoded({ extended: true }))
+statistics.use(express.urlencoded({ extended: true }))
+summary.use(express.urlencoded({ extended: true }))
 
 /* -------------------- API -------------------- */
 
@@ -76,6 +79,9 @@ const {
     majorUpdatesController,
     postDailyRecapByTournamentId,
     getDailyRecapByTournamentId,
+    getMatchesSummaryByDate,
+    getStandingsSummaryByTournamentId,
+    getPlayerStatsSummaryByTournamentId,
 } = require("./../controller")
 
 /* -------------------- isAUTH -------------------- */
@@ -228,8 +234,6 @@ tournaments.get(
     getPlayoffsUpdatedWinsByTournamentId
 )
 
-// (duplicate daily recap POST removed)
-
 // STATISTICS
 
 statistics.get("/", getStatistics)
@@ -242,9 +246,23 @@ statistics.get("/all-time/face-to-face", getAllTimeFaceToFace)
 
 statistics.get("/all-time/teams", getAllTimeTeams)
 
+// SUMMARY
+
+summary.get("/matches", getMatchesSummaryByDate)
+summary.get(
+    "/tournaments/:tournament/standings",
+    getStandingsSummaryByTournamentId
+)
+
+summary.get(
+    "/tournaments/:tournament/player-stats",
+    getPlayerStatsSummaryByTournamentId
+)
+
 module.exports = {
     root,
     users,
     tournaments,
     statistics,
+    summary,
 }
