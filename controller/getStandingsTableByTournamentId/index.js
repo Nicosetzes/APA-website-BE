@@ -259,30 +259,49 @@ const getStandingsTableByTournamentId = async (req, res) => {
                 )
             }
 
-            let amountOfPotentialPointsFor7thTeam =
-                (remainingByTeam.get(sortedStandings.at(6).team.id) || 0) * 3 +
-                sortedStandings.at(6).points
-
-            let amountOfPotentialPointsFor11thTeam =
-                (remainingByTeam.get(sortedStandings.at(10)?.team.id) || 0) *
-                    3 +
-                sortedStandings.at(10)?.points
-
-            sortedStandings = sortedStandings.map((team) => {
-                let amountOfPotentialPointsForTeam =
-                    (remainingByTeam.get(team.team.id) || 0) * 3 + team.points
-
-                return {
+            // If the group/tournament is finished (no matches left), derive flags from final positions
+            if ((notPlayedMatches?.length || 0) === 0) {
+                sortedStandings = sortedStandings.map((team, idx) => ({
                     ...team,
-                    directlyQualified:
-                        team.points > amountOfPotentialPointsFor7thTeam,
-                    playinQualified:
-                        team.points > amountOfPotentialPointsFor11thTeam,
-                    eliminated:
-                        amountOfPotentialPointsForTeam <
-                        sortedStandings.at(9).points,
-                }
-            })
+                    directlyQualified: idx <= 5, // 1-6
+                    playinQualified: idx <= 9, // 1-10
+                    eliminated: idx > 9, // 11+
+                }))
+            } else {
+                const calcMaxPotential = (row) =>
+                    (remainingByTeam.get(row.team.id) || 0) * 3 + row.points
+
+                // Compute safe worst-case thresholds using ALL contenders below cut lines
+                const maxPotentialBelow6 = (() => {
+                    const contenders = sortedStandings.slice(6)
+                    return contenders.length
+                        ? Math.max(...contenders.map(calcMaxPotential))
+                        : -Infinity
+                })()
+
+                const maxPotentialBelow10 = (() => {
+                    const contenders = sortedStandings.slice(10)
+                    return contenders.length
+                        ? Math.max(...contenders.map(calcMaxPotential))
+                        : -Infinity
+                })()
+
+                const tenthCurrentPoints =
+                    sortedStandings.at(9)?.points ?? -Infinity
+
+                sortedStandings = sortedStandings.map((team) => {
+                    const teamMaxPotential = calcMaxPotential(team)
+                    return {
+                        ...team,
+                        // Clinched top-6 if even in worst case no contender (>=7th) can reach your current points
+                        directlyQualified: team.points > maxPotentialBelow6,
+                        // Clinched at least play-in (top-10) under same logic vs contenders (>=11th)
+                        playinQualified: team.points > maxPotentialBelow10,
+                        // Eliminated from top-10 if even winning out can't reach current 10th's points
+                        eliminated: teamMaxPotential < tenthCurrentPoints,
+                    }
+                })
+            }
         }
 
         res.status(200).send({
