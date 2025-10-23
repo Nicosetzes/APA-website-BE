@@ -42,12 +42,6 @@ const getPlayerStatsSummaryByTournamentId = async (req, res) => {
                 scoringDifference: 0,
                 effectiveness: 0,
                 streak: [], // most recent first, join later
-                // For longest streak tracking (direction-invariant)
-                _curType: null, // 'W' | 'D' | 'L'
-                _curLen: 0,
-                _maxW: 0,
-                _maxD: 0,
-                _maxL: 0,
             })
         }
 
@@ -63,30 +57,16 @@ const getPlayerStatsSummaryByTournamentId = async (req, res) => {
                 S.played += 1
                 S.goalsFor += s1
                 S.goalsAgainst += s2
-                let r1
                 if (s1 === s2) {
                     S.draws += 1
-                    r1 = "D"
                     if (S.streak.length < MAX_STREAK) S.streak.push("D")
                 } else if (s1 > s2) {
                     S.wins += 1
-                    r1 = "W"
                     if (S.streak.length < MAX_STREAK) S.streak.push("W")
                 } else {
                     S.losses += 1
-                    r1 = "L"
                     if (S.streak.length < MAX_STREAK) S.streak.push("L")
                 }
-                // Update longest streak state for P1
-                if (S._curType === r1) {
-                    S._curLen += 1
-                } else {
-                    S._curType = r1
-                    S._curLen = 1
-                }
-                if (r1 === "W") S._maxW = Math.max(S._maxW, S._curLen)
-                else if (r1 === "D") S._maxD = Math.max(S._maxD, S._curLen)
-                else if (r1 === "L") S._maxL = Math.max(S._maxL, S._curLen)
             }
 
             if (p2 && summaryByPlayer.has(p2)) {
@@ -94,30 +74,16 @@ const getPlayerStatsSummaryByTournamentId = async (req, res) => {
                 S.played += 1
                 S.goalsFor += s2
                 S.goalsAgainst += s1
-                let r2
                 if (s1 === s2) {
                     S.draws += 1
-                    r2 = "D"
                     if (S.streak.length < MAX_STREAK) S.streak.push("D")
                 } else if (s2 > s1) {
                     S.wins += 1
-                    r2 = "W"
                     if (S.streak.length < MAX_STREAK) S.streak.push("W")
                 } else {
                     S.losses += 1
-                    r2 = "L"
                     if (S.streak.length < MAX_STREAK) S.streak.push("L")
                 }
-                // Update longest streak state for P2
-                if (S._curType === r2) {
-                    S._curLen += 1
-                } else {
-                    S._curType = r2
-                    S._curLen = 1
-                }
-                if (r2 === "W") S._maxW = Math.max(S._maxW, S._curLen)
-                else if (r2 === "D") S._maxD = Math.max(S._maxD, S._curLen)
-                else if (r2 === "L") S._maxL = Math.max(S._maxL, S._curLen)
             }
         }
 
@@ -131,19 +97,6 @@ const getPlayerStatsSummaryByTournamentId = async (req, res) => {
                       )
                   )
                 : 0
-            // Determine the longest streak among W/D/L (tie-breaker priority W > D > L)
-            const longestType =
-                S._maxW >= S._maxD && S._maxW >= S._maxL
-                    ? "W"
-                    : S._maxD >= S._maxL
-                    ? "D"
-                    : "L"
-            const longestLen =
-                longestType === "W"
-                    ? S._maxW
-                    : longestType === "D"
-                    ? S._maxD
-                    : S._maxL
             // Streak is already most recent first, join as string
             const out = {
                 name: S.name,
@@ -156,8 +109,6 @@ const getPlayerStatsSummaryByTournamentId = async (req, res) => {
                 scoringDifference: S.scoringDifference,
                 effectiveness: S.effectiveness,
                 streak: S.streak.join("") || "",
-                longestStreak:
-                    longestLen > 0 ? `${longestType}${longestLen}` : "",
             }
             return out
         })
