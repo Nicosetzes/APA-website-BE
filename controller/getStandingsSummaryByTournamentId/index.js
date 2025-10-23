@@ -4,7 +4,7 @@ const {
 } = require("../../service")
 
 // Utility to compute condensed standings from matches and team list
-function computeStandingsSummary(teams, matches, playersIndex, maxStreak = 5) {
+function computeStandingsSummary(teams, matches, playersIndex) {
     const statsMap = new Map()
 
     const ensure = (teamObj, playerObj) => {
@@ -20,7 +20,10 @@ function computeStandingsSummary(teams, matches, playersIndex, maxStreak = 5) {
                 goalsFor: 0,
                 goalsAgainst: 0,
                 points: 0,
-                streak: [], // will store most-recent first letters
+                // internal trackers for current streak (most recent consecutive same results)
+                _curType: null, // 'w' | 'd' | 'l' | null (lowercase for internal)
+                _curLen: 0,
+                _curDone: false,
             })
         }
         return statsMap.get(key)
@@ -71,8 +74,27 @@ function computeStandingsSummary(teams, matches, playersIndex, maxStreak = 5) {
             t2Letter = "w"
         }
 
-        if (t1.streak.length < maxStreak) t1.streak.push(t1Letter)
-        if (t2.streak.length < maxStreak) t2.streak.push(t2Letter)
+        // update current streak trackers (most recent first order)
+        if (!t1._curDone) {
+            if (t1._curType === null) {
+                t1._curType = t1Letter
+                t1._curLen = 1
+            } else if (t1._curType === t1Letter) {
+                t1._curLen += 1
+            } else {
+                t1._curDone = true
+            }
+        }
+        if (!t2._curDone) {
+            if (t2._curType === null) {
+                t2._curType = t2Letter
+                t2._curLen = 1
+            } else if (t2._curType === t2Letter) {
+                t2._curLen += 1
+            } else {
+                t2._curDone = true
+            }
+        }
     }
 
     // Build condensed rows only for teams present in the provided teams list (keeps group scoping intact)
@@ -84,7 +106,8 @@ function computeStandingsSummary(teams, matches, playersIndex, maxStreak = 5) {
             goalsFor: 0,
             goalsAgainst: 0,
             points: 0,
-            streak: [],
+            _curType: null,
+            _curLen: 0,
         }
         const playerName =
             playersIndex.get(String(player?.id)) ||
@@ -101,7 +124,10 @@ function computeStandingsSummary(teams, matches, playersIndex, maxStreak = 5) {
             gf: s.goalsFor,
             ga: s.goalsAgainst,
             gd: (s.goalsFor || 0) - (s.goalsAgainst || 0),
-            streak: s.streak.join("").toUpperCase(),
+            current_streak:
+                s._curLen >= 2 && s._curType
+                    ? { type: s._curType.toUpperCase(), length: s._curLen }
+                    : undefined,
         }
     })
 
@@ -119,9 +145,9 @@ function computeStandingsSummary(teams, matches, playersIndex, maxStreak = 5) {
             pts: r.pts,
             wins: r.wins,
             losses: r.losses,
-            streak: r.streak,
         }
         if (r.draws) out.draws = r.draws
+        if (r.current_streak) out.current_streak = r.current_streak
         return out
     })
 }

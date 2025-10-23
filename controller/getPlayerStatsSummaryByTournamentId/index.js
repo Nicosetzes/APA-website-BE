@@ -3,7 +3,7 @@ const {
     orderMatchesFromTournamentById,
 } = require("../../service")
 
-const MAX_STREAK = 5
+// last_matches removed by request; only current_streak is exposed now
 
 const getPlayerStatsSummaryByTournamentId = async (req, res) => {
     try {
@@ -41,7 +41,10 @@ const getPlayerStatsSummaryByTournamentId = async (req, res) => {
                 goalsAgainst: 0,
                 scoringDifference: 0,
                 effectiveness: 0,
-                streak: [], // most recent first, join later
+                // internal trackers for current streak (most recent consecutive same results)
+                _curType: null, // 'W' | 'D' | 'L' | null
+                _curLen: 0,
+                _curDone: false,
             })
         }
 
@@ -57,15 +60,27 @@ const getPlayerStatsSummaryByTournamentId = async (req, res) => {
                 S.played += 1
                 S.goalsFor += s1
                 S.goalsAgainst += s2
+                let r = ""
                 if (s1 === s2) {
                     S.draws += 1
-                    if (S.streak.length < MAX_STREAK) S.streak.push("D")
+                    r = "D"
                 } else if (s1 > s2) {
                     S.wins += 1
-                    if (S.streak.length < MAX_STREAK) S.streak.push("W")
+                    r = "W"
                 } else {
                     S.losses += 1
-                    if (S.streak.length < MAX_STREAK) S.streak.push("L")
+                    r = "L"
+                }
+                // update current streak trackers (most recent first order)
+                if (!S._curDone) {
+                    if (S._curType === null) {
+                        S._curType = r
+                        S._curLen = 1
+                    } else if (S._curType === r) {
+                        S._curLen += 1
+                    } else {
+                        S._curDone = true
+                    }
                 }
             }
 
@@ -74,15 +89,27 @@ const getPlayerStatsSummaryByTournamentId = async (req, res) => {
                 S.played += 1
                 S.goalsFor += s2
                 S.goalsAgainst += s1
+                let r = ""
                 if (s1 === s2) {
                     S.draws += 1
-                    if (S.streak.length < MAX_STREAK) S.streak.push("D")
+                    r = "D"
                 } else if (s2 > s1) {
                     S.wins += 1
-                    if (S.streak.length < MAX_STREAK) S.streak.push("W")
+                    r = "W"
                 } else {
                     S.losses += 1
-                    if (S.streak.length < MAX_STREAK) S.streak.push("L")
+                    r = "L"
+                }
+                // update current streak trackers (most recent first order)
+                if (!S._curDone) {
+                    if (S._curType === null) {
+                        S._curType = r
+                        S._curLen = 1
+                    } else if (S._curType === r) {
+                        S._curLen += 1
+                    } else {
+                        S._curDone = true
+                    }
                 }
             }
         }
@@ -97,18 +124,22 @@ const getPlayerStatsSummaryByTournamentId = async (req, res) => {
                       )
                   )
                 : 0
-            // Streak is already most recent first, join as string
             const out = {
                 name: S.name,
                 played: S.played,
                 wins: S.wins,
                 draws: S.draws,
                 losses: S.losses,
-                goalsFor: S.goalsFor,
-                goalsAgainst: S.goalsAgainst,
+                goalsFor: S.goalsFor || 0,
+                goalsAgainst: S.goalsAgainst || 0,
                 scoringDifference: S.scoringDifference,
                 effectiveness: S.effectiveness,
-                streak: S.streak.join("") || "",
+            }
+            if (
+                S._curLen >= 2 &&
+                (S._curType === "W" || S._curType === "D" || S._curType === "L")
+            ) {
+                out.current_streak = { type: S._curType, length: S._curLen }
             }
             return out
         })
