@@ -60,14 +60,16 @@ const getMatchesSummaryByDate = async (req, res) => {
             if (tid && tname) tournamentNameById.set(String(tid), tname)
         }
 
-        // Resolve missing name for the single tournament id
-        if (!tournamentNameById.has(onlyTid)) {
-            try {
-                const t = await retrieveTournamentById(onlyTid)
-                if (t?.name) tournamentNameById.set(onlyTid, t.name)
-            } catch (_) {
-                // ignore; name may remain null
+        // Resolve name/format for the single tournament id
+        let tournamentFormat = null
+        try {
+            const t = await retrieveTournamentById(onlyTid)
+            if (t?.name && !tournamentNameById.has(onlyTid)) {
+                tournamentNameById.set(onlyTid, t.name)
             }
+            tournamentFormat = t?.format || null
+        } catch (_) {
+            // ignore; name/format may remain null
         }
 
         const summaryMatches = all.map((m) => {
@@ -98,6 +100,7 @@ const getMatchesSummaryByDate = async (req, res) => {
             tournament: {
                 id: onlyTid,
                 name: tournamentNameById.get(onlyTid) || null,
+                format: tournamentFormat,
             },
             matches: summaryMatches,
         })
