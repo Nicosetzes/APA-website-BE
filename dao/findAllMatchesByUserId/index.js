@@ -8,7 +8,7 @@ const findAllMatchesByUserId = async (id) => {
                 played: { $ne: false },
                 valid: { $ne: false },
             },
-            "playerP1 playerP2 scoreP1 scoreP2 outcome updatedAt type"
+            "playerP1 teamP1 scoreP1 playerP2 teamP2 scoreP2 outcome tournament updatedAt type"
         )
         .sort({ updatedAt: -1, _id: -1 })
     return matches

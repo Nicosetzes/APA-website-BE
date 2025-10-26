@@ -32,7 +32,6 @@ const {
     getHome,
     getMatches,
     postMatch,
-    getStreaks,
     getUsers,
     getUserProfile,
     postRegister,
@@ -98,7 +97,7 @@ root.post("/matches", postMatch) // Provisoria, luego puede ser modificada //
 
 root.get("/update", majorUpdatesController)
 
-root.get("/streaks", getStreaks)
+// Removed: separate streaks endpoint replaced by combined /api/statistics
 
 // USERS
 
@@ -247,7 +246,6 @@ statistics.get("/all-time/face-to-face", getAllTimeFaceToFace)
 statistics.get("/all-time/teams", getAllTimeTeams)
 
 // SUMMARY
-
 summary.get("/matches", getMatchesSummaryByDate)
 summary.get(
     "/tournaments/:tournament/standings",

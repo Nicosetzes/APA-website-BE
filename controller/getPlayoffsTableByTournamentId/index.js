@@ -18,152 +18,151 @@ const getPlayoffsTableByTournamentId = async (req, res) => {
             )
 
             const teamsFromGroupA = teams.filter(({ group }) => group == "A")
-
             const teamsFromGroupB = teams.filter(({ group }) => group == "B")
 
-            const standingsFromGroupA = []
+            // Build a quick lookup for team IDs per group
+            const groupAIds = new Set(
+                teamsFromGroupA.map(({ team }) => team.id)
+            )
+            const groupBIds = new Set(
+                teamsFromGroupB.map(({ team }) => team.id)
+            )
 
-            const standingsFromGroupB = []
+            // Single-pass aggregation across all matches
+            const statsMap = new Map()
+            const ensure = (teamObj, playerObj) => {
+                const key = teamObj.id
+                if (!statsMap.has(key)) {
+                    statsMap.set(key, {
+                        team: teamObj,
+                        player: playerObj,
+                        played: 0,
+                        wins: 0,
+                        draws: 0,
+                        losses: 0,
+                        goalsFor: 0,
+                        goalsAgainst: 0,
+                        scoringDifference: 0,
+                        points: 0,
+                    })
+                }
+                return statsMap.get(key)
+            }
 
-            teamsFromGroupA.forEach(async ({ team, player }) => {
-                let played = matches.filter(
-                    ({ teamP1, teamP2 }) =>
-                        teamP1.id == team.id || teamP2.id == team.id
-                ).length
+            for (const m of matches) {
+                const {
+                    playerP1,
+                    teamP1,
+                    scoreP1,
+                    playerP2,
+                    teamP2,
+                    scoreP2,
+                    outcome,
+                } = m
 
-                let wins = matches.filter(
-                    ({ outcome }) => outcome?.teamThatWon?.id == team.id
-                ).length
-                let draws = matches.filter(
-                    ({ teamP1, teamP2, outcome }) =>
-                        (teamP1.id == team.id || teamP2.id == team.id) &&
-                        outcome?.draw
-                ).length
-                let losses = played - wins - draws
-                let goalsFor =
-                    matches
-                        .filter(({ teamP1 }) => teamP1.id == team.id)
-                        .reduce((acc, curr) => {
-                            return acc + curr.scoreP1
-                        }, 0) +
-                    matches
-                        .filter(({ teamP2 }) => teamP2.id == team.id)
-                        .reduce((acc, curr) => {
-                            return acc + curr.scoreP2
-                        }, 0)
-                let goalsAgainst =
-                    matches
-                        .filter(({ teamP1 }) => teamP1.id == team.id)
-                        .reduce((acc, curr) => {
-                            return acc + curr.scoreP2
-                        }, 0) +
-                    matches
-                        .filter(({ teamP2 }) => teamP2.id == team.id)
-                        .reduce((acc, curr) => {
-                            return acc + curr.scoreP1
-                        }, 0)
-                let scoringDifference = goalsFor - goalsAgainst
-                let points = wins * 3 + draws
+                // Update only if the team belongs to either group A or B
+                const includeT1 =
+                    groupAIds.has(teamP1.id) || groupBIds.has(teamP1.id)
+                const includeT2 =
+                    groupAIds.has(teamP2.id) || groupBIds.has(teamP2.id)
 
-                standingsFromGroupA.push({
-                    team,
-                    player,
-                    played,
-                    wins,
-                    draws,
-                    losses,
-                    goalsFor,
-                    goalsAgainst,
-                    scoringDifference,
-                    points,
-                })
-            })
+                const t1 = includeT1 ? ensure(teamP1, playerP1) : null
+                const t2 = includeT2 ? ensure(teamP2, playerP2) : null
 
-            teamsFromGroupB.forEach(async ({ team, player }) => {
-                let played = matches.filter(
-                    ({ teamP1, teamP2 }) =>
-                        teamP1.id == team.id || teamP2.id == team.id
-                ).length
+                if (t1) {
+                    t1.played += 1
+                    t1.goalsFor += scoreP1 || 0
+                    t1.goalsAgainst += scoreP2 || 0
+                }
+                if (t2) {
+                    t2.played += 1
+                    t2.goalsFor += scoreP2 || 0
+                    t2.goalsAgainst += scoreP1 || 0
+                }
 
-                let wins = matches.filter(
-                    ({ outcome }) => outcome?.teamThatWon?.id == team.id
-                ).length
-                let draws = matches.filter(
-                    ({ teamP1, teamP2, outcome }) =>
-                        (teamP1.id == team.id || teamP2.id == team.id) &&
-                        outcome?.draw
-                ).length
-                let losses = played - wins - draws
-                let goalsFor =
-                    matches
-                        .filter(({ teamP1 }) => teamP1.id == team.id)
-                        .reduce((acc, curr) => {
-                            return acc + curr.scoreP1
-                        }, 0) +
-                    matches
-                        .filter(({ teamP2 }) => teamP2.id == team.id)
-                        .reduce((acc, curr) => {
-                            return acc + curr.scoreP2
-                        }, 0)
-                let goalsAgainst =
-                    matches
-                        .filter(({ teamP1 }) => teamP1.id == team.id)
-                        .reduce((acc, curr) => {
-                            return acc + curr.scoreP2
-                        }, 0) +
-                    matches
-                        .filter(({ teamP2 }) => teamP2.id == team.id)
-                        .reduce((acc, curr) => {
-                            return acc + curr.scoreP1
-                        }, 0)
-                let scoringDifference = goalsFor - goalsAgainst
-                let points = wins * 3 + draws
+                if (outcome?.draw) {
+                    if (t1) {
+                        t1.draws += 1
+                        t1.points += 1
+                    }
+                    if (t2) {
+                        t2.draws += 1
+                        t2.points += 1
+                    }
+                } else if (outcome?.teamThatWon?.id === teamP1.id) {
+                    if (t1) {
+                        t1.wins += 1
+                        t1.points += 3
+                    }
+                    if (t2) t2.losses += 1
+                } else if (outcome?.teamThatWon?.id === teamP2.id) {
+                    if (t2) {
+                        t2.wins += 1
+                        t2.points += 3
+                    }
+                    if (t1) t1.losses += 1
+                } else if (outcome?.teamThatLost?.id === teamP1.id) {
+                    if (t1) t1.losses += 1
+                    if (t2) {
+                        t2.wins += 1
+                        t2.points += 3
+                    }
+                } else if (outcome?.teamThatLost?.id === teamP2.id) {
+                    if (t2) t2.losses += 1
+                    if (t1) {
+                        t1.wins += 1
+                        t1.points += 3
+                    }
+                }
+            }
 
-                standingsFromGroupB.push({
-                    team,
-                    player,
-                    played,
-                    wins,
-                    draws,
-                    losses,
-                    goalsFor,
-                    goalsAgainst,
-                    scoringDifference,
-                    points,
-                })
-            })
-
-            const sortedStandingsFromGroupA = standingsFromGroupA.sort(
-                (a, b) => {
-                    if (a.points > b.points) return -1
-                    if (a.points < b.points) return 1
-
-                    if (a.scoringDifference > b.scoringDifference) return -1
-                    if (a.scoringDifference < b.scoringDifference) return 1
-
-                    if (a.goalsFor > b.goalsFor) return -1
-                    if (a.goalsFor < b.goalsFor) return 1
-
-                    if (a.goalsAgainst > b.goalsAgainst) return 1
-                    if (a.goalsAgainst < b.goalsAgainst) return -1
+            // Build standings arrays from statsMap for each group, finalize derived fields
+            const standingsFromGroupA = teamsFromGroupA.map(
+                ({ team, player }) => {
+                    const s = statsMap.get(team.id) || {
+                        team,
+                        player,
+                        played: 0,
+                        wins: 0,
+                        draws: 0,
+                        losses: 0,
+                        goalsFor: 0,
+                        goalsAgainst: 0,
+                        points: 0,
+                    }
+                    s.scoringDifference =
+                        (s.goalsFor || 0) - (s.goalsAgainst || 0)
+                    return s
                 }
             )
 
-            const sortedStandingsFromGroupB = standingsFromGroupB.sort(
-                (a, b) => {
-                    if (a.points > b.points) return -1
-                    if (a.points < b.points) return 1
-
-                    if (a.scoringDifference > b.scoringDifference) return -1
-                    if (a.scoringDifference < b.scoringDifference) return 1
-
-                    if (a.goalsFor > b.goalsFor) return -1
-                    if (a.goalsFor < b.goalsFor) return 1
-
-                    if (a.goalsAgainst > b.goalsAgainst) return 1
-                    if (a.goalsAgainst < b.goalsAgainst) return -1
+            const standingsFromGroupB = teamsFromGroupB.map(
+                ({ team, player }) => {
+                    const s = statsMap.get(team.id) || {
+                        team,
+                        player,
+                        played: 0,
+                        wins: 0,
+                        draws: 0,
+                        losses: 0,
+                        goalsFor: 0,
+                        goalsAgainst: 0,
+                        points: 0,
+                    }
+                    s.scoringDifference =
+                        (s.goalsFor || 0) - (s.goalsAgainst || 0)
+                    return s
                 }
             )
+
+            const cmp = (a, b) =>
+                b.points - a.points ||
+                b.scoringDifference - a.scoringDifference ||
+                b.goalsFor - a.goalsFor ||
+                a.goalsAgainst - b.goalsAgainst
+
+            const sortedStandingsFromGroupA = standingsFromGroupA.sort(cmp)
+            const sortedStandingsFromGroupB = standingsFromGroupB.sort(cmp)
 
             const allPlayoffTeams = [
                 sortedStandingsFromGroupA.at(0),
@@ -180,19 +179,7 @@ const getPlayoffsTableByTournamentId = async (req, res) => {
                 sortedStandingsFromGroupB.at(5),
             ]
 
-            const allPlayoffTeamsSorted = allPlayoffTeams.sort((a, b) => {
-                if (a.points > b.points) return -1
-                if (a.points < b.points) return 1
-
-                if (a.scoringDifference > b.scoringDifference) return -1
-                if (a.scoringDifference < b.scoringDifference) return 1
-
-                if (a.goalsFor > b.goalsFor) return -1
-                if (a.goalsFor < b.goalsFor) return 1
-
-                if (a.goalsAgainst > b.goalsAgainst) return 1
-                if (a.goalsAgainst < b.goalsAgainst) return -1
-            })
+            const allPlayoffTeamsSorted = allPlayoffTeams.sort(cmp)
 
             const areThereAnyWinnersFromPlayinMatches = playinMatches.filter(
                 ({ played }) => played

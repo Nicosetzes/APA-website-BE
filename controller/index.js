@@ -22,7 +22,6 @@ const getStandingsSummaryByTournamentId = require("./getStandingsSummaryByTourna
 const getStandingsTableByTournamentId = require("./getStandingsTableByTournamentId")
 const getTagTeamsStandingsTableByTournamentId = require("./getTagTeamsStandingsTableByTournamentId")
 const getStatistics = require("./getStatistics")
-const getStreaks = require("./getStreaks")
 const getSquadByTeamId = require("./getSquadByTeamId")
 const getTeamInformationByTournamentId = require("./getTeamInformationByTournamentId")
 const getTeamsByTournamentId = require("./getTeamsByTournamentId")
@@ -78,7 +77,6 @@ module.exports = {
     getStandingsTableByTournamentId,
     getTagTeamsStandingsTableByTournamentId,
     getStatistics,
-    getStreaks,
     getSquadByTeamId,
     getTeamInformationByTournamentId,
     getTeamsByTournamentId,
