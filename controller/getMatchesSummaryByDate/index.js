@@ -84,7 +84,6 @@ const getMatchesSummaryByDate = async (req, res) => {
             const winner =
                 score1 === score2 ? "Draw" : score1 > score2 ? player1 : player2
             const result = {
-                group: m?.group || null,
                 player1,
                 team1: m?.teamP1?.name || null,
                 player2,
@@ -94,6 +93,7 @@ const getMatchesSummaryByDate = async (req, res) => {
                 winner,
                 type: m?.type || null,
             }
+            if (m.group) result.group = m.group
             if (m?.playoff_id != null) result.playoff_id = m.playoff_id
             if (m?.seedP1 != null) result.seedP1 = m.seedP1
             if (m?.seedP2 != null) result.seedP2 = m.seedP2
