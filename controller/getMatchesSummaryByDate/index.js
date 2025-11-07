@@ -83,7 +83,7 @@ const getMatchesSummaryByDate = async (req, res) => {
             const score2 = Number(m?.scoreP2) || 0
             const winner =
                 score1 === score2 ? "Draw" : score1 > score2 ? player1 : player2
-            return {
+            const result = {
                 group: m?.group || null,
                 player1,
                 team1: m?.teamP1?.name || null,
@@ -92,7 +92,12 @@ const getMatchesSummaryByDate = async (req, res) => {
                 score1,
                 score2,
                 winner,
+                type: m?.type || null,
             }
+            if (m?.playoff_id != null) result.playoff_id = m.playoff_id
+            if (m?.seedP1 != null) result.seedP1 = m.seedP1
+            if (m?.seedP2 != null) result.seedP2 = m.seedP2
+            return result
         })
 
         return res.status(200).json({
