@@ -81,6 +81,8 @@ const {
     getMatchesSummaryByDate,
     getStandingsSummaryByTournamentId,
     getPlayerStatsSummaryByTournamentId,
+    postEdits,
+    postEditsUpload,
 } = require("./../controller")
 
 /* -------------------- isAUTH -------------------- */
@@ -97,7 +99,7 @@ root.post("/matches", postMatch) // Provisoria, luego puede ser modificada //
 
 root.get("/update", majorUpdatesController)
 
-// Removed: separate streaks endpoint replaced by combined /api/statistics
+root.post("/edits", isAuth, postEditsUpload.single("image"), postEdits)
 
 // USERS
 
