@@ -1,11 +1,7 @@
 const { originateTournament } = require("./../../service")
 
-const cloudinary = require("./../../cloudinary")
-
-// console.log(cloudinary)
-
 const postTournaments = async (req, res) => {
-    const { name, format, players, teams, cloudinaryId } = req.body
+    const { name, format, players, teams } = req.body
 
     try {
         let groups
@@ -24,16 +20,13 @@ const postTournaments = async (req, res) => {
                 teams,
                 format,
                 groups,
-                // cloudinary_id: cloudinaryId,
             })
         } else {
-            console.log("entré aca")
             newTournament = await originateTournament({
                 name,
                 players,
                 teams,
                 format,
-                // cloudinary_id: cloudinaryId,
             })
         }
 
@@ -41,19 +34,6 @@ const postTournaments = async (req, res) => {
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
     }
-
-    // fs.unlinkSync(path) // I think it's not necessary in this case //
-
-    //     res.status(200).json({
-    //       message: 'images uploaded successfully',
-    //       data: urls
-    //     })
-
-    //   } else {
-    //     res.status(405).json({
-    //       err: `${req.method} method not allowed`
-    //     })
-    //   }
 }
 
 module.exports = postTournaments

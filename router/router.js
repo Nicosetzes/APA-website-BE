@@ -71,8 +71,6 @@ const {
     getPlayoffsBracketByTournamentId,
     getPlayoffsUpdatedWinsByTournamentId,
     getStatistics,
-    getAllTimeStandings,
-    // getAllTimeGeneralStatistics,
     getAllTimeFaceToFace,
     getAllTimeTeams,
     majorUpdatesController,
@@ -244,10 +242,6 @@ tournaments.get(
 // STATISTICS
 
 statistics.get("/", getStatistics)
-
-statistics.get("/all-time/standings", getAllTimeStandings)
-
-// statistics.get("/all-time/general-stats", getAllTimeGeneralStatistics)
 
 statistics.get("/all-time/face-to-face", getAllTimeFaceToFace)
 

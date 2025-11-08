@@ -1,6 +1,4 @@
 const getAllTimeFaceToFace = require("./getAllTimeFaceToFace")
-// const getAllTimeGeneralStatistics = require("./getAllTimeGeneralStatistics")
-const getAllTimeStandings = require("./getAllTimeStandings")
 const getAllTimeTeams = require("./getAllTimeTeams")
 const getCalculatorByTournamentId = require("./getCalculatorByTournamentId")
 const getFixtureByTournamentId = require("./getFixtureByTournamentId")
@@ -60,8 +58,6 @@ const deleteEdit = require("./deleteEdit")
 
 module.exports = {
     getAllTimeFaceToFace,
-    // getAllTimeGeneralStatistics,
-    getAllTimeStandings,
     getAllTimeTeams,
     getCalculatorByTournamentId,
     getFixtureByTournamentId,
