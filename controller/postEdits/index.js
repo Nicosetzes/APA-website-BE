@@ -13,32 +13,37 @@ const storage = new CloudinaryStorage({
 
 const postEditsUpload = multer({
     storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    limits: { fileSize: 3 * 1024 * 1024 }, // 3MB limit
 })
 
 const postEdits = async (req, res) => {
     try {
-        // multer + CloudinaryStorage will attach the file info to req.file
-        const uploadedFile = req.file
+        // multer will attach files to req.files (array) or req.file (single)
+        const uploadedFiles = req.files || (req.file ? [req.file] : [])
 
-        if (!uploadedFile) {
+        if (!uploadedFiles || uploadedFiles.length === 0) {
             return res
                 .status(400)
-                .json({ success: false, message: "No file uploaded" })
+                .json({ success: false, message: "No files uploaded" })
         }
 
-        const newEdit = await editsModel.create({
-            user: req.userId,
-            url: uploadedFile.path,
-            public_id: uploadedFile.filename,
-            caption: req.body.caption || "",
-        })
+        // Create database entries for all uploaded files
+        const edits = await Promise.all(
+            uploadedFiles.map((file) =>
+                editsModel.create({
+                    user: req.userId,
+                    url: file.path,
+                    public_id: file.filename,
+                    caption: req.body.caption || "",
+                })
+            )
+        )
 
         res.json({
-            data: newEdit,
-            public_id: uploadedFile.filename,
             success: true,
-            url: uploadedFile.path, // Cloudinary URL
+            count: edits.length,
+            data: edits,
+            urls: uploadedFiles.map((file) => file.path),
         })
     } catch (err) {
         console.error("Upload error:", err)

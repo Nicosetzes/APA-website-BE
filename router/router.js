@@ -99,7 +99,7 @@ root.post("/matches", postMatch) // Provisoria, luego puede ser modificada //
 
 root.get("/update", majorUpdatesController)
 
-root.post("/edits", isAuth, postEditsUpload.single("image"), postEdits)
+root.post("/edits", isAuth, postEditsUpload.array("image", 10), postEdits)
 
 // USERS
 
