@@ -17,9 +17,6 @@ const editSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
-        caption: {
-            type: String,
-        },
         createdAt: {
             type: Date,
             default: Date.now,

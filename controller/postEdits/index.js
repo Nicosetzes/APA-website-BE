@@ -34,7 +34,6 @@ const postEdits = async (req, res) => {
                     user: req.userId,
                     url: file.path,
                     public_id: file.filename,
-                    caption: req.body.caption || "",
                 })
             )
         )
