@@ -55,6 +55,8 @@ const putSquadByTeamId = require("./putSquadByTeamId")
 const postDailyRecapByTournamentId = require("./postDailyRecapByTournamentId")
 const getDailyRecapByTournamentId = require("./getDailyRecapByTournamentId")
 const { postEdits, postEditsUpload } = require("./postEdits")
+const getEdits = require("./getEdits")
+const deleteEdit = require("./deleteEdit")
 
 module.exports = {
     getAllTimeFaceToFace,
@@ -115,4 +117,6 @@ module.exports = {
     getDailyRecapByTournamentId,
     postEdits,
     postEditsUpload,
+    getEdits,
+    deleteEdit,
 }

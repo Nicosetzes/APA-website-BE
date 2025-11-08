@@ -83,6 +83,8 @@ const {
     getPlayerStatsSummaryByTournamentId,
     postEdits,
     postEditsUpload,
+    getEdits,
+    deleteEdit,
 } = require("./../controller")
 
 /* -------------------- isAUTH -------------------- */
@@ -99,7 +101,11 @@ root.post("/matches", postMatch) // Provisoria, luego puede ser modificada //
 
 root.get("/update", majorUpdatesController)
 
+root.get("/edits", getEdits)
+
 root.post("/edits", isAuth, postEditsUpload.array("image", 10), postEdits)
+
+root.delete("/edits/:id", isAuth, deleteEdit)
 
 // USERS
 
