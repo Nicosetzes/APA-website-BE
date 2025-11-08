@@ -34,7 +34,6 @@ const {
     postMatch,
     getUsers,
     getUserProfile,
-    postRegister,
     postLogin,
     postLogout,
     postSolicitateNewPassword,
@@ -110,8 +109,6 @@ root.delete("/edits/:id", isAuth, deleteEdit)
 users.get("/", getUsers)
 
 users.get("/profile", isAuth, getUserProfile)
-
-users.post("/register", postRegister)
 
 users.post("/login", postLogin)
 

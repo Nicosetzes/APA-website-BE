@@ -8,7 +8,6 @@ const createMatch = require("./createMatch")
 const createPlayinByTournamentId = require("./createPlayinByTournamentId")
 const createPlayoffByTournamentId = require("./createPlayoffByTournamentId")
 const createTournament = require("./createTournament")
-const createUser = require("./createUser")
 const findAllMatches = require("./findAllMatches")
 const findAllNotPlayedMatchesByTournamentId = require("./findAllNotPlayedMatchesByTournamentId")
 const findAllPlayedMatchesByTournamentId = require("./findAllPlayedMatchesByTournamentId")
@@ -26,7 +25,6 @@ const findTeamRemainingMatchesByTournamentId = require("./findTeamRemainingMatch
 const findTournamentById = require("./findTournamentById")
 const findTournamentPlayersByTournamentId = require("./findTournamentPlayersByTournamentId")
 const findTournaments = require("./findTournaments")
-// const findTournamentTeamsByTournamentId = require("./findTournamentTeamsByTournamentId")
 const findUserById = require("./findUserById")
 const findUserByUserName = require("./findUserByUserName")
 const sortMatchesFromTournamentById = require("./sortMatchesFromTournamentById")
@@ -50,7 +48,6 @@ module.exports = {
     createPlayinByTournamentId,
     createPlayoffByTournamentId,
     createTournament,
-    createUser,
     findAllMatches,
     findAllNotPlayedMatchesByTournamentId,
     findAllPlayedMatchesByTournamentId,
