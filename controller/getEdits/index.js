@@ -10,11 +10,11 @@ const getEdits = async (req, res) => {
         const totalEdits = await editsModel.countDocuments()
         const totalPages = Math.ceil(totalEdits / limit)
 
-        // Get paginated edits, sorted by newest first
+        // Get paginated edits, sorted by newest first (with stable sort using _id)
         const edits = await editsModel
             .find()
             .populate("user", "name nickname")
-            .sort({ createdAt: -1 })
+            .sort({ createdAt: -1, _id: -1 })
             .skip(skip)
             .limit(limit)
             .lean()
