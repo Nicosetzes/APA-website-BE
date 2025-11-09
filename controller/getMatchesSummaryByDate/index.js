@@ -100,12 +100,6 @@ const getMatchesSummaryByDate = async (req, res) => {
             return result
         })
 
-        // Check if the majority of matches are of type "regular"
-        const regularMatchesCount = all.filter(
-            (m) => m?.type === "regular"
-        ).length
-        const groupStage = regularMatchesCount >= all.length / 2
-
         // Build daily summary for each player grouped by group
         const dailySummary = {}
         all.forEach((m) => {
@@ -211,8 +205,6 @@ const getMatchesSummaryByDate = async (req, res) => {
                 format: tournamentFormat,
             },
             matches: summaryMatches,
-            amount: all.length,
-            groupStage,
             dailySummary: dailySummaryArray,
             dailySummaryTotals,
         })
