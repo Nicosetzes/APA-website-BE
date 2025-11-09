@@ -131,6 +131,12 @@ const getMatchesSummaryByDate = async (req, res) => {
             }
         )
 
+        // Check if the majority of matches are of type "regular"
+        const regularMatchesCount = all.filter(
+            (m) => m?.type === "regular"
+        ).length
+        const groupStage = regularMatchesCount >= all.length / 2
+
         return res.status(200).json({
             date,
             tournament: {
@@ -140,6 +146,7 @@ const getMatchesSummaryByDate = async (req, res) => {
             },
             matches: matchesByGroup,
             amount: all.length,
+            groupStage,
         })
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
