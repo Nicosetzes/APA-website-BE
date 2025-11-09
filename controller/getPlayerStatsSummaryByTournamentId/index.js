@@ -118,11 +118,7 @@ const getPlayerStatsSummaryByTournamentId = async (req, res) => {
         const playersOut = Array.from(summaryByPlayer.values()).map((S) => {
             S.scoringDifference = (S.goalsFor || 0) - (S.goalsAgainst || 0)
             S.effectiveness = S.played
-                ? Number(
-                      (((S.wins * 3 + S.draws) / (S.played * 3)) * 100).toFixed(
-                          2
-                      )
-                  )
+                ? Math.round(((S.wins * 3 + S.draws) / (S.played * 3)) * 100)
                 : 0
             const out = {
                 name: S.name,
@@ -130,8 +126,6 @@ const getPlayerStatsSummaryByTournamentId = async (req, res) => {
                 wins: S.wins,
                 draws: S.draws,
                 losses: S.losses,
-                goalsFor: S.goalsFor || 0,
-                goalsAgainst: S.goalsAgainst || 0,
                 scoringDifference: S.scoringDifference,
                 effectiveness: S.effectiveness,
             }
