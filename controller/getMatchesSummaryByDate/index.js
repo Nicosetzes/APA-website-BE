@@ -137,6 +137,78 @@ const getMatchesSummaryByDate = async (req, res) => {
         ).length
         const groupStage = regularMatchesCount >= all.length / 2
 
+        // Build daily summary for each player grouped by group
+        const dailySummary = {}
+        all.forEach((m) => {
+            const p1 = m?.playerP1 || {}
+            const p2 = m?.playerP2 || {}
+            const p1Name =
+                p1.nickname || p1.name || (p1.id ? String(p1.id) : null)
+            const p2Name =
+                p2.nickname || p2.name || (p2.id ? String(p2.id) : null)
+            const score1 = Number(m?.scoreP1) || 0
+            const score2 = Number(m?.scoreP2) || 0
+            const matchGroup = m?.group || "ungrouped"
+
+            // Initialize group if not exists
+            if (!dailySummary[matchGroup]) {
+                dailySummary[matchGroup] = {}
+            }
+
+            // Initialize player stats if not exists
+            if (p1Name && !dailySummary[matchGroup][p1Name]) {
+                dailySummary[matchGroup][p1Name] = {
+                    played: 0,
+                    wins: 0,
+                    draws: 0,
+                    losses: 0,
+                }
+            }
+            if (p2Name && !dailySummary[matchGroup][p2Name]) {
+                dailySummary[matchGroup][p2Name] = {
+                    played: 0,
+                    wins: 0,
+                    draws: 0,
+                    losses: 0,
+                }
+            }
+
+            // Update stats for player 1
+            if (p1Name) {
+                dailySummary[matchGroup][p1Name].played += 1
+                if (score1 > score2) {
+                    dailySummary[matchGroup][p1Name].wins += 1
+                } else if (score1 === score2) {
+                    dailySummary[matchGroup][p1Name].draws += 1
+                } else {
+                    dailySummary[matchGroup][p1Name].losses += 1
+                }
+            }
+
+            // Update stats for player 2
+            if (p2Name) {
+                dailySummary[matchGroup][p2Name].played += 1
+                if (score2 > score1) {
+                    dailySummary[matchGroup][p2Name].wins += 1
+                } else if (score1 === score2) {
+                    dailySummary[matchGroup][p2Name].draws += 1
+                } else {
+                    dailySummary[matchGroup][p2Name].losses += 1
+                }
+            }
+        })
+
+        // Convert to array format per group
+        const dailySummaryByGroup = {}
+        Object.keys(dailySummary).forEach((group) => {
+            dailySummaryByGroup[group] = Object.entries(
+                dailySummary[group]
+            ).map(([player, stats]) => ({
+                player,
+                ...stats,
+            }))
+        })
+
         return res.status(200).json({
             date,
             tournament: {
@@ -147,6 +219,7 @@ const getMatchesSummaryByDate = async (req, res) => {
             matches: matchesByGroup,
             amount: all.length,
             groupStage,
+            dailySummary: dailySummaryByGroup,
         })
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
