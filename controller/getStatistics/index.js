@@ -63,6 +63,9 @@ const getStatistics = async (req, res) => {
                     goalsFor: 0,
                     goalsAgainst: 0,
                     cleanSheets: 0,
+                    penaltyWins: 0,
+                    matchesScoring3PlusGoals: 0,
+                    _uniqueTeamsWon: new Set(), // Track unique teams won with
                     // streaks
                     _curType: null,
                     _curLen: 0,
@@ -131,9 +134,21 @@ const getStatistics = async (req, res) => {
                 if (s1 === s2) {
                     S.draws += 1
                     r = "D"
+                    // Check if player won via penalties
+                    if (
+                        m.outcome?.penalties &&
+                        m.outcome?.playerThatWon?.id === p1
+                    ) {
+                        S.penaltyWins += 1
+                    }
                 } else if (s1 > s2) {
                     S.wins += 1
                     r = "W"
+                    // Track wins with 3+ goals
+                    if (s1 >= 3) S.matchesScoring3PlusGoals += 1
+                    // Track unique teams won with
+                    const teamId = String(m.teamP1?.id || m.teamP1?.name || "")
+                    if (teamId) S._uniqueTeamsWon.add(teamId)
                 } else {
                     S.losses += 1
                     r = "L"
@@ -241,9 +256,21 @@ const getStatistics = async (req, res) => {
                 if (s1 === s2) {
                     S.draws += 1
                     r = "D"
+                    // Check if player won via penalties
+                    if (
+                        m.outcome?.penalties &&
+                        m.outcome?.playerThatWon?.id === p2
+                    ) {
+                        S.penaltyWins += 1
+                    }
                 } else if (s2 > s1) {
                     S.wins += 1
                     r = "W"
+                    // Track wins with 3+ goals
+                    if (s2 >= 3) S.matchesScoring3PlusGoals += 1
+                    // Track unique teams won with
+                    const teamId = String(m.teamP2?.id || m.teamP2?.name || "")
+                    if (teamId) S._uniqueTeamsWon.add(teamId)
                 } else {
                     S.losses += 1
                     r = "L"
@@ -393,6 +420,8 @@ const getStatistics = async (req, res) => {
         })
 
         // Leaderboards
+        const vals = Array.from(agg.values())
+
         const winsLeaderboard = [...playersOut]
             .map((p) => ({ player: p.player, wins: p.wins }))
             .sort((a, b) => b.wins - a.wins)
@@ -403,9 +432,77 @@ const getStatistics = async (req, res) => {
             .map((p) => ({ player: p.player, goalsFor: p.goalsFor }))
             .sort((a, b) => b.goalsFor - a.goalsFor)
 
+        // New leaderboards with per-match calculations
+        const winsPerMatchLeaderboard = vals
+            .filter((S) => S.played > 0)
+            .map((S) => ({
+                player: { id: S.id, name: S.name },
+                winsPerMatch: Number((S.wins / S.played).toFixed(2)),
+            }))
+            .sort((a, b) => b.winsPerMatch - a.winsPerMatch)
+
+        const lossesPerMatchLeaderboard = vals
+            .filter((S) => S.played > 0)
+            .map((S) => ({
+                player: { id: S.id, name: S.name },
+                lossesPerMatch: Number((S.losses / S.played).toFixed(2)),
+            }))
+            .sort((a, b) => a.lossesPerMatch - b.lossesPerMatch)
+
+        const goalsForPerMatchLeaderboard = vals
+            .filter((S) => S.played > 0)
+            .map((S) => ({
+                player: { id: S.id, name: S.name },
+                goalsForPerMatch: Number((S.goalsFor / S.played).toFixed(2)),
+            }))
+            .sort((a, b) => b.goalsForPerMatch - a.goalsForPerMatch)
+
+        const goalsAgainstPerMatchLeaderboard = vals
+            .filter((S) => S.played > 0)
+            .map((S) => ({
+                player: { id: S.id, name: S.name },
+                goalsAgainstPerMatch: Number(
+                    (S.goalsAgainst / S.played).toFixed(2)
+                ),
+            }))
+            .sort((a, b) => a.goalsAgainstPerMatch - b.goalsAgainstPerMatch)
+
+        const cleanSheetsPerMatchLeaderboard = vals
+            .filter((S) => S.played > 0)
+            .map((S) => ({
+                player: { id: S.id, name: S.name },
+                cleanSheetsPerMatch: Number(
+                    (S.cleanSheets / S.played).toFixed(2)
+                ),
+            }))
+            .sort((a, b) => b.cleanSheetsPerMatch - a.cleanSheetsPerMatch)
+
+        const winsWithUniqueTeamsLeaderboard = vals
+            .map((S) => ({
+                player: { id: S.id, name: S.name },
+                winsWithUniqueTeams: S._uniqueTeamsWon.size,
+            }))
+            .sort((a, b) => b.winsWithUniqueTeams - a.winsWithUniqueTeams)
+
+        const matchesScoring3PlusGoalsLeaderboard = vals
+            .map((S) => ({
+                player: { id: S.id, name: S.name },
+                matchesScoring3PlusGoals: S.matchesScoring3PlusGoals,
+            }))
+            .sort(
+                (a, b) =>
+                    b.matchesScoring3PlusGoals - a.matchesScoring3PlusGoals
+            )
+
+        const penaltyWinsLeaderboard = vals
+            .map((S) => ({
+                player: { id: S.id, name: S.name },
+                penaltyWins: S.penaltyWins,
+            }))
+            .sort((a, b) => b.penaltyWins - a.penaltyWins)
+
         // Records
         // Longest clean sheets in a row and consecutive scoring thresholds
-        const vals = Array.from(agg.values())
         const maxCSRow = Math.max(...vals.map((S) => S._maxCS), 0)
         const maxG1Row = Math.max(...vals.map((S) => S._maxG1), 0)
         const maxG2Row = Math.max(...vals.map((S) => S._maxG2), 0)
@@ -551,14 +648,22 @@ const getStatistics = async (req, res) => {
             players: playersOut,
             leaderboards: {
                 wins: winsLeaderboard,
-                effectiveness: effectivenessLeaderboard,
                 goalsFor: goalsLeaderboard,
+                matchesScoring3PlusGoals: matchesScoring3PlusGoalsLeaderboard,
                 cleanSheets: [...playersOut]
                     .map((p) => ({
                         player: p.player,
                         cleanSheets: p.cleanSheets,
                     }))
                     .sort((a, b) => b.cleanSheets - a.cleanSheets),
+                effectiveness: effectivenessLeaderboard,
+                winsPerMatch: winsPerMatchLeaderboard,
+                lossesPerMatch: lossesPerMatchLeaderboard,
+                goalsForPerMatch: goalsForPerMatchLeaderboard,
+                goalsAgainstPerMatch: goalsAgainstPerMatchLeaderboard,
+                cleanSheetsPerMatch: cleanSheetsPerMatchLeaderboard,
+                penaltyWins: penaltyWinsLeaderboard,
+                winsWithUniqueTeams: winsWithUniqueTeamsLeaderboard,
             },
             records,
         })
