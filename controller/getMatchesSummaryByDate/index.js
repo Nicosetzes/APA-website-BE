@@ -100,37 +100,6 @@ const getMatchesSummaryByDate = async (req, res) => {
             return result
         })
 
-        // Group matches by group
-        const matchesByGroup = {}
-        summaryMatches.forEach(
-            ({
-                player1,
-                team1,
-                player2,
-                team2,
-                score1,
-                score2,
-                winner,
-                type,
-                group,
-            }) => {
-                const matchGroup = group || "ungrouped"
-                if (!matchesByGroup[matchGroup]) {
-                    matchesByGroup[matchGroup] = []
-                }
-                matchesByGroup[group].push({
-                    player1,
-                    team1,
-                    player2,
-                    team2,
-                    score1,
-                    score2,
-                    winner,
-                    type,
-                })
-            }
-        )
-
         // Check if the majority of matches are of type "regular"
         const regularMatchesCount = all.filter(
             (m) => m?.type === "regular"
@@ -198,16 +167,41 @@ const getMatchesSummaryByDate = async (req, res) => {
             }
         })
 
-        // Convert to array format per group
-        const dailySummaryByGroup = {}
+        // Convert to flat array format with group included
+        const dailySummaryArray = []
         Object.keys(dailySummary).forEach((group) => {
-            dailySummaryByGroup[group] = Object.entries(
-                dailySummary[group]
-            ).map(([player, stats]) => ({
+            Object.entries(dailySummary[group]).forEach(([player, stats]) => {
+                dailySummaryArray.push({
+                    player,
+                    group,
+                    ...stats,
+                })
+            })
+        })
+
+        // Calculate totals combining all groups per player
+        const dailySummaryTotalsMap = {}
+        dailySummaryArray.forEach(({ player, played, wins, draws, losses }) => {
+            if (!dailySummaryTotalsMap[player]) {
+                dailySummaryTotalsMap[player] = {
+                    played: 0,
+                    wins: 0,
+                    draws: 0,
+                    losses: 0,
+                }
+            }
+            dailySummaryTotalsMap[player].played += played
+            dailySummaryTotalsMap[player].wins += wins
+            dailySummaryTotalsMap[player].draws += draws
+            dailySummaryTotalsMap[player].losses += losses
+        })
+
+        const dailySummaryTotals = Object.entries(dailySummaryTotalsMap).map(
+            ([player, stats]) => ({
                 player,
                 ...stats,
-            }))
-        })
+            })
+        )
 
         return res.status(200).json({
             date,
@@ -216,10 +210,11 @@ const getMatchesSummaryByDate = async (req, res) => {
                 name: tournamentNameById.get(onlyTid) || null,
                 format: tournamentFormat,
             },
-            matches: matchesByGroup,
+            matches: summaryMatches,
             amount: all.length,
             groupStage,
-            dailySummary: dailySummaryByGroup,
+            dailySummary: dailySummaryArray,
+            dailySummaryTotals,
         })
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
