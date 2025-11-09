@@ -92,13 +92,44 @@ const getMatchesSummaryByDate = async (req, res) => {
                 score2,
                 winner,
                 type: m?.type || null,
+                group: m?.group || null,
             }
-            if (m.group) result.group = m.group
             if (m?.playoff_id != null) result.playoff_id = m.playoff_id
             if (m?.seedP1 != null) result.seedP1 = m.seedP1
             if (m?.seedP2 != null) result.seedP2 = m.seedP2
             return result
         })
+
+        // Group matches by group
+        const matchesByGroup = {}
+        summaryMatches.forEach(
+            ({
+                player1,
+                team1,
+                player2,
+                team2,
+                score1,
+                score2,
+                winner,
+                type,
+                group,
+            }) => {
+                const matchGroup = group || "ungrouped"
+                if (!matchesByGroup[matchGroup]) {
+                    matchesByGroup[matchGroup] = []
+                }
+                matchesByGroup[group].push({
+                    player1,
+                    team1,
+                    player2,
+                    team2,
+                    score1,
+                    score2,
+                    winner,
+                    type,
+                })
+            }
+        )
 
         return res.status(200).json({
             date,
@@ -107,7 +138,8 @@ const getMatchesSummaryByDate = async (req, res) => {
                 name: tournamentNameById.get(onlyTid) || null,
                 format: tournamentFormat,
             },
-            matches: summaryMatches,
+            matches: matchesByGroup,
+            amount: all.length,
         })
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
