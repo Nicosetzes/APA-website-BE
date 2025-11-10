@@ -384,40 +384,44 @@ const getStatistics = async (req, res) => {
         for (const p of players) ensure(p.id)
 
         // Build players stats output
-        const playersOut = Array.from(agg.values()).map((S) => {
-            const effectiveness = S.played
-                ? Number(
-                      (((S.wins * 3 + S.draws) / (S.played * 3)) * 100).toFixed(
-                          2
+        const playersOut = Array.from(agg.values())
+            .map((S) => {
+                const effectiveness = S.played
+                    ? Number(
+                          (
+                              ((S.wins * 3 + S.draws) / (S.played * 3)) *
+                              100
+                          ).toFixed(2)
                       )
-                  )
-                : 0
-            const out = {
-                player: { id: S.id, name: S.name },
-                wins: S.wins,
-                draws: S.draws,
-                losses: S.losses,
-                totalMatches: S.played,
-                goalsFor: S.goalsFor,
-                goalsAgainst: S.goalsAgainst,
-                scoringDifference: (S.goalsFor || 0) - (S.goalsAgainst || 0),
-                effectiveness,
-                current_streak: { type: S._curType, length: S._curLen },
-                recent: S._recent.slice().reverse(),
-                cleanSheets: S.cleanSheets,
-            }
-            if (tournamentId) {
-                const bestType = [
-                    { t: "W", v: S._maxW },
-                    { t: "D", v: S._maxD },
-                    { t: "L", v: S._maxL },
-                ].sort((a, b) => b.v - a.v)[0]
-                out.longest_streak = bestType?.v
-                    ? { type: bestType.t, length: bestType.v }
-                    : { type: null, length: 0 }
-            }
-            return out
-        })
+                    : 0
+                const out = {
+                    player: { id: S.id, name: S.name },
+                    wins: S.wins,
+                    draws: S.draws,
+                    losses: S.losses,
+                    totalMatches: S.played,
+                    goalsFor: S.goalsFor,
+                    goalsAgainst: S.goalsAgainst,
+                    scoringDifference:
+                        (S.goalsFor || 0) - (S.goalsAgainst || 0),
+                    effectiveness,
+                    current_streak: { type: S._curType, length: S._curLen },
+                    recent: S._recent.slice().reverse(),
+                    cleanSheets: S.cleanSheets,
+                }
+                if (tournamentId) {
+                    const bestType = [
+                        { t: "W", v: S._maxW },
+                        { t: "D", v: S._maxD },
+                        { t: "L", v: S._maxL },
+                    ].sort((a, b) => b.v - a.v)[0]
+                    out.longest_streak = bestType?.v
+                        ? { type: bestType.t, length: bestType.v }
+                        : { type: null, length: 0 }
+                }
+                return out
+            })
+            .sort((a, b) => b.totalMatches - a.totalMatches)
 
         // Leaderboards
         const vals = Array.from(agg.values())
@@ -433,21 +437,23 @@ const getStatistics = async (req, res) => {
             .sort((a, b) => b.goalsFor - a.goalsFor)
 
         // New leaderboards with per-match calculations
-        const winsPerMatchLeaderboard = vals
+        const winPercentageLeaderboard = vals
             .filter((S) => S.played > 0)
             .map((S) => ({
                 player: { id: S.id, name: S.name },
-                winsPerMatch: Number((S.wins / S.played).toFixed(2)),
+                winPercentage: Number(((S.wins / S.played) * 100).toFixed(2)),
             }))
-            .sort((a, b) => b.winsPerMatch - a.winsPerMatch)
+            .sort((a, b) => b.winPercentage - a.winPercentage)
 
-        const lossesPerMatchLeaderboard = vals
+        const lossPercentageLeaderboard = vals
             .filter((S) => S.played > 0)
             .map((S) => ({
                 player: { id: S.id, name: S.name },
-                lossesPerMatch: Number((S.losses / S.played).toFixed(2)),
+                lossPercentage: Number(
+                    ((S.losses / S.played) * 100).toFixed(2)
+                ),
             }))
-            .sort((a, b) => a.lossesPerMatch - b.lossesPerMatch)
+            .sort((a, b) => a.lossPercentage - b.lossPercentage)
 
         const goalsForPerMatchLeaderboard = vals
             .filter((S) => S.played > 0)
@@ -467,15 +473,15 @@ const getStatistics = async (req, res) => {
             }))
             .sort((a, b) => a.goalsAgainstPerMatch - b.goalsAgainstPerMatch)
 
-        const cleanSheetsPerMatchLeaderboard = vals
+        const cleanSheetsPercentageLeaderboard = vals
             .filter((S) => S.played > 0)
             .map((S) => ({
                 player: { id: S.id, name: S.name },
-                cleanSheetsPerMatch: Number(
-                    (S.cleanSheets / S.played).toFixed(2)
+                cleanSheetsPercentage: Number(
+                    ((S.cleanSheets / S.played) * 100).toFixed(2)
                 ),
             }))
-            .sort((a, b) => b.cleanSheetsPerMatch - a.cleanSheetsPerMatch)
+            .sort((a, b) => b.cleanSheetsPercentage - a.cleanSheetsPercentage)
 
         const winsWithUniqueTeamsLeaderboard = vals
             .map((S) => ({
@@ -657,11 +663,11 @@ const getStatistics = async (req, res) => {
                     }))
                     .sort((a, b) => b.cleanSheets - a.cleanSheets),
                 effectiveness: effectivenessLeaderboard,
-                winsPerMatch: winsPerMatchLeaderboard,
-                lossesPerMatch: lossesPerMatchLeaderboard,
+                winPercentage: winPercentageLeaderboard,
+                lossPercentage: lossPercentageLeaderboard,
                 goalsForPerMatch: goalsForPerMatchLeaderboard,
                 goalsAgainstPerMatch: goalsAgainstPerMatchLeaderboard,
-                cleanSheetsPerMatch: cleanSheetsPerMatchLeaderboard,
+                cleanSheetsPercentage: cleanSheetsPercentageLeaderboard,
                 penaltyWins: penaltyWinsLeaderboard,
                 winsWithUniqueTeams: winsWithUniqueTeamsLeaderboard,
             },
