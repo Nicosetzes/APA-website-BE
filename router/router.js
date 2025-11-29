@@ -58,12 +58,9 @@ const {
     getFixtureByTournamentId,
     postFixtureByTournamentId,
     postMatchByTournamentId,
-    postTagTeamsMatchByTournamentId,
     putMatchByTournamentId,
-    putTagTeamsMatchByTournamentId,
     putRemoveMatchByTournamentId,
     getStandingsTableByTournamentId,
-    getTagTeamsStandingsTableByTournamentId,
     getStandingsPlayerInfoByTournamentId,
     getPlayoffsTableByTournamentId,
     getPlayoffsPlayerInfoByTournamentId,
@@ -166,17 +163,10 @@ tournaments.get("/:tournament/teams/:team/squad", getSquadByTeamId)
 
 tournaments.put("/:tournament/teams/:team/squad", isAuth, putSquadByTeamId)
 
-// tournaments.get("/:tournament/matches/create-game/", getOriginateGameController)
 tournaments.post(
     "/:tournament/matches/create-game/",
     isAuth,
     postMatchByTournamentId
-)
-
-tournaments.post(
-    "/:tournament/matches/create-tag-teams-match/",
-    isAuth,
-    postTagTeamsMatchByTournamentId
 )
 
 tournaments.put(
@@ -196,23 +186,12 @@ tournaments.post(
 tournaments.get("/:tournament/daily-recap", getDailyRecapByTournamentId)
 
 tournaments.put(
-    "/:tournament/matches/update-tag-teams-match/:match",
-    isAuth,
-    putTagTeamsMatchByTournamentId
-)
-
-tournaments.put(
     "/:tournament/matches/delete-game/:match",
     isAuth,
     putRemoveMatchByTournamentId
 )
 
 tournaments.get("/:tournament/standings/table", getStandingsTableByTournamentId)
-
-tournaments.get(
-    "/:tournament/tag-teams-standings/table",
-    getTagTeamsStandingsTableByTournamentId
-)
 
 tournaments.get(
     "/:tournament/standings/player-info",

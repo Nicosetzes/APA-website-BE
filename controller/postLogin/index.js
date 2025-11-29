@@ -6,7 +6,6 @@ const jwtKey = process.env.TOKEN_SECRET
 const Joi = require("@hapi/joi")
 
 const postLogin = async (req, res) => {
-    // Validation with custom messages //
     const schemaLogin = Joi.object({
         email: Joi.string().max(255).required().email().messages({
             "string.empty": `Ingrese un email`,
@@ -50,19 +49,17 @@ const postLogin = async (req, res) => {
             {
                 id: user._id,
                 name: user.nickname,
-                /* In the future I can add role: "user" */
             },
             jwtKey,
             {
-                //   algorithm: "HS256",
-                expiresIn: "6h",
+                expiresIn: "24h",
             }
         )
 
         return res
             .cookie("access_token", token, {
                 withCredentials: true,
-                maxAge: 1000 * 60 * 60 * 6, // 6 horas //
+                maxAge: 1000 * 60 * 60 * 24, // 24 horas //
                 httpOnly: process.env.NODE_ENV === "production",
                 /* Si el atributo sameSite NO es especificado, la cookie se guarda en el navegador SOLO en Firefox (no en Chrome, ni en Opera ni en Edge) */
                 /* Pruebo especificando "none", lo que debería eliminar restricciones en los otros navegadores (se especifica "lax" por defecto) */
