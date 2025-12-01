@@ -23,31 +23,20 @@ const findMatches = async (page, teamName, date, played) => {
     }
 
     if (date) {
-        const d = new Date(date)
-        if (!isNaN(d.getTime())) {
-            const start = new Date(
-                Date.UTC(
-                    d.getUTCFullYear(),
-                    d.getUTCMonth(),
-                    d.getUTCDate(),
-                    0,
-                    0,
-                    0,
-                    0
-                )
-            )
-            const end = new Date(
-                Date.UTC(
-                    d.getUTCFullYear(),
-                    d.getUTCMonth(),
-                    d.getUTCDate() + 1,
-                    0,
-                    0,
-                    0,
-                    0
-                )
-            )
-            filter.updatedAt = { $gte: start, $lt: end }
+        // Parse date string manually to avoid timezone issues
+        // Expected format: YYYY-MM-DD
+        const parts = String(date).split("-")
+        if (parts.length === 3) {
+            const year = parseInt(parts[0], 10)
+            const month = parseInt(parts[1], 10) - 1 // Month is 0-indexed
+            const day = parseInt(parts[2], 10)
+
+            if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+                // Create date range in local timezone
+                const start = new Date(year, month, day, 0, 0, 0, 0)
+                const end = new Date(year, month, day + 1, 0, 0, 0, 0)
+                filter.updatedAt = { $gte: start, $lt: end }
+            }
         }
     }
 
