@@ -1,6 +1,7 @@
 const {
     originateChampionsLeaguePlayoffUpdateByTournamentId,
     originatePlayoffUpdateByTournamentId,
+    generate32TeamPlayoffUpdate,
     retrieveTournamentById,
     retrievePlayoffMatchesByTournamentId,
 } = require("./../../service")
@@ -25,6 +26,13 @@ const postPlayoffUpdateByTournamentId = async (req, res) => {
                     tournamentForService,
                     matches
                 )
+        } else if (format == "playoff") {
+            // For the new 32-team playoff format, generate next round matches
+            updatedMatches = await generate32TeamPlayoffUpdate(
+                round,
+                tournamentForService,
+                matches
+            )
         } else {
             updatedMatches = await originatePlayoffUpdateByTournamentId(
                 round,
