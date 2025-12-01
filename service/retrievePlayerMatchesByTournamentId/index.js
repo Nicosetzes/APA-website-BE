@@ -5,8 +5,6 @@ const retrievePlayerMatchesByTournamentId = async (
     player,
     valid
 ) => {
-    console.log(valid)
-
     let matches = await findPlayerMatchesByTournamentId(
         tournament,
         player,

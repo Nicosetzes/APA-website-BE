@@ -1,4 +1,7 @@
-const { originateTournament } = require("./../../service")
+const {
+    originateTournament,
+    originatePlayoffByTournamentId,
+} = require("./../../service")
 
 const postTournaments = async (req, res) => {
     const { name, format, players, teams } = req.body
@@ -13,6 +16,8 @@ const postTournaments = async (req, res) => {
             format == "champions_league"
         ) {
             groups = Array.from(new Set(teams.map(({ group }) => group)))
+                .filter(Boolean)
+                .sort((a, b) => String(a).localeCompare(String(b)))
 
             newTournament = await originateTournament({
                 name,
@@ -21,6 +26,16 @@ const postTournaments = async (req, res) => {
                 format,
                 groups,
             })
+        } else if (format == "playoff") {
+            // Create tournament first
+            newTournament = await originateTournament({
+                name,
+                players,
+                teams,
+                format,
+            })
+            // Generate Round of 32 playoff matches
+            await originatePlayoffByTournamentId(newTournament, teams)
         } else {
             newTournament = await originateTournament({
                 name,
