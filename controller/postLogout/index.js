@@ -2,28 +2,19 @@ const { retrieveUserById } = require("../../service")
 
 const postLogout = async (req, res) => {
     try {
-        const { userId } = req
-        const { nickname } = await retrieveUserById(userId)
-        return res
-            .clearCookie("access_token", {
-                withCredentials: true,
-                maxAge: 1000 * 60 * 60 * 6, // 6 horas //
-                httpOnly: process.env.NODE_ENV === "production",
-                /* Si el atributo sameSite NO es especificado, la cookie se guarda en el navegador SOLO en Firefox (no en Chrome, ni en Opera ni en Edge) */
-                /* Cuando especifico "none", elimina las restricciones en los otros navegadores (sino se especifica "lax" por defecto) */
-                sameSite: "none",
-                secure: process.env.NODE_ENV === "production",
-            })
-            .status(200)
-            .send({
-                auth: false,
-                message: `${nickname}, su sesión ha sido cerrada con éxito`,
-            })
+        const { id } = req.user
+        const { nickname } = await retrieveUserById(id)
+        // With JWT tokens, logout is handled client-side by removing the token
+        // Server-side logout would require token blacklisting (can be added later if needed)
+        return res.status(200).send({
+            auth: false,
+            message: `${nickname}, su sesión ha sido cerrada con éxito`,
+        })
     } catch (err) {
         return res.status(500).send({
             auth: false,
             message: `Error inesperado, intente más tarde`,
-        }) // Revisar código de error //
+        })
     }
 }
 

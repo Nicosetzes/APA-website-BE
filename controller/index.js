@@ -2,8 +2,6 @@ const getAllTimeFaceToFace = require("./getAllTimeFaceToFace")
 const getAllTimeTeams = require("./getAllTimeTeams")
 const getCalculatorByTournamentId = require("./getCalculatorByTournamentId")
 const getFixtureByTournamentId = require("./getFixtureByTournamentId")
-const getHome = require("./getHome")
-const getIsUserAuthenticated = require("./getIsUserAuthenticated")
 const getMatches = require("./getMatches")
 const getMatchesSummaryByDate = require("./getMatchesSummaryByDate")
 const getPlayerInfoByTournamentId = require("./getPlayerInfoByTournamentId")
@@ -24,7 +22,6 @@ const getTeamInformationByTournamentId = require("./getTeamInformationByTourname
 const getTeamsByTournamentId = require("./getTeamsByTournamentId")
 const getTournamentById = require("./getTournamentById")
 const getTournaments = require("./getTournaments")
-const getUserProfile = require("./getUserProfile")
 const getUsers = require("./getUsers")
 const getWorldCupPlayoffMatchesByTournamentId = require("./getWorldCupPlayoffMatchesByTournamentId")
 const getWorldCupPlayoffTeamsByTournamentId = require("./getWorldCupPlayoffTeamsByTournamentId")
@@ -57,8 +54,6 @@ module.exports = {
     getAllTimeTeams,
     getCalculatorByTournamentId,
     getFixtureByTournamentId,
-    getHome,
-    getIsUserAuthenticated,
     getMatches,
     getPlayerInfoByTournamentId,
     getPlayersByTournamentId,
@@ -76,7 +71,6 @@ module.exports = {
     getTeamsByTournamentId,
     getTournamentById,
     getTournaments,
-    getUserProfile,
     getUsers,
     getWorldCupPlayoffMatchesByTournamentId,
     getWorldCupPlayoffTeamsByTournamentId,

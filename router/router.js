@@ -33,12 +33,10 @@ const {
     getMatches,
     postMatch,
     getUsers,
-    getUserProfile,
     postLogin,
     postLogout,
     postSolicitateNewPassword,
     postRetrievePassword,
-    getIsUserAuthenticated,
     getTournaments,
     postTournaments,
     getTournamentById,
@@ -105,8 +103,6 @@ root.delete("/edits/:id", isAuth, deleteEdit)
 
 users.get("/", getUsers)
 
-users.get("/profile", isAuth, getUserProfile)
-
 users.post("/login", postLogin)
 
 users.post("/logout", isAuth, postLogout)
@@ -114,8 +110,6 @@ users.post("/logout", isAuth, postLogout)
 users.post("/solicitate-password", postSolicitateNewPassword)
 
 users.post("/retrieve-password", postRetrievePassword)
-
-users.get("/isUserAuthenticated", getIsUserAuthenticated)
 
 // TOURNAMENTS
 

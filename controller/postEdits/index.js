@@ -31,7 +31,7 @@ const postEdits = async (req, res) => {
         const edits = await Promise.all(
             uploadedFiles.map((file) =>
                 editsModel.create({
-                    user: req.userId,
+                    user: req.user.id,
                     url: file.path,
                     public_id: file.filename,
                 })

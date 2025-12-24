@@ -5,14 +5,12 @@ const dotenv = require("dotenv").config()
 /* -------------------- SERVER -------------------- */
 
 const express = require("express")
-const cookieParser = require("cookie-parser")
 const cors = require("cors")
 
 const app = express()
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 app.use(express.static("public"))
-app.use(cookieParser())
 app.use(
     cors({
         origin:
@@ -21,8 +19,7 @@ app.use(
                 : [
                       "https://apa-website-fe.vercel.app",
                       "https://sitioapa.com.ar",
-                  ], // Pruebo si funciona agregando el nuevo dominio en forma de array //
-        credentials: true,
+                  ],
     })
 )
 

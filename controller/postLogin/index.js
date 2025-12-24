@@ -56,22 +56,15 @@ const postLogin = async (req, res) => {
             }
         )
 
-        return res
-            .cookie("access_token", token, {
-                withCredentials: true,
-                maxAge: 1000 * 60 * 60 * 24, // 24 horas //
-                httpOnly: process.env.NODE_ENV === "production",
-                /* Si el atributo sameSite NO es especificado, la cookie se guarda en el navegador SOLO en Firefox (no en Chrome, ni en Opera ni en Edge) */
-                /* Pruebo especificando "none", lo que debería eliminar restricciones en los otros navegadores (se especifica "lax" por defecto) */
-                sameSite: "none",
-                secure: process.env.NODE_ENV === "production",
-            })
-            .status(200)
-            .send({
-                auth: true,
+        return res.status(200).send({
+            auth: true,
+            token: token,
+            user: {
                 id: user._id,
-                message: `Bienvenid@ ${user.nickname}`,
-            })
+                nickname: user.nickname,
+            },
+            message: `Bienvenid@ ${user.nickname}`,
+        })
     } catch (err) {
         return res.status(500).send({
             auth: false,
