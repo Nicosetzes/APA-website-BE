@@ -383,6 +383,101 @@ const getStatistics = async (req, res) => {
         // Ensure all players show up (with zeros)
         for (const p of players) ensure(p.id)
 
+        // Decisive matches stats (all playoff and playin matches)
+        const decisiveMatches = matches.filter((m) => {
+            const type = String(m.type || "").toLowerCase()
+            return type === "playoff" || type === "playin"
+        })
+
+        const decisiveAgg = new Map()
+        const ensureDecisive = (id) => {
+            const key = String(id)
+            if (!decisiveAgg.has(key)) {
+                decisiveAgg.set(key, {
+                    id: key,
+                    name: playerIndex.get(key) || key,
+                    played: 0,
+                    wins: 0,
+                    draws: 0,
+                    losses: 0,
+                    goalsFor: 0,
+                    goalsAgainst: 0,
+                    penaltyWins: 0,
+                    penaltyLosses: 0,
+                })
+            }
+            return decisiveAgg.get(key)
+        }
+
+        for (const m of decisiveMatches) {
+            const p1 = String(m.playerP1?.id || "")
+            const p2 = String(m.playerP2?.id || "")
+            const s1 = Number(m.scoreP1) || 0
+            const s2 = Number(m.scoreP2) || 0
+
+            if (p1 && (!tournamentId || playerIdsSet.has(p1))) {
+                const S = ensureDecisive(p1)
+                S.played += 1
+                S.goalsFor += s1
+                S.goalsAgainst += s2
+                if (s1 === s2) {
+                    S.draws += 1
+                    // Check if decided by penalty shootout
+                    if (m.outcome?.penalties) {
+                        if (m.outcome?.playerThatWon?.id === p1) {
+                            S.penaltyWins += 1
+                        } else {
+                            S.penaltyLosses += 1
+                        }
+                    }
+                } else if (s1 > s2) {
+                    S.wins += 1
+                } else {
+                    S.losses += 1
+                }
+            }
+
+            if (p2 && (!tournamentId || playerIdsSet.has(p2))) {
+                const S = ensureDecisive(p2)
+                S.played += 1
+                S.goalsFor += s2
+                S.goalsAgainst += s1
+                if (s1 === s2) {
+                    S.draws += 1
+                    // Check if decided by penalty shootout
+                    if (m.outcome?.penalties) {
+                        if (m.outcome?.playerThatWon?.id === p2) {
+                            S.penaltyWins += 1
+                        } else {
+                            S.penaltyLosses += 1
+                        }
+                    }
+                } else if (s2 > s1) {
+                    S.wins += 1
+                } else {
+                    S.losses += 1
+                }
+            }
+        }
+
+        const decisiveMatchesStats = Array.from(decisiveAgg.values())
+            .map((S) => ({
+                player: { id: S.id, name: S.name },
+                played: S.played,
+                wins: S.wins,
+                draws: S.draws,
+                losses: S.losses,
+                goalsFor: S.goalsFor,
+                goalsAgainst: S.goalsAgainst,
+                goalDifference: S.goalsFor - S.goalsAgainst,
+                penaltyWins: S.penaltyWins,
+                penaltyLosses: S.penaltyLosses,
+                winPercentage: S.played
+                    ? Number(((S.wins / S.played) * 100).toFixed(2))
+                    : 0,
+            }))
+            .sort((a, b) => b.played - a.played)
+
         // Build players stats output
         const playersOut = Array.from(agg.values())
             .map((S) => {
@@ -652,6 +747,7 @@ const getStatistics = async (req, res) => {
         return res.status(200).json({
             scope,
             players: playersOut,
+            decisiveMatchesStats,
             leaderboards: {
                 wins: winsLeaderboard,
                 goalsFor: goalsLeaderboard,
