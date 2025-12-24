@@ -29,7 +29,6 @@ summary.use(express.urlencoded({ extended: true }))
 /* -------------------- API -------------------- */
 
 const {
-    getHome,
     getMatches,
     postMatch,
     getUsers,
@@ -84,8 +83,6 @@ const {
 const { isAuth } = require("./auth")
 
 // ROOT
-
-root.get("/", getHome)
 
 root.get("/matches", getMatches)
 
