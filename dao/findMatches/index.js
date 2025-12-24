@@ -1,7 +1,7 @@
 const matchesModel = require("./../models/matches.js")
 
 const findMatches = async (page, teamName, date, played) => {
-    const limit = 10 // Results per page
+    const limit = 20
 
     // Build filter dynamically
     const filter = { valid: { $ne: false } }
@@ -30,8 +30,6 @@ const findMatches = async (page, teamName, date, played) => {
             const day = parseInt(parts[2], 10)
 
             if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
-                // Create UTC date range
-
                 const offset = 3 * 60 * 60 * 1000 // 3h en ms, difference between UTC and local time
 
                 const start = new Date(
