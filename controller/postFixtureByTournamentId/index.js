@@ -20,7 +20,7 @@ const postFixtureByTournamentId = async (req, res) => {
         let teamsForFixtureGeneration
         let playersForFixtureGeneration
 
-        if (groups.length) {
+        if (groups?.length) {
             // El torneo tiene grupos //
             teamsForFixtureGeneration = group
                 ? teams.filter((team) => team.group == group)

@@ -23,7 +23,7 @@ const originateFixtureByTournamentId = async (
         matches = fixtureGenerationTwoMatches(tournament, players, teams)
     else if (format == "world_cup" || format == "league_playin_playoff")
         matches = fixtureGenerationOneMatch(tournament, players, teams)
-    else matches = fixtureGenerationWithoutGroups(tournament, players, teams)
+    else matches = fixtureGenerationWithoutGroups(teams, players, tournament)
 
     return await createFixtureByTournamentId(matches)
 }
