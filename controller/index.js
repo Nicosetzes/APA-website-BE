@@ -21,6 +21,7 @@ const getSquadByTeamId = require("./getSquadByTeamId")
 const getTeamInformationByTournamentId = require("./getTeamInformationByTournamentId")
 const getTeamsByTournamentId = require("./getTeamsByTournamentId")
 const getTournamentById = require("./getTournamentById")
+const getTournamentSummaryByTournamentId = require("./getTournamentSummaryByTournamentId")
 const getTournaments = require("./getTournaments")
 const getUsers = require("./getUsers")
 const getWorldCupPlayoffMatchesByTournamentId = require("./getWorldCupPlayoffMatchesByTournamentId")
@@ -70,6 +71,7 @@ module.exports = {
     getTeamInformationByTournamentId,
     getTeamsByTournamentId,
     getTournamentById,
+    getTournamentSummaryByTournamentId,
     getTournaments,
     getUsers,
     getWorldCupPlayoffMatchesByTournamentId,

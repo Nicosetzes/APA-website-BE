@@ -39,6 +39,7 @@ const {
     getTournaments,
     postTournaments,
     getTournamentById,
+    getTournamentSummaryByTournamentId,
     getCalculatorByTournamentId,
     getPlayersByTournamentId,
     getPlayerInfoByTournamentId,
@@ -115,6 +116,8 @@ tournaments.get("/", getTournaments)
 tournaments.post("/", isAuth, postTournaments)
 
 tournaments.get("/:tournament", getTournamentById)
+
+tournaments.get("/:tournament/summary", getTournamentSummaryByTournamentId)
 
 tournaments.get("/:tournament/calculator", getCalculatorByTournamentId)
 
