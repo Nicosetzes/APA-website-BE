@@ -13,16 +13,7 @@ const getTournamentSummaryByTournamentId = async (req, res) => {
             return res.status(404).send("Tournament not found")
         }
 
-        const {
-            id,
-            name,
-            format,
-            groups,
-            players,
-            createdAt,
-            outcome,
-            ongoing,
-        } = tournamentDoc
+        const { id, name, players, outcome, ongoing } = tournamentDoc
 
         // Get all played matches (including regular, playin, playoff)
         const allPlayedMatches = await retrieveAllPlayedMatchesByTournamentId(
@@ -30,7 +21,6 @@ const getTournamentSummaryByTournamentId = async (req, res) => {
             false
         )
 
-        // Sort by most recent first
         allPlayedMatches.sort((a, b) => {
             const dateA = a.updatedAt ? new Date(a.updatedAt) : new Date(0)
             const dateB = b.updatedAt ? new Date(b.updatedAt) : new Date(0)
@@ -46,6 +36,7 @@ const getTournamentSummaryByTournamentId = async (req, res) => {
             teamP2: m.teamP2,
             scoreP2: m.scoreP2,
             outcome: m.outcome,
+            type: m.type,
             updatedAt: m.updatedAt,
         }))
 
@@ -142,8 +133,8 @@ const getTournamentSummaryByTournamentId = async (req, res) => {
             }
         }
 
-        const participantStats = Array.from(playerStatsMap.values()).map(
-            (stats) => {
+        const participantStats = Array.from(playerStatsMap.values())
+            .map((stats) => {
                 const scoringDifference = stats.goalsFor - stats.goalsAgainst
                 const effectiveness =
                     stats.played > 0
@@ -173,8 +164,8 @@ const getTournamentSummaryByTournamentId = async (req, res) => {
                     effectiveness,
                     streak,
                 }
-            }
-        )
+            })
+            .sort((a, b) => b.played - a.played)
 
         const totalMatchesPlayed = allPlayedMatches.length
 
@@ -182,11 +173,6 @@ const getTournamentSummaryByTournamentId = async (req, res) => {
             tournament: {
                 id,
                 name,
-                format,
-                createdAt,
-                ongoing,
-                hasGroups: groups?.length > 0,
-                groupCount: groups?.length || 0,
             },
             matches: {
                 recent: recentResults,
