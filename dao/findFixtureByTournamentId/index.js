@@ -20,7 +20,14 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
 
     // Team filter (team can be either side)
     if (team) {
-        andClauses.push({ $or: [{ "teamP1.id": team }, { "teamP2.id": team }] })
+        // Match both string and number representations
+        const teamIdNum = Number(team)
+        andClauses.push({
+            $or: [
+                { $or: [{ "teamP1.id": team }, { "teamP1.id": teamIdNum }] },
+                { $or: [{ "teamP2.id": team }, { "teamP2.id": teamIdNum }] },
+            ],
+        })
     }
 
     // Players filter

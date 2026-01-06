@@ -77,6 +77,7 @@ const {
     postEditsUpload,
     getEdits,
     deleteEdit,
+    putCompleteTournamentById,
 } = require("./../controller")
 
 /* -------------------- isAUTH -------------------- */
@@ -136,6 +137,8 @@ tournaments.post(
     isAuth,
     postPlayinUpdateByTournamentId
 )
+
+tournaments.put("/:tournament/complete", isAuth, putCompleteTournamentById)
 
 tournaments.get("/:tournament/playin/matches", getPlayinMatchesByTournamentId)
 

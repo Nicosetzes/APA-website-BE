@@ -4,6 +4,7 @@ const getCalculatorByTournamentId = require("./getCalculatorByTournamentId")
 const getFixtureByTournamentId = require("./getFixtureByTournamentId")
 const getMatches = require("./getMatches")
 const getMatchesSummaryByDate = require("./getMatchesSummaryByDate")
+const putCompleteTournamentById = require("./putCompleteTournamentById")
 const getPlayerInfoByTournamentId = require("./getPlayerInfoByTournamentId")
 const getPlayersByTournamentId = require("./getPlayersByTournamentId")
 const getPlayerStatsSummaryByTournamentId = require("./getPlayerStatsSummaryByTournamentId")
@@ -103,4 +104,5 @@ module.exports = {
     postEditsUpload,
     getEdits,
     deleteEdit,
+    putCompleteTournamentById,
 }

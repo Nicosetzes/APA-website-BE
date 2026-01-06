@@ -7,7 +7,7 @@ const updateTournamentOutcome = async (tournament, champion, finalist) => {
             ongoing: false,
             outcome: { champion, finalist },
         },
-        { new: true } // Returns the updated document, not the original
+        { new: true }
     )
 
     return updatedTournament
