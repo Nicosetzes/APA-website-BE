@@ -50,7 +50,6 @@ const {
     postPlayoffUpdateByTournamentId,
     getPlayoffMatchesByTournamentId,
     getTeamsByTournamentId,
-    getTeamInformationByTournamentId,
     getSquadByTeamId,
     putSquadByTeamId,
     getFixtureByTournamentId,
@@ -153,8 +152,6 @@ tournaments.post(
 tournaments.get("/:tournament/playoff/matches", getPlayoffMatchesByTournamentId)
 
 tournaments.get("/:tournament/teams", getTeamsByTournamentId)
-
-tournaments.get("/:tournament/teams/:team", getTeamInformationByTournamentId)
 
 tournaments.get("/:tournament/teams/:team/squad", getSquadByTeamId)
 

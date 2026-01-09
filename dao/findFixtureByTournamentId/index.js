@@ -76,6 +76,52 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                             },
                         },
                     ],
+                    teamStats: [
+                        // Create documents for both team1 and team2
+                        {
+                            $project: {
+                                teams: [
+                                    {
+                                        teamId: "$teamP1.id",
+                                        teamName: "$teamP1.name",
+                                        played: "$played",
+                                    },
+                                    {
+                                        teamId: "$teamP2.id",
+                                        teamName: "$teamP2.name",
+                                        played: "$played",
+                                    },
+                                ],
+                            },
+                        },
+                        { $unwind: "$teams" },
+                        { $replaceRoot: { newRoot: "$teams" } },
+                        {
+                            $group: {
+                                _id: "$teamId",
+                                teamName: { $first: "$teamName" },
+                                totalMatches: { $sum: 1 },
+                                playedMatches: {
+                                    $sum: {
+                                        $cond: [
+                                            { $eq: ["$played", true] },
+                                            1,
+                                            0,
+                                        ],
+                                    },
+                                },
+                            },
+                        },
+                        {
+                            $project: {
+                                _id: 0,
+                                teamId: "$_id",
+                                teamName: 1,
+                                totalMatches: 1,
+                                playedMatches: 1,
+                            },
+                        },
+                    ],
                 },
             },
         ])
@@ -86,6 +132,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
         amountOfTotalMatches: 0,
         amountOfNotPlayedMatches: 0,
     }
+    const teamStats = result?.teamStats || []
 
     return {
         matches,
@@ -93,6 +140,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
         amountOfTotalMatches: totals.amountOfTotalMatches,
         totalPages: Math.ceil((totals.amountOfTotalMatches || 0) / limit) || 0,
         currentPage,
+        teamStats,
     }
 }
 
