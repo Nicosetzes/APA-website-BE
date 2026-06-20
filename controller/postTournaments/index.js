@@ -12,6 +12,7 @@ const postTournaments = async (req, res) => {
 
         if (
             format == "world_cup" ||
+            format == "world_cup_2026" ||
             format == "league_playin_playoff" ||
             format == "champions_league"
         ) {

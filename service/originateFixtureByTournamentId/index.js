@@ -21,7 +21,11 @@ const originateFixtureByTournamentId = async (
 
     if (format == "champions_league")
         matches = fixtureGenerationTwoMatches(tournament, players, teams)
-    else if (format == "world_cup" || format == "league_playin_playoff")
+    else if (
+        format == "world_cup" ||
+        format == "world_cup_2026" ||
+        format == "league_playin_playoff"
+    )
         matches = fixtureGenerationOneMatch(tournament, players, teams)
     else matches = fixtureGenerationWithoutGroups(teams, players, tournament)
 
