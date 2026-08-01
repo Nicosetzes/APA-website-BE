@@ -1,10 +1,14 @@
+const { createPlayoffByTournamentId } = require("./../../dao")
+const { groupBy } = require("es-toolkit/array")
+
 const {
+    calculate2026WorldCupPlayoffByTournamentId,
     orderMatchesFromTournamentById,
     originateChampionsLeaguePlayoffByTournamentId,
     originatePlayoffWithPlayinByTournamentId,
     originateWorldCupPlayoffByTournamentId,
-    retrieveTournamentById,
     retrievePlayinMatchesByTournamentId,
+    retrieveTournamentById,
 } = require("./../../service")
 
 const postPlayoffByTournamentId = async (req, res) => {
@@ -19,6 +23,8 @@ const postPlayoffByTournamentId = async (req, res) => {
 
         const regularMatchesForPlayoffGeneration =
             await orderMatchesFromTournamentById(tournament)
+
+        const teamsForPlayoffGeneration = groupBy(teams, (t) => t.group)
 
         let playoff
 
@@ -38,44 +44,41 @@ const postPlayoffByTournamentId = async (req, res) => {
                     .status(500)
                     .json({ message: "Aún restan partidos de Playin" })
 
-            const teamsForPlayoffGeneration = {
-                teamsFromGroupA: teams.filter((team) => team.group == "A"),
-                teamsFromGroupB: teams.filter((team) => team.group == "B"),
-            }
-
             playoff = await originatePlayoffWithPlayinByTournamentId(
                 tournamentForPlayoffGeneration,
                 teamsForPlayoffGeneration,
                 regularMatchesForPlayoffGeneration,
                 playinMatchesForPlayoffGeneration
             )
+        } else if (format == "world_cup") {
+            playoff = await originateWorldCupPlayoffByTournamentId(
+                tournamentForPlayoffGeneration,
+                teamsForPlayoffGeneration,
+                regularMatchesForPlayoffGeneration
+            )
+        } else if (format === "world_cup_2026") {
+            const { playoffMatches } =
+                calculate2026WorldCupPlayoffByTournamentId(
+                    teamsForPlayoffGeneration,
+                    regularMatchesForPlayoffGeneration
+                )
+            playoff = await createPlayoffByTournamentId(
+                playoffMatches.map((match, index) => ({
+                    ...match,
+                    played: false,
+                    tournament: tournamentForPlayoffGeneration,
+                    type: "playoff",
+                }))
+            )
         } else {
-            // El formato es world_cup o champions_league //
-            const teamsForPlayoffGeneration = {
-                teamsFromGroupA: teams.filter((team) => team.group == "A"),
-                teamsFromGroupB: teams.filter((team) => team.group == "B"),
-                teamsFromGroupC: teams.filter((team) => team.group == "C"),
-                teamsFromGroupD: teams.filter((team) => team.group == "D"),
-                teamsFromGroupE: teams.filter((team) => team.group == "E"),
-                teamsFromGroupF: teams.filter((team) => team.group == "F"),
-                teamsFromGroupG: teams.filter((team) => team.group == "G"),
-                teamsFromGroupH: teams.filter((team) => team.group == "H"),
-            }
-            playoff =
-                format == "world_cup"
-                    ? await originateWorldCupPlayoffByTournamentId(
-                          tournamentForPlayoffGeneration,
-                          teamsForPlayoffGeneration,
-                          regularMatchesForPlayoffGeneration
-                      )
-                    : await originateChampionsLeaguePlayoffByTournamentId(
-                          tournamentForPlayoffGeneration,
-                          teamsForPlayoffGeneration,
-                          regularMatchesForPlayoffGeneration
-                      )
+            playoff = await originateChampionsLeaguePlayoffByTournamentId(
+                tournamentForPlayoffGeneration,
+                teamsForPlayoffGeneration,
+                regularMatchesForPlayoffGeneration
+            )
         }
 
-        res.status(200).json({ playoff })
+        res.status(200).json(playoff)
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
     }

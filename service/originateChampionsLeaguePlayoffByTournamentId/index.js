@@ -5,16 +5,14 @@ const originateChampionsLeaguePlayoffByTournamentId = async (
     teams,
     regularMatches
 ) => {
-    const {
-        teamsFromGroupA,
-        teamsFromGroupB,
-        teamsFromGroupC,
-        teamsFromGroupD,
-        teamsFromGroupE,
-        teamsFromGroupF,
-        teamsFromGroupG,
-        teamsFromGroupH,
-    } = teams
+    const teamsFromGroupA = teams.A
+    const teamsFromGroupB = teams.B
+    const teamsFromGroupC = teams.C
+    const teamsFromGroupD = teams.D
+    const teamsFromGroupE = teams.E
+    const teamsFromGroupF = teams.F
+    const teamsFromGroupG = teams.G
+    const teamsFromGroupH = teams.H
 
     const standingsFromGroupA = []
     const standingsFromGroupB = []

@@ -61,6 +61,7 @@ const {
     getStandingsPlayerInfoByTournamentId,
     getPlayoffsTableByTournamentId,
     getPlayoffsPlayerInfoByTournamentId,
+    getPlayoffsPreviewByTournamentId,
     getPlayoffsBracketByTournamentId,
     getPlayoffsUpdatedWinsByTournamentId,
     getStatistics,
@@ -197,6 +198,11 @@ tournaments.get("/:tournament/playoffs/table", getPlayoffsTableByTournamentId)
 tournaments.get(
     "/:tournament/playoffs/player-info",
     getPlayoffsPlayerInfoByTournamentId
+)
+
+tournaments.get(
+    "/:tournament/playoffs/preview",
+    getPlayoffsPreviewByTournamentId
 )
 
 tournaments.get(

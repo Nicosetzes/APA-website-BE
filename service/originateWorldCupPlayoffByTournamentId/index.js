@@ -5,580 +5,128 @@ const originateWorldCupPlayoffByTournamentId = async (
     teams,
     regularMatches
 ) => {
-    const {
-        teamsFromGroupA,
-        teamsFromGroupB,
-        teamsFromGroupC,
-        teamsFromGroupD,
-        teamsFromGroupE,
-        teamsFromGroupF,
-        teamsFromGroupG,
-        teamsFromGroupH,
-    } = teams
+    const standingsByGroup = {}
+    const teamsIndex = {}
 
-    const standingsFromGroupA = []
-    const standingsFromGroupB = []
-    const standingsFromGroupC = []
-    const standingsFromGroupD = []
-    const standingsFromGroupE = []
-    const standingsFromGroupF = []
-    const standingsFromGroupG = []
-    const standingsFromGroupH = []
+    Object.entries(teams).forEach(([groupName, teams]) => {
+        standingsByGroup[groupName] = []
 
-    teamsFromGroupA.forEach(async ({ team, player }) => {
-        let wins = regularMatches.filter(
-            ({ outcome }) => outcome?.teamThatWon?.id == team.id
-        ).length
-        let draws = regularMatches.filter(
-            ({ teamP1, teamP2, outcome }) =>
-                (teamP1.id == team.id || teamP2.id == team.id) && outcome?.draw
-        ).length
-        let goalsFor =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0)
-        let goalsAgainst =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0)
-        let scoringDifference = goalsFor - goalsAgainst
-        let points = wins * 3 + draws
+        teams.forEach(({ team, player }) => {
+            const entry = {
+                team,
+                player,
+                group: groupName,
 
-        standingsFromGroupA.push({
-            team,
-            player,
-            goalsFor,
-            goalsAgainst,
-            scoringDifference,
-            points,
+                points: 0,
+                wins: 0,
+                draws: 0,
+                losses: 0,
+
+                goalsFor: 0,
+                goalsAgainst: 0,
+                scoringDifference: 0,
+            }
+
+            standingsByGroup[groupName].push(entry)
+
+            teamsIndex[team.id] = entry
         })
     })
 
-    teamsFromGroupB.forEach(async ({ team, player }) => {
-        let wins = regularMatches.filter(
-            ({ outcome }) => outcome?.teamThatWon?.id == team.id
-        ).length
-        let draws = regularMatches.filter(
-            ({ teamP1, teamP2, outcome }) =>
-                (teamP1.id == team.id || teamP2.id == team.id) && outcome?.draw
-        ).length
-        let goalsFor =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0)
-        let goalsAgainst =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0)
-        let scoringDifference = goalsFor - goalsAgainst
-        let points = wins * 3 + draws
+    regularMatches.forEach((match) => {
+        const { teamP1, teamP2, scoreP1, scoreP2, outcome } = match
 
-        standingsFromGroupB.push({
-            team,
-            player,
-            goalsFor,
-            goalsAgainst,
-            scoringDifference,
-            points,
+        const team1 = teamsIndex[teamP1.id]
+        const team2 = teamsIndex[teamP2.id]
+
+        if (!team1 || !team2) return
+
+        team1.goalsFor += scoreP1
+        team1.goalsAgainst += scoreP2
+
+        team2.goalsFor += scoreP2
+        team2.goalsAgainst += scoreP1
+
+        if (outcome?.draw) {
+            team1.draws++
+            team2.draws++
+
+            team1.points++
+            team2.points++
+        } else {
+            const winnerId = outcome?.teamThatWon?.id
+
+            if (winnerId === teamP1.id) {
+                team1.wins++
+                team2.losses++
+
+                team1.points += 3
+            } else {
+                team2.wins++
+                team1.losses++
+
+                team2.points += 3
+            }
+        }
+    })
+
+    Object.values(standingsByGroup).forEach((group) => {
+        group.forEach((team) => {
+            team.scoringDifference = team.goalsFor - team.goalsAgainst
         })
+
+        group.sort(
+            (a, b) =>
+                b.points - a.points ||
+                b.scoringDifference - a.scoringDifference ||
+                b.goalsFor - a.goalsFor ||
+                a.goalsAgainst - b.goalsAgainst
+        )
     })
 
-    teamsFromGroupC.forEach(async ({ team, player }) => {
-        let wins = regularMatches.filter(
-            ({ outcome }) => outcome?.teamThatWon?.id == team.id
-        ).length
-        let draws = regularMatches.filter(
-            ({ teamP1, teamP2, outcome }) =>
-                (teamP1.id == team.id || teamP2.id == team.id) && outcome?.draw
-        ).length
-        let goalsFor =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0)
-        let goalsAgainst =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0)
-        let scoringDifference = goalsFor - goalsAgainst
-        let points = wins * 3 + draws
-
-        standingsFromGroupC.push({
-            team,
-            player,
-            goalsFor,
-            goalsAgainst,
-            scoringDifference,
-            points,
-        })
-    })
-
-    teamsFromGroupD.forEach(async ({ team, player }) => {
-        let wins = regularMatches.filter(
-            ({ outcome }) => outcome?.teamThatWon?.id == team.id
-        ).length
-        let draws = regularMatches.filter(
-            ({ teamP1, teamP2, outcome }) =>
-                (teamP1.id == team.id || teamP2.id == team.id) && outcome?.draw
-        ).length
-        let goalsFor =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0)
-        let goalsAgainst =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0)
-        let scoringDifference = goalsFor - goalsAgainst
-        let points = wins * 3 + draws
-
-        standingsFromGroupD.push({
-            team,
-            player,
-            goalsFor,
-            goalsAgainst,
-            scoringDifference,
-            points,
-        })
-    })
-
-    teamsFromGroupE.forEach(async ({ team, player }) => {
-        let wins = regularMatches.filter(
-            ({ outcome }) => outcome?.teamThatWon?.id == team.id
-        ).length
-        let draws = regularMatches.filter(
-            ({ teamP1, teamP2, outcome }) =>
-                (teamP1.id == team.id || teamP2.id == team.id) && outcome?.draw
-        ).length
-        let goalsFor =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0)
-        let goalsAgainst =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0)
-        let scoringDifference = goalsFor - goalsAgainst
-        let points = wins * 3 + draws
-
-        standingsFromGroupE.push({
-            team,
-            player,
-            goalsFor,
-            goalsAgainst,
-            scoringDifference,
-            points,
-        })
-    })
-
-    teamsFromGroupF.forEach(async ({ team, player }) => {
-        let wins = regularMatches.filter(
-            ({ outcome }) => outcome?.teamThatWon?.id == team.id
-        ).length
-        let draws = regularMatches.filter(
-            ({ teamP1, teamP2, outcome }) =>
-                (teamP1.id == team.id || teamP2.id == team.id) && outcome?.draw
-        ).length
-        let goalsFor =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0)
-        let goalsAgainst =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0)
-        let scoringDifference = goalsFor - goalsAgainst
-        let points = wins * 3 + draws
-
-        standingsFromGroupF.push({
-            team,
-            player,
-            goalsFor,
-            goalsAgainst,
-            scoringDifference,
-            points,
-        })
-    })
-
-    teamsFromGroupG.forEach(async ({ team, player }) => {
-        let wins = regularMatches.filter(
-            ({ outcome }) => outcome?.teamThatWon?.id == team.id
-        ).length
-        let draws = regularMatches.filter(
-            ({ teamP1, teamP2, outcome }) =>
-                (teamP1.id == team.id || teamP2.id == team.id) && outcome?.draw
-        ).length
-        let goalsFor =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0)
-        let goalsAgainst =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0)
-        let scoringDifference = goalsFor - goalsAgainst
-        let points = wins * 3 + draws
-
-        standingsFromGroupG.push({
-            team,
-            player,
-            goalsFor,
-            goalsAgainst,
-            scoringDifference,
-            points,
-        })
-    })
-
-    teamsFromGroupH.forEach(async ({ team, player }) => {
-        let wins = regularMatches.filter(
-            ({ outcome }) => outcome?.teamThatWon?.id == team.id
-        ).length
-        let draws = regularMatches.filter(
-            ({ teamP1, teamP2, outcome }) =>
-                (teamP1.id == team.id || teamP2.id == team.id) && outcome?.draw
-        ).length
-        let goalsFor =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0)
-        let goalsAgainst =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0)
-        let scoringDifference = goalsFor - goalsAgainst
-        let points = wins * 3 + draws
-
-        standingsFromGroupH.push({
-            team,
-            player,
-            goalsFor,
-            goalsAgainst,
-            scoringDifference,
-            points,
-        })
-    })
-
-    const sortedStandingsFromGroupA = standingsFromGroupA.sort((a, b) => {
-        if (a.points > b.points) return -1
-        if (a.points < b.points) return 1
-
-        if (a.scoringDifference > b.scoringDifference) return -1
-        if (a.scoringDifference < b.scoringDifference) return 1
-
-        if (a.goalsFor > b.goalsFor) return -1
-        if (a.goalsFor < b.goalsFor) return 1
-
-        if (a.goalsAgainst > b.goalsAgainst) return 1
-        if (a.goalsAgainst < b.goalsAgainst) return -1
-    })
-
-    const sortedStandingsFromGroupB = standingsFromGroupB.sort((a, b) => {
-        if (a.points > b.points) return -1
-        if (a.points < b.points) return 1
-
-        if (a.scoringDifference > b.scoringDifference) return -1
-        if (a.scoringDifference < b.scoringDifference) return 1
-
-        if (a.goalsFor > b.goalsFor) return -1
-        if (a.goalsFor < b.goalsFor) return 1
-
-        if (a.goalsAgainst > b.goalsAgainst) return 1
-        if (a.goalsAgainst < b.goalsAgainst) return -1
-    })
-
-    const sortedStandingsFromGroupC = standingsFromGroupC.sort((a, b) => {
-        if (a.points > b.points) return -1
-        if (a.points < b.points) return 1
-
-        if (a.scoringDifference > b.scoringDifference) return -1
-        if (a.scoringDifference < b.scoringDifference) return 1
-
-        if (a.goalsFor > b.goalsFor) return -1
-        if (a.goalsFor < b.goalsFor) return 1
-
-        if (a.goalsAgainst > b.goalsAgainst) return 1
-        if (a.goalsAgainst < b.goalsAgainst) return -1
-    })
-
-    const sortedStandingsFromGroupD = standingsFromGroupD.sort((a, b) => {
-        if (a.points > b.points) return -1
-        if (a.points < b.points) return 1
-
-        if (a.scoringDifference > b.scoringDifference) return -1
-        if (a.scoringDifference < b.scoringDifference) return 1
-
-        if (a.goalsFor > b.goalsFor) return -1
-        if (a.goalsFor < b.goalsFor) return 1
-
-        if (a.goalsAgainst > b.goalsAgainst) return 1
-        if (a.goalsAgainst < b.goalsAgainst) return -1
-    })
-
-    const sortedStandingsFromGroupE = standingsFromGroupE.sort((a, b) => {
-        if (a.points > b.points) return -1
-        if (a.points < b.points) return 1
-
-        if (a.scoringDifference > b.scoringDifference) return -1
-        if (a.scoringDifference < b.scoringDifference) return 1
-
-        if (a.goalsFor > b.goalsFor) return -1
-        if (a.goalsFor < b.goalsFor) return 1
-
-        if (a.goalsAgainst > b.goalsAgainst) return 1
-        if (a.goalsAgainst < b.goalsAgainst) return -1
-    })
-
-    const sortedStandingsFromGroupF = standingsFromGroupF.sort((a, b) => {
-        if (a.points > b.points) return -1
-        if (a.points < b.points) return 1
-
-        if (a.scoringDifference > b.scoringDifference) return -1
-        if (a.scoringDifference < b.scoringDifference) return 1
-
-        if (a.goalsFor > b.goalsFor) return -1
-        if (a.goalsFor < b.goalsFor) return 1
-
-        if (a.goalsAgainst > b.goalsAgainst) return 1
-        if (a.goalsAgainst < b.goalsAgainst) return -1
-    })
-
-    const sortedStandingsFromGroupG = standingsFromGroupG.sort((a, b) => {
-        if (a.points > b.points) return -1
-        if (a.points < b.points) return 1
-
-        if (a.scoringDifference > b.scoringDifference) return -1
-        if (a.scoringDifference < b.scoringDifference) return 1
-
-        if (a.goalsFor > b.goalsFor) return -1
-        if (a.goalsFor < b.goalsFor) return 1
-
-        if (a.goalsAgainst > b.goalsAgainst) return 1
-        if (a.goalsAgainst < b.goalsAgainst) return -1
-    })
-
-    const sortedStandingsFromGroupH = standingsFromGroupH.sort((a, b) => {
-        if (a.points > b.points) return -1
-        if (a.points < b.points) return 1
-
-        if (a.scoringDifference > b.scoringDifference) return -1
-        if (a.scoringDifference < b.scoringDifference) return 1
-
-        if (a.goalsFor > b.goalsFor) return -1
-        if (a.goalsFor < b.goalsFor) return 1
-
-        if (a.goalsAgainst > b.goalsAgainst) return 1
-        if (a.goalsAgainst < b.goalsAgainst) return -1
-    })
-
-    const playoffMatches = [
-        {
-            playerP1: sortedStandingsFromGroupA.at(0).player,
-            teamP1: sortedStandingsFromGroupA.at(0).team,
-            seedP1: "1A",
-            playerP2: sortedStandingsFromGroupB.at(1).player,
-            teamP2: sortedStandingsFromGroupB.at(1).team,
-            seedP2: "2B",
-            type: "playoff",
-            tournament,
-            played: false,
-            playoff_id: 1,
-        },
-        {
-            playerP1: sortedStandingsFromGroupC.at(0).player,
-            teamP1: sortedStandingsFromGroupC.at(0).team,
-            seedP1: "1C",
-            playerP2: sortedStandingsFromGroupD.at(1).player,
-            teamP2: sortedStandingsFromGroupD.at(1).team,
-            seedP2: "2D",
-            type: "playoff",
-            tournament,
-            played: false,
-            playoff_id: 2,
-        },
-        {
-            playerP1: sortedStandingsFromGroupE.at(0).player,
-            teamP1: sortedStandingsFromGroupE.at(0).team,
-            seedP1: "1E",
-            playerP2: sortedStandingsFromGroupF.at(1).player,
-            teamP2: sortedStandingsFromGroupF.at(1).team,
-            seedP2: "2F",
-            type: "playoff",
-            tournament,
-            played: false,
-            playoff_id: 3,
-        },
-        {
-            playerP1: sortedStandingsFromGroupG.at(0).player,
-            teamP1: sortedStandingsFromGroupG.at(0).team,
-            seedP1: "1G",
-            playerP2: sortedStandingsFromGroupH.at(1).player,
-            teamP2: sortedStandingsFromGroupH.at(1).team,
-            seedP2: "2H",
-            type: "playoff",
-            tournament,
-            played: false,
-            playoff_id: 4,
-        },
-        {
-            playerP1: sortedStandingsFromGroupB.at(0).player,
-            teamP1: sortedStandingsFromGroupB.at(0).team,
-            seedP1: "1B",
-            playerP2: sortedStandingsFromGroupA.at(1).player,
-            teamP2: sortedStandingsFromGroupA.at(1).team,
-            seedP2: "2A",
-            type: "playoff",
-            tournament,
-            played: false,
-            playoff_id: 5,
-        },
-        {
-            playerP1: sortedStandingsFromGroupD.at(0).player,
-            teamP1: sortedStandingsFromGroupD.at(0).team,
-            seedP1: "1D",
-            playerP2: sortedStandingsFromGroupC.at(1).player,
-            teamP2: sortedStandingsFromGroupC.at(1).team,
-            seedP2: "2C",
-            type: "playoff",
-            tournament,
-            played: false,
-            playoff_id: 6,
-        },
-        {
-            playerP1: sortedStandingsFromGroupF.at(0).player,
-            teamP1: sortedStandingsFromGroupF.at(0).team,
-            seedP1: "1F",
-            playerP2: sortedStandingsFromGroupE.at(1).player,
-            teamP2: sortedStandingsFromGroupE.at(1).team,
-            seedP2: "2E",
-            type: "playoff",
-            tournament,
-            played: false,
-            playoff_id: 7,
-        },
-        {
-            playerP1: sortedStandingsFromGroupH.at(0).player,
-            teamP1: sortedStandingsFromGroupH.at(0).team,
-            seedP1: "1H",
-            playerP2: sortedStandingsFromGroupG.at(1).player,
-            teamP2: sortedStandingsFromGroupG.at(1).team,
-            seedP2: "2G",
-            type: "playoff",
-            tournament,
-            played: false,
-            playoff_id: 8,
-        },
+    const playoffConfig = [
+        ["A", "B"],
+        ["C", "D"],
+        ["E", "F"],
+        ["G", "H"],
     ]
+
+    const playoffMatches = []
+
+    playoffConfig.forEach(([group1, group2], index) => {
+        playoffMatches.push({
+            playerP1: standingsByGroup[group1][0].player,
+            teamP1: standingsByGroup[group1][0].team,
+            seedP1: `1${group1}`,
+
+            playerP2: standingsByGroup[group2][1].player,
+            teamP2: standingsByGroup[group2][1].team,
+            seedP2: `2${group2}`,
+
+            type: "playoff",
+            tournament,
+            played: false,
+            playoff_id: index + 1,
+        })
+    })
+
+    playoffConfig.forEach(([group1, group2], index) => {
+        playoffMatches.push({
+            playerP1: standingsByGroup[group2][0].player,
+            teamP1: standingsByGroup[group2][0].team,
+            seedP1: `1${group2}`,
+
+            playerP2: standingsByGroup[group1][1].player,
+            teamP2: standingsByGroup[group1][1].team,
+            seedP2: `2${group1}`,
+
+            type: "playoff",
+            tournament,
+            played: false,
+            playoff_id: playoffConfig.length + index + 1,
+        })
+    })
+
     return await createPlayoffByTournamentId(playoffMatches)
 }
 

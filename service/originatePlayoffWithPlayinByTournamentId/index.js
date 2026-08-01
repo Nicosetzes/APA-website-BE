@@ -6,7 +6,8 @@ const originatePlayoffWithPlayinByTournamentId = async (
     regularMatches,
     playinMatches
 ) => {
-    const { teamsFromGroupA, teamsFromGroupB } = teams
+    const teamsFromGroupA = teams.A
+    const teamsFromGroupB = teams.B
 
     const standingsFromGroupA = []
 

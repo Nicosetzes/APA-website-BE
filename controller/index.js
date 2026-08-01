@@ -12,6 +12,7 @@ const getPlayinMatchesByTournamentId = require("./getPlayinMatchesByTournamentId
 const getPlayoffsBracketByTournamentId = require("./getPlayoffsBracketByTournamentId")
 const getPlayoffMatchesByTournamentId = require("./getPlayoffMatchesByTournamentId")
 const getPlayoffsPlayerInfoByTournamentId = require("./getPlayoffsPlayerInfoByTournamentId")
+const getPlayoffsPreviewByTournamentId = require("./getPlayoffsPreviewByTournamentId")
 const getPlayoffsTableByTournamentId = require("./getPlayoffsTableByTournamentId")
 const getPlayoffsUpdatedWinsByTournamentId = require("./getPlayoffsUpdatedWinsByTournamentId")
 const getStandingsPlayerInfoByTournamentId = require("./getStandingsPlayerInfoByTournamentId")
@@ -62,6 +63,7 @@ module.exports = {
     getPlayoffsBracketByTournamentId,
     getPlayoffMatchesByTournamentId,
     getPlayoffsPlayerInfoByTournamentId,
+    getPlayoffsPreviewByTournamentId,
     getPlayoffsTableByTournamentId,
     getPlayoffsUpdatedWinsByTournamentId,
     getStandingsPlayerInfoByTournamentId,
