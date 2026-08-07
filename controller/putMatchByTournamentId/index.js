@@ -148,27 +148,31 @@ const putMatchByTournamentId = async (req, res) => {
         }
 
         if (uploadedMatch?.type === "playoff" && uploadedMatch.tournament?.id) {
-            // fire-and-forget: advance bracket when a playoff match result is saved
-            retrieveTournamentById(uploadedMatch.tournament.id)
-                .then(({ id, name, format }) => {
-                    if (format === "champions_league") return
-                    const startSize = FORMAT_TO_START_SIZE[format] ?? 16
-                    return retrievePlayoffMatchesByTournamentId(
+            const tournamentData = await retrieveTournamentById(
+                uploadedMatch.tournament.id
+            )
+
+            if (tournamentData.format !== "champions_league") {
+                const startSize =
+                    FORMAT_TO_START_SIZE[tournamentData.format] ?? 16
+
+                const playoffMatches =
+                    await retrievePlayoffMatchesByTournamentId(
                         uploadedMatch.tournament.id
-                    ).then((playoffMatches) =>
-                        generatePlayoffUpdate(
-                            { id, name },
-                            playoffMatches,
-                            startSize
-                        )
                     )
-                })
-                .catch(() => {})
+
+                await generatePlayoffUpdate(
+                    {
+                        id: tournamentData.id,
+                        name: tournamentData.name,
+                    },
+                    playoffMatches,
+                    startSize
+                )
+            }
         }
 
-        uploadedMatch
-            ? res.status(200).send(uploadedMatch)
-            : res.status(500).send({ error: "Match wasn't found in the DB" })
+        res.status(200).send(uploadedMatch)
     } catch (err) {
         return res.status(500).send("Something went wrong!" + err)
     }
