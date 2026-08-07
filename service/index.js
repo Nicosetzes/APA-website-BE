@@ -4,6 +4,7 @@ const calculateMatchesFromPlayer = require("./calculateMatchesFromPlayer")
 const calculateMatchLossesFromPlayer = require("./calculateMatchLossesFromPlayer")
 const calculateMatchWinsFromPlayer = require("./calculateMatchWinsFromPlayer")
 const generate32TeamPlayoffUpdate = require("./generate32TeamPlayoffUpdate")
+const generatePlayoffUpdate = require("./generatePlayoffUpdate")
 const modifyManyMatches = require("./modifyManyMatches")
 const modifyMatchResult = require("./modifyMatchResult")
 const modifyMatchResultToRemoveIt = require("./modifyMatchResultToRemoveIt")
@@ -49,6 +50,7 @@ module.exports = {
     calculateMatchLossesFromPlayer,
     calculateMatchWinsFromPlayer,
     generate32TeamPlayoffUpdate,
+    generatePlayoffUpdate,
     modifyManyMatches,
     modifyMatchResult,
     modifyMatchResultToRemoveIt,

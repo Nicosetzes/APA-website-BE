@@ -1,7 +1,17 @@
 const {
     modifyMatchResult,
     modifyTournamentOutcome,
+    retrieveTournamentById,
+    retrievePlayoffMatchesByTournamentId,
+    generatePlayoffUpdate,
 } = require("./../../service")
+
+const FORMAT_TO_START_SIZE = {
+    playoff: 32,
+    world_cup_2026: 32,
+    world_cup: 16,
+    league_playin_playoff: 16,
+}
 
 const putMatchByTournamentId = async (req, res) => {
     const { tournament, match } = req.params
@@ -135,6 +145,25 @@ const putMatchByTournamentId = async (req, res) => {
                 player: outcome.playerThatLost,
             }
             await modifyTournamentOutcome(tournament, champion, finalist)
+        }
+
+        if (uploadedMatch?.type === "playoff" && uploadedMatch.tournament?.id) {
+            // fire-and-forget: advance bracket when a playoff match result is saved
+            retrieveTournamentById(uploadedMatch.tournament.id)
+                .then(({ id, name, format }) => {
+                    if (format === "champions_league") return
+                    const startSize = FORMAT_TO_START_SIZE[format] ?? 16
+                    return retrievePlayoffMatchesByTournamentId(
+                        uploadedMatch.tournament.id
+                    ).then((playoffMatches) =>
+                        generatePlayoffUpdate(
+                            { id, name },
+                            playoffMatches,
+                            startSize
+                        )
+                    )
+                })
+                .catch(() => {})
         }
 
         uploadedMatch

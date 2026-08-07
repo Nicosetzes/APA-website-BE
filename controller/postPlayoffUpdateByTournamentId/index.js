@@ -1,53 +1,48 @@
 const {
-    originateChampionsLeaguePlayoffUpdateByTournamentId,
-    originatePlayoffUpdateByTournamentId,
-    generate32TeamPlayoffUpdate,
+    generatePlayoffUpdate,
     retrieveTournamentById,
     retrievePlayoffMatchesByTournamentId,
 } = require("./../../service")
 
+// champions_league uses home+away brackets and is not handled here yet
+const FORMAT_TO_START_SIZE = {
+    playoff: 32,
+    world_cup_2026: 32,
+    world_cup: 16,
+    league_playin_playoff: 16,
+}
+
 const postPlayoffUpdateByTournamentId = async (req, res) => {
-    const { round } = req.body
     const { tournament } = req.params
 
     try {
         const { id, name, format } = await retrieveTournamentById(tournament)
 
-        const tournamentForService = { id, name }
-
-        const matches = await retrievePlayoffMatchesByTournamentId(tournament)
-
-        let updatedMatches
-
-        if (format == "champions_league") {
-            updatedMatches =
-                await originateChampionsLeaguePlayoffUpdateByTournamentId(
-                    round,
-                    tournamentForService,
-                    matches
-                )
-        } else if (format == "playoff") {
-            // For the new 32-team playoff format, generate next round matches
-            updatedMatches = await generate32TeamPlayoffUpdate(
-                round,
-                tournamentForService,
-                matches
-            )
-        } else {
-            updatedMatches = await originatePlayoffUpdateByTournamentId(
-                round,
-                tournamentForService,
-                matches
-            )
+        if (format === "champions_league") {
+            return res.status(501).json({
+                message:
+                    "La actualización automática de playoffs para el formato champions_league aún no está implementada.",
+            })
         }
 
-        updatedMatches.length
+        const startSize = FORMAT_TO_START_SIZE[format] ?? 16
+        const matches = await retrievePlayoffMatchesByTournamentId(tournament)
+
+        const { created, updated } = await generatePlayoffUpdate(
+            { id, name },
+            matches,
+            startSize
+        )
+
+        const allNew = [...created, ...updated]
+
+        return allNew.length
             ? res.status(200).json({
-                  matches: updatedMatches,
-                  message: `Se han generado partidos nuevos (${updatedMatches.length})`,
+                  matches: allNew,
+                  message: `Se han generado/actualizado partidos nuevos (${allNew.length})`,
               })
             : res.status(200).json({
-                  matches: updatedMatches,
+                  matches: allNew,
                   message: `No hay partidos nuevos para generar`,
               })
     } catch (err) {
