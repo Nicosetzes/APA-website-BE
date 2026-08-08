@@ -7,7 +7,7 @@ const findTournaments = async (status) => {
         tournaments = await tournamentsModel
             .find(
                 { ongoing: false, valid: { $ne: false } },
-                "name cloudinary_id outcome"
+                "name cloudinary_id outcome updatedAt"
             )
             .sort({ createdAt: 1, id: -1 })
     } else if (status === "active") {
