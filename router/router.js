@@ -37,6 +37,7 @@ const {
     postSolicitateNewPassword,
     postRetrievePassword,
     getTournaments,
+    getTournamentImages,
     postTournaments,
     getTournamentById,
     getTournamentSummaryByTournamentId,
@@ -113,6 +114,8 @@ users.post("/retrieve-password", postRetrievePassword)
 // TOURNAMENTS
 
 tournaments.get("/", getTournaments)
+
+tournaments.get("/images", getTournamentImages)
 
 tournaments.post("/", isAuth, postTournaments)
 
