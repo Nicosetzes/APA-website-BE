@@ -1,228 +1,87 @@
 const { createPlayoffByTournamentId } = require("./../../dao")
 
+const sortByPerformance = (a, b) =>
+    b.points - a.points ||
+    b.scoringDifference - a.scoringDifference ||
+    b.goalsFor - a.goalsFor ||
+    a.goalsAgainst - b.goalsAgainst
+
 const originatePlayoffWithPlayinByTournamentId = async (
     tournament,
     teams,
     regularMatches,
     playinMatches
 ) => {
-    const teamsFromGroupA = teams.A
-    const teamsFromGroupB = teams.B
+    const standingsByGroup = {}
+    const teamsIndex = {}
 
-    const standingsFromGroupA = []
-
-    const standingsFromGroupB = []
-
-    teamsFromGroupA.forEach(async ({ team, player }) => {
-        let wins = regularMatches.filter(
-            ({ outcome }) => outcome?.teamThatWon?.id == team.id
-        ).length
-        let draws = regularMatches.filter(
-            ({ teamP1, teamP2, outcome }) =>
-                (teamP1.id == team.id || teamP2.id == team.id) && outcome?.draw
-        ).length
-        let goalsFor =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0)
-        let goalsAgainst =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0)
-        let scoringDifference = goalsFor - goalsAgainst
-        let points = wins * 3 + draws
-
-        standingsFromGroupA.push({
-            team,
-            player,
-            goalsFor,
-            goalsAgainst,
-            scoringDifference,
-            points,
+    Object.entries(teams).forEach(([groupName, teamsList]) => {
+        standingsByGroup[groupName] = []
+        teamsList.forEach(({ team, player }) => {
+            const entry = {
+                team,
+                player,
+                wins: 0,
+                draws: 0,
+                losses: 0,
+                goalsFor: 0,
+                goalsAgainst: 0,
+                scoringDifference: 0,
+                points: 0,
+            }
+            standingsByGroup[groupName].push(entry)
+            teamsIndex[team.id] = entry
         })
     })
 
-    teamsFromGroupB.forEach(async ({ team, player }) => {
-        let wins = regularMatches.filter(
-            ({ outcome }) => outcome?.teamThatWon?.id == team.id
-        ).length
-        let draws = regularMatches.filter(
-            ({ teamP1, teamP2, outcome }) =>
-                (teamP1.id == team.id || teamP2.id == team.id) && outcome?.draw
-        ).length
-        let goalsFor =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0)
-        let goalsAgainst =
-            regularMatches
-                .filter(({ teamP1 }) => teamP1.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP2
-                }, 0) +
-            regularMatches
-                .filter(({ teamP2 }) => teamP2.id == team.id)
-                .reduce((acc, curr) => {
-                    return acc + curr.scoreP1
-                }, 0)
-        let scoringDifference = goalsFor - goalsAgainst
-        let points = wins * 3 + draws
+    regularMatches.forEach(({ teamP1, teamP2, scoreP1, scoreP2, outcome }) => {
+        const team1 = teamsIndex[teamP1?.id]
+        const team2 = teamsIndex[teamP2?.id]
 
-        standingsFromGroupB.push({
-            team,
-            player,
-            goalsFor,
-            goalsAgainst,
-            scoringDifference,
-            points,
+        if (!team1 || !team2) return
+
+        team1.goalsFor += scoreP1
+        team1.goalsAgainst += scoreP2
+        team2.goalsFor += scoreP2
+        team2.goalsAgainst += scoreP1
+
+        if (outcome?.draw) {
+            team1.draws++
+            team2.draws++
+            team1.points++
+            team2.points++
+        } else {
+            if (outcome?.teamThatWon?.id === teamP1.id) {
+                team1.wins++
+                team2.losses++
+                team1.points += 3
+            } else {
+                team2.wins++
+                team1.losses++
+                team2.points += 3
+            }
+        }
+    })
+
+    Object.values(standingsByGroup).forEach((group) => {
+        group.forEach((team) => {
+            team.scoringDifference = team.goalsFor - team.goalsAgainst
         })
+        group.sort(sortByPerformance)
     })
 
-    const sortedStandingsFromGroupA = standingsFromGroupA.sort((a, b) => {
-        if (a.points > b.points) return -1
-        if (a.points < b.points) return 1
+    const sortedStandingsFromGroupA = standingsByGroup["A"]
+    const sortedStandingsFromGroupB = standingsByGroup["B"]
 
-        if (a.scoringDifference > b.scoringDifference) return -1
-        if (a.scoringDifference < b.scoringDifference) return 1
-
-        if (a.goalsFor > b.goalsFor) return -1
-        if (a.goalsFor < b.goalsFor) return 1
-
-        if (a.goalsAgainst > b.goalsAgainst) return 1
-        if (a.goalsAgainst < b.goalsAgainst) return -1
-    })
-
-    const sortedStandingsFromGroupB = standingsFromGroupB.sort((a, b) => {
-        if (a.points > b.points) return -1
-        if (a.points < b.points) return 1
-
-        if (a.scoringDifference > b.scoringDifference) return -1
-        if (a.scoringDifference < b.scoringDifference) return 1
-
-        if (a.goalsFor > b.goalsFor) return -1
-        if (a.goalsFor < b.goalsFor) return 1
-
-        if (a.goalsAgainst > b.goalsAgainst) return 1
-        if (a.goalsAgainst < b.goalsAgainst) return -1
-    })
-
-    // const allPlayoffTeams = [
-    //     sortedStandingsFromGroupA.at(0),
-    //     sortedStandingsFromGroupA.at(1),
-    //     sortedStandingsFromGroupA.at(2),
-    //     sortedStandingsFromGroupA.at(3),
-    //     sortedStandingsFromGroupA.at(4),
-    //     sortedStandingsFromGroupA.at(5),
-    //     sortedStandingsFromGroupA
-    //         .filter(
-    //             ({ team }) =>
-    //                 team.id == playinMatches.at(0).outcome.teamThatWon.id
-    //         )
-    //         .at(0),
-    //     sortedStandingsFromGroupA
-    //         .filter(
-    //             ({ team }) =>
-    //                 team.id == playinMatches.at(4).outcome.teamThatWon.id
-    //         )
-    //         .at(0),
-    //     sortedStandingsFromGroupB.at(0),
-    //     sortedStandingsFromGroupB.at(1),
-    //     sortedStandingsFromGroupB.at(2),
-    //     sortedStandingsFromGroupB.at(3),
-    //     sortedStandingsFromGroupB.at(4),
-    //     sortedStandingsFromGroupB.at(5),
-    //     sortedStandingsFromGroupB
-    //         .filter(
-    //             ({ team }) =>
-    //                 team.id == playinMatches.at(2).outcome.teamThatWon.id
-    //         )
-    //         .at(0),
-    //     sortedStandingsFromGroupB
-    //         .filter(
-    //             ({ team }) =>
-    //                 team.id == playinMatches.at(5).outcome.teamThatWon.id
-    //         )
-    //         .at(0),
-    // ]
-
-    // const allPlayoffTeamsSorted = allPlayoffTeams
-    //     .sort((a, b) => {
-    //         if (a.points > b.points) return -1
-    //         if (a.points < b.points) return 1
-
-    //         if (a.scoringDifference > b.scoringDifference) return -1
-    //         if (a.scoringDifference < b.scoringDifference) return 1
-
-    //         if (a.goalsFor > b.goalsFor) return -1
-    //         if (a.goalsFor < b.goalsFor) return 1
-
-    //         if (a.goalsAgainst > b.goalsAgainst) return 1
-    //         if (a.goalsAgainst < b.goalsAgainst) return -1
-    //     })
-    //     .map(({ team, player }) => {
-    //         return { team, player }
-    //     })
-
-    /* Equipos que clasificaron directo (12) */
-
-    const allPlayoffTeams = [
-        sortedStandingsFromGroupA.at(0),
-        sortedStandingsFromGroupA.at(1),
-        sortedStandingsFromGroupA.at(2),
-        sortedStandingsFromGroupA.at(3),
-        sortedStandingsFromGroupA.at(4),
-        sortedStandingsFromGroupA.at(5),
-        sortedStandingsFromGroupB.at(0),
-        sortedStandingsFromGroupB.at(1),
-        sortedStandingsFromGroupB.at(2),
-        sortedStandingsFromGroupB.at(3),
-        sortedStandingsFromGroupB.at(4),
-        sortedStandingsFromGroupB.at(5),
-    ]
-
-    const allPlayoffTeamsSorted = allPlayoffTeams.sort((a, b) => {
-        if (a.points > b.points) return -1
-        if (a.points < b.points) return 1
-
-        if (a.scoringDifference > b.scoringDifference) return -1
-        if (a.scoringDifference < b.scoringDifference) return 1
-
-        if (a.goalsFor > b.goalsFor) return -1
-        if (a.goalsFor < b.goalsFor) return 1
-
-        if (a.goalsAgainst > b.goalsAgainst) return 1
-        if (a.goalsAgainst < b.goalsAgainst) return -1
-    })
+    const allPlayoffTeamsSorted = [
+        ...sortedStandingsFromGroupA.slice(0, 6),
+        ...sortedStandingsFromGroupB.slice(0, 6),
+    ].sort(sortByPerformance)
 
     const higherPlayinTeams = []
-
     const lowerPlayinTeams = []
 
-    // Recorro los partidos jugados de playin y analizo cada caso.
-    // Agrego los 2 ganadores de los duelos 7 vs 8 a higherPlayinTeams
-    // Agrego los 2 ganadores de la 2da ronda de playin a lowerPlayinTeams
-
+    // playoff_id 1 & 3 are round-1 winners (seeded above round-2 winners 5 & 6)
     playinMatches.forEach(
         ({ outcome: { seedFromTeamThatWon: winnerSeed }, playoff_id }) => {
             if (playoff_id == "1")
@@ -237,7 +96,6 @@ const originatePlayoffWithPlayinByTournamentId = async (
                 lowerPlayinTeams.push(
                     sortedStandingsFromGroupA.at(Number(winnerSeed) - 1)
                 )
-
             if (playoff_id == "6")
                 lowerPlayinTeams.push(
                     sortedStandingsFromGroupB.at(Number(winnerSeed) - 1)
@@ -245,43 +103,9 @@ const originatePlayoffWithPlayinByTournamentId = async (
         }
     )
 
-    // Ordeno los equipos de cada mini-grupo
-
-    const sortedHigherPlayinTeams = higherPlayinTeams.sort((a, b) => {
-        if (a.points > b.points) return -1
-        if (a.points < b.points) return 1
-
-        if (a.scoringDifference > b.scoringDifference) return -1
-        if (a.scoringDifference < b.scoringDifference) return 1
-
-        if (a.goalsFor > b.goalsFor) return -1
-        if (a.goalsFor < b.goalsFor) return 1
-
-        if (a.goalsAgainst > b.goalsAgainst) return 1
-        if (a.goalsAgainst < b.goalsAgainst) return -1
-    })
-
-    const sortedLowerPlayinTeams = lowerPlayinTeams.sort((a, b) => {
-        if (a.points > b.points) return -1
-        if (a.points < b.points) return 1
-
-        if (a.scoringDifference > b.scoringDifference) return -1
-        if (a.scoringDifference < b.scoringDifference) return 1
-
-        if (a.goalsFor > b.goalsFor) return -1
-        if (a.goalsFor < b.goalsFor) return 1
-
-        if (a.goalsAgainst > b.goalsAgainst) return 1
-        if (a.goalsAgainst < b.goalsAgainst) return -1
-    })
-
-    // Sumo los clasificados del playin a la tabla general.
-    // Hacerlo de esta forma me permite priorizar los que clasificaron en la 1ra ronda del playin por sobre los que lo hicieron en la 2da.
-    // Utilizo .push para mutar el array original (por scope), con spread operator puedo concatenar y mutar al mismo tiempo
-
     allPlayoffTeamsSorted.push(
-        ...sortedHigherPlayinTeams,
-        ...sortedLowerPlayinTeams
+        ...higherPlayinTeams.sort(sortByPerformance),
+        ...lowerPlayinTeams.sort(sortByPerformance)
     )
 
     const playoffMatches = [

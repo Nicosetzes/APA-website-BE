@@ -1,7 +1,7 @@
 const { groupBy } = require("es-toolkit/array")
 
 const {
-    calculate2026WorldCupPlayoffByTournamentId,
+    calculateGroupStagePlayoff,
     orderMatchesFromTournamentById,
     retrieveTournamentById,
 } = require("./../../service")
@@ -22,9 +22,10 @@ const getPlayoffsPreviewByTournamentId = async (req, res) => {
         const teamsForPlayoffGeneration = groupBy(teams, (t) => t.group)
 
         const { playoffMatches, thirdsTable } =
-            await calculate2026WorldCupPlayoffByTournamentId(
+            await calculateGroupStagePlayoff(
                 teamsForPlayoffGeneration,
-                regularMatchesForPlayoffGeneration
+                regularMatchesForPlayoffGeneration,
+                format
             )
 
         return res.status(200).json({

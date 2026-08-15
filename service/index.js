@@ -1,5 +1,5 @@
-const calculate2026WorldCupPlayoffByTournamentId = require("./calculate2026WorldCupPlayoffByTournamentId")
 const calculateAllMatchesByTournamentId = require("./calculateAllMatchesByTournamentId")
+const calculateGroupStagePlayoff = require("./calculateGroupStagePlayoff")
 const calculateMatchesFromPlayer = require("./calculateMatchesFromPlayer")
 const calculateMatchLossesFromPlayer = require("./calculateMatchLossesFromPlayer")
 const calculateMatchWinsFromPlayer = require("./calculateMatchWinsFromPlayer")
@@ -44,8 +44,8 @@ const retrieveUserById = require("./retrieveUserById")
 const retrieveUserByUserName = require("./retrieveUserByUserName")
 
 module.exports = {
-    calculate2026WorldCupPlayoffByTournamentId,
     calculateAllMatchesByTournamentId,
+    calculateGroupStagePlayoff,
     calculateMatchesFromPlayer,
     calculateMatchLossesFromPlayer,
     calculateMatchWinsFromPlayer,

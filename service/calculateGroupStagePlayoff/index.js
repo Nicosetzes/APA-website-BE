@@ -1,4 +1,9 @@
-const calculate2026WorldCupPlayoffByTournamentId = (teams, regularMatches) => {
+const FORMAT_CONFIGS = require("./formats")
+
+const calculateGroupStagePlayoff = (teams, regularMatches, format) => {
+    const { numQualifyingThirds, hostsForThirdsGroups, buildBracket } =
+        FORMAT_CONFIGS[format]
+
     const standingsByGroup = {}
     const teamsIndex = {}
 
@@ -90,26 +95,19 @@ const calculate2026WorldCupPlayoffByTournamentId = (teams, regularMatches) => {
     const thirdsTable = allThirds.map((thirdTeam, index) => ({
         ...thirdTeam,
         rank: index + 1,
-        qualified: index < 8,
+        qualified: index < numQualifyingThirds,
     }))
 
     const bestThirds = thirdsTable.filter((t) => t.qualified)
 
-    const hostsForThirdsList = [
-        firsts["E"],
-        firsts["I"],
-        firsts["D"],
-        firsts["G"],
-        firsts["A"],
-        firsts["L"],
-        firsts["B"],
-        firsts["K"],
-    ].sort(
-        (a, b) =>
-            b.points - a.points ||
-            b.scoringDifference - a.scoringDifference ||
-            b.goalsFor - a.goalsFor
-    )
+    const hostsForThirdsList = hostsForThirdsGroups
+        .map((g) => firsts[g])
+        .sort(
+            (a, b) =>
+                b.points - a.points ||
+                b.scoringDifference - a.scoringDifference ||
+                b.goalsFor - a.goalsFor
+        )
 
     const assignedThirds = {}
     let availableThirds = [...bestThirds]
@@ -133,64 +131,7 @@ const calculate2026WorldCupPlayoffByTournamentId = (teams, regularMatches) => {
         }
     })
 
-    const bracketLayout = [
-        {
-            t1: firsts["E"],
-            s1: "1E",
-            t2: assignedThirds["E"],
-            s2: `3${assignedThirds["E"]?.group}`,
-        },
-        {
-            t1: firsts["I"],
-            s1: "1I",
-            t2: assignedThirds["I"],
-            s2: `3${assignedThirds["I"]?.group}`,
-        },
-        { t1: seconds["A"], s1: "2A", t2: seconds["B"], s2: "2B" },
-        { t1: firsts["F"], s1: "1F", t2: seconds["C"], s2: "2C" },
-        { t1: seconds["K"], s1: "2K", t2: seconds["L"], s2: "2L" },
-        { t1: firsts["H"], s1: "1H", t2: seconds["J"], s2: "2J" },
-        {
-            t1: firsts["D"],
-            s1: "1D",
-            t2: assignedThirds["D"],
-            s2: `3${assignedThirds["D"]?.group}`,
-        },
-        {
-            t1: firsts["G"],
-            s1: "1G",
-            t2: assignedThirds["G"],
-            s2: `3${assignedThirds["G"]?.group}`,
-        },
-        { t1: firsts["C"], s1: "1C", t2: seconds["F"], s2: "2F" },
-        { t1: seconds["E"], s1: "2E", t2: seconds["I"], s2: "2I" },
-        {
-            t1: firsts["A"],
-            s1: "1A",
-            t2: assignedThirds["A"],
-            s2: `3${assignedThirds["A"]?.group}`,
-        },
-        {
-            t1: firsts["L"],
-            s1: "1L",
-            t2: assignedThirds["L"],
-            s2: `3${assignedThirds["L"]?.group}`,
-        },
-        { t1: firsts["J"], s1: "1J", t2: seconds["H"], s2: "2H" },
-        { t1: seconds["D"], s1: "2D", t2: seconds["G"], s2: "2G" },
-        {
-            t1: firsts["B"],
-            s1: "1B",
-            t2: assignedThirds["B"],
-            s2: `3${assignedThirds["B"]?.group}`,
-        },
-        {
-            t1: firsts["K"],
-            s1: "1K",
-            t2: assignedThirds["K"],
-            s2: `3${assignedThirds["K"]?.group}`,
-        },
-    ]
+    const bracketLayout = buildBracket(firsts, seconds, assignedThirds)
 
     const playoffMatches = bracketLayout.map((match, index) => ({
         playerP1: match.t1?.player,
@@ -212,4 +153,4 @@ const calculate2026WorldCupPlayoffByTournamentId = (teams, regularMatches) => {
     }
 }
 
-module.exports = calculate2026WorldCupPlayoffByTournamentId
+module.exports = calculateGroupStagePlayoff

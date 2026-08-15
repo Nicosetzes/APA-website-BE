@@ -2,7 +2,7 @@ const { createPlayoffByTournamentId } = require("./../../dao")
 const { groupBy } = require("es-toolkit/array")
 
 const {
-    calculate2026WorldCupPlayoffByTournamentId,
+    calculateGroupStagePlayoff,
     orderMatchesFromTournamentById,
     originateChampionsLeaguePlayoffByTournamentId,
     originatePlayoffWithPlayinByTournamentId,
@@ -56,12 +56,12 @@ const postPlayoffByTournamentId = async (req, res) => {
                 teamsForPlayoffGeneration,
                 regularMatchesForPlayoffGeneration
             )
-        } else if (format === "world_cup_2026") {
-            const { playoffMatches } =
-                calculate2026WorldCupPlayoffByTournamentId(
-                    teamsForPlayoffGeneration,
-                    regularMatchesForPlayoffGeneration
-                )
+        } else if (format === "world_cup_2026" || format === "super_cup") {
+            const { playoffMatches } = calculateGroupStagePlayoff(
+                teamsForPlayoffGeneration,
+                regularMatchesForPlayoffGeneration,
+                format
+            )
             playoff = await createPlayoffByTournamentId(
                 playoffMatches.map((match, index) => ({
                     ...match,
