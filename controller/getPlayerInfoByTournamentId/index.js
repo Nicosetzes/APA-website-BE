@@ -5,6 +5,14 @@ const {
     retrieveAllPlayedMatchesByTournamentId,
 } = require("../../service")
 
+const computeStreak = (results) => {
+    if (!results.length) return null
+    const type = results[results.length - 1]
+    let count = 0
+    for (let i = results.length - 1; i >= 0 && results[i] === type; i--) count++
+    return { type, count }
+}
+
 const getPlayerInfoByTournamentId = async (req, res) => {
     const { tournament } = req.params
     const playerQuery = (req.query.player || "all").toString()
@@ -54,7 +62,10 @@ const getPlayerInfoByTournamentId = async (req, res) => {
                         goalsAgainst: 0,
                         scoringDifference: 0,
                         effectiveness: 0,
+                        cleanSheets: 0,
                     },
+                    _results: [],
+                    _teamStats: new Map(),
                     ...(includeMatches ? { matches: [] } : {}),
                 })
             }
@@ -68,23 +79,65 @@ const getPlayerInfoByTournamentId = async (req, res) => {
 
                 if (p1 && resultMap.has(p1)) {
                     const entry = resultMap.get(p1)
+                    const ga1 = Number(m.scoreP2) || 0
+                    const res1 =
+                        p1 === winnerId ? "W" : p1 === loserId ? "L" : "D"
                     entry.stats.played += 1
                     entry.stats.goalsFor += Number(m.scoreP1) || 0
-                    entry.stats.goalsAgainst += Number(m.scoreP2) || 0
-                    if (p1 === winnerId) entry.stats.wins += 1
-                    else if (p1 === loserId) entry.stats.losses += 1
+                    entry.stats.goalsAgainst += ga1
+                    if (res1 === "W") entry.stats.wins += 1
+                    else if (res1 === "L") entry.stats.losses += 1
                     else entry.stats.draws += 1
+                    if (ga1 === 0) entry.stats.cleanSheets += 1
+                    entry._results.push(res1)
+                    const tk1 = String(m.teamP1?.id)
+                    if (tk1) {
+                        if (!entry._teamStats.has(tk1))
+                            entry._teamStats.set(tk1, {
+                                team: m.teamP1,
+                                wins: 0,
+                                draws: 0,
+                                losses: 0,
+                                played: 0,
+                            })
+                        const ts1 = entry._teamStats.get(tk1)
+                        ts1.played++
+                        if (res1 === "W") ts1.wins++
+                        else if (res1 === "L") ts1.losses++
+                        else ts1.draws++
+                    }
                     if (includeMatches) entry.matches.push(m)
                 }
 
                 if (p2 && resultMap.has(p2)) {
                     const entry = resultMap.get(p2)
+                    const ga2 = Number(m.scoreP1) || 0
+                    const res2 =
+                        p2 === winnerId ? "W" : p2 === loserId ? "L" : "D"
                     entry.stats.played += 1
                     entry.stats.goalsFor += Number(m.scoreP2) || 0
-                    entry.stats.goalsAgainst += Number(m.scoreP1) || 0
-                    if (p2 === winnerId) entry.stats.wins += 1
-                    else if (p2 === loserId) entry.stats.losses += 1
+                    entry.stats.goalsAgainst += ga2
+                    if (res2 === "W") entry.stats.wins += 1
+                    else if (res2 === "L") entry.stats.losses += 1
                     else entry.stats.draws += 1
+                    if (ga2 === 0) entry.stats.cleanSheets += 1
+                    entry._results.push(res2)
+                    const tk2 = String(m.teamP2?.id)
+                    if (tk2) {
+                        if (!entry._teamStats.has(tk2))
+                            entry._teamStats.set(tk2, {
+                                team: m.teamP2,
+                                wins: 0,
+                                draws: 0,
+                                losses: 0,
+                                played: 0,
+                            })
+                        const ts2 = entry._teamStats.get(tk2)
+                        ts2.played++
+                        if (res2 === "W") ts2.wins++
+                        else if (res2 === "L") ts2.losses++
+                        else ts2.draws++
+                    }
                     if (includeMatches) entry.matches.push(m)
                 }
             }
@@ -93,6 +146,7 @@ const getPlayerInfoByTournamentId = async (req, res) => {
             const playersOut = playersList.map((p) => {
                 const entry = resultMap.get(String(p.id))
                 const s = entry.stats
+
                 s.scoringDifference = s.goalsFor - s.goalsAgainst
                 s.effectiveness = s.played
                     ? Number(
@@ -102,6 +156,35 @@ const getPlayerInfoByTournamentId = async (req, res) => {
                           ).toFixed(2)
                       )
                     : 0
+                s.winRate = s.played
+                    ? Number(((s.wins / s.played) * 100).toFixed(2))
+                    : 0
+                s.goalsPerMatch = s.played
+                    ? Number((s.goalsFor / s.played).toFixed(2))
+                    : 0
+                s.goalsAgainstPerMatch = s.played
+                    ? Number((s.goalsAgainst / s.played).toFixed(2))
+                    : 0
+                s.recentForm = entry._results.slice(-5)
+                s.currentStreak = computeStreak(entry._results)
+
+                const teamStatsArr = [...entry._teamStats.values()]
+                const teamEff = (ts) =>
+                    ts.played ? (ts.wins * 3 + ts.draws) / (ts.played * 3) : 0
+                teamStatsArr.sort((a, b) => teamEff(b) - teamEff(a))
+                teamStatsArr.forEach((ts) => {
+                    ts.effectiveness = ts.played
+                        ? Number((teamEff(ts) * 100).toFixed(2))
+                        : 0
+                    ts.winRate = ts.played
+                        ? Number(((ts.wins / ts.played) * 100).toFixed(2))
+                        : 0
+                })
+                entry.bestTeam = teamStatsArr[0] || null
+                entry.worstTeam = teamStatsArr[teamStatsArr.length - 1] || null
+
+                delete entry._results
+                delete entry._teamStats
                 return entry
             })
 
@@ -127,6 +210,9 @@ const getPlayerInfoByTournamentId = async (req, res) => {
         let draws = 0
         let goalsFor = 0
         let goalsAgainst = 0
+        let cleanSheets = 0
+        const results = []
+        const teamStatsMap = new Map()
 
         for (const m of matchesFromDB || []) {
             const isP1 = String(m.playerP1?.id) === playerId
@@ -134,22 +220,64 @@ const getPlayerInfoByTournamentId = async (req, res) => {
             if (!isP1 && !isP2) continue
 
             played += 1
-            const gf = isP1 ? m.scoreP1 : m.scoreP2
-            const ga = isP1 ? m.scoreP2 : m.scoreP1
-            goalsFor += Number(gf) || 0
-            goalsAgainst += Number(ga) || 0
+            const gf = Number(isP1 ? m.scoreP1 : m.scoreP2) || 0
+            const ga = Number(isP1 ? m.scoreP2 : m.scoreP1) || 0
+            goalsFor += gf
+            goalsAgainst += ga
+            if (ga === 0) cleanSheets += 1
 
             const winnerId = String(m.outcome?.playerThatWon?.id || "")
             const loserId = String(m.outcome?.playerThatLost?.id || "")
-            if (winnerId === playerId) wins += 1
-            else if (loserId === playerId) losses += 1
+            const res =
+                winnerId === playerId ? "W" : loserId === playerId ? "L" : "D"
+            if (res === "W") wins += 1
+            else if (res === "L") losses += 1
             else draws += 1
+            results.push(res)
+
+            const team = isP1 ? m.teamP1 : m.teamP2
+            const tk = String(team?.id)
+            if (tk) {
+                if (!teamStatsMap.has(tk))
+                    teamStatsMap.set(tk, {
+                        team,
+                        wins: 0,
+                        draws: 0,
+                        losses: 0,
+                        played: 0,
+                    })
+                const ts = teamStatsMap.get(tk)
+                ts.played++
+                if (res === "W") ts.wins++
+                else if (res === "L") ts.losses++
+                else ts.draws++
+            }
         }
 
         const scoringDifference = goalsFor - goalsAgainst
         const effectiveness = played
             ? Number((((wins * 3 + draws) / (played * 3)) * 100).toFixed(2))
             : 0
+        const winRate = played ? Number(((wins / played) * 100).toFixed(2)) : 0
+        const goalsPerMatch = played
+            ? Number((goalsFor / played).toFixed(2))
+            : 0
+        const goalsAgainstPerMatch = played
+            ? Number((goalsAgainst / played).toFixed(2))
+            : 0
+
+        const teamStatsArr = [...teamStatsMap.values()]
+        const teamEff = (ts) =>
+            ts.played ? (ts.wins * 3 + ts.draws) / (ts.played * 3) : 0
+        teamStatsArr.sort((a, b) => teamEff(b) - teamEff(a))
+        teamStatsArr.forEach((ts) => {
+            ts.effectiveness = ts.played
+                ? Number((teamEff(ts) * 100).toFixed(2))
+                : 0
+            ts.winRate = ts.played
+                ? Number(((ts.wins / ts.played) * 100).toFixed(2))
+                : 0
+        })
 
         const stats = {
             played,
@@ -160,12 +288,20 @@ const getPlayerInfoByTournamentId = async (req, res) => {
             goalsAgainst,
             scoringDifference,
             effectiveness,
+            winRate,
+            goalsPerMatch,
+            goalsAgainstPerMatch,
+            cleanSheets,
+            recentForm: results.slice(-5),
+            currentStreak: computeStreak(results),
         }
 
         const response = {
             player: { id: playerId, name: getName(playerId) },
             teams: teamsFromDB,
             stats,
+            bestTeam: teamStatsArr[0] || null,
+            worstTeam: teamStatsArr[teamStatsArr.length - 1] || null,
         }
         if (includeMatches) response.matches = matchesFromDB
 
