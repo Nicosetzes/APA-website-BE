@@ -146,6 +146,7 @@ const getPlayerInfoByTournamentId = async (req, res) => {
             const playersOut = playersList.map((p) => {
                 const entry = resultMap.get(String(p.id))
                 const s = entry.stats
+                const reversedResults = entry._results.reverse() // oldest-to-newest order
 
                 s.scoringDifference = s.goalsFor - s.goalsAgainst
                 s.effectiveness = s.played
@@ -165,8 +166,8 @@ const getPlayerInfoByTournamentId = async (req, res) => {
                 s.goalsAgainstPerMatch = s.played
                     ? Number((s.goalsAgainst / s.played).toFixed(2))
                     : 0
-                s.recentForm = entry._results.slice(-5)
-                s.currentStreak = computeStreak(entry._results)
+                s.recentForm = reversedResults.slice(-5)
+                s.currentStreak = computeStreak(reversedResults)
 
                 const teamStatsArr = [...entry._teamStats.values()]
                 const teamEff = (ts) =>
@@ -255,6 +256,7 @@ const getPlayerInfoByTournamentId = async (req, res) => {
         }
 
         const scoringDifference = goalsFor - goalsAgainst
+        const reversedResults = results.reverse() // oldest-to-newest order
         const effectiveness = played
             ? Number((((wins * 3 + draws) / (played * 3)) * 100).toFixed(2))
             : 0
@@ -292,8 +294,8 @@ const getPlayerInfoByTournamentId = async (req, res) => {
             goalsPerMatch,
             goalsAgainstPerMatch,
             cleanSheets,
-            recentForm: results.slice(-5),
-            currentStreak: computeStreak(results),
+            recentForm: reversedResults.slice(-5),
+            currentStreak: computeStreak(reversedResults),
         }
 
         const response = {
