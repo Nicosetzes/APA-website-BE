@@ -166,7 +166,7 @@ const getPlayerInfoByTournamentId = async (req, res) => {
                 s.goalsAgainstPerMatch = s.played
                     ? Number((s.goalsAgainst / s.played).toFixed(2))
                     : 0
-                s.recentForm = reversedResults.slice(-5)
+                s.recentForm = reversedResults.slice(-10)
                 s.currentStreak = computeStreak(reversedResults)
 
                 const teamStatsArr = [...entry._teamStats.values()]
@@ -294,7 +294,7 @@ const getPlayerInfoByTournamentId = async (req, res) => {
             goalsPerMatch,
             goalsAgainstPerMatch,
             cleanSheets,
-            recentForm: reversedResults.slice(-5),
+            recentForm: reversedResults.slice(-10),
             currentStreak: computeStreak(reversedResults),
         }
 

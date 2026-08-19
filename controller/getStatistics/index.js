@@ -230,7 +230,7 @@ const getStatistics = async (req, res) => {
                     S._prevLen = 1
                     S._prevEndDate = m.updatedAt || null
                 }
-                if (S._recent.length < 5) {
+                if (S._recent.length < 10) {
                     S._recent.push({
                         outcome: r.toLowerCase(),
                         playerP1: m.playerP1,
@@ -348,7 +348,7 @@ const getStatistics = async (req, res) => {
                     S._prevLen = 1
                     S._prevEndDate = m.updatedAt || null
                 }
-                if (S._recent.length < 5) {
+                if (S._recent.length < 10) {
                     S._recent.push({
                         outcome: r.toLowerCase(),
                         playerP1: m.playerP1,
