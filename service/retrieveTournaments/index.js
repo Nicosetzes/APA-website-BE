@@ -1,7 +1,7 @@
 const { findTournaments } = require("./../../dao")
 
-const retrieveTournaments = async (status) => {
-    return await findTournaments(status)
+const retrieveTournaments = async (legacy, status) => {
+    return await findTournaments(legacy, status)
 }
 
 module.exports = retrieveTournaments

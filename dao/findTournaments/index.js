@@ -1,9 +1,16 @@
 const tournamentsModel = require("./../models/tournaments.js")
 
-const findTournaments = async (status) => {
+const findTournaments = async (legacy, status) => {
     let tournaments
 
-    if (status === "finalized") {
+    if (legacy === "false") {
+        tournaments = await tournamentsModel
+            .find(
+                { legacy: { $ne: true }, valid: { $ne: false } },
+                "cloudinary_id name ongoing outcome updatedAt"
+            )
+            .sort({ createdAt: -1, id: -1 })
+    } else if (status === "finalized") {
         tournaments = await tournamentsModel
             .find(
                 { ongoing: false, valid: { $ne: false } },

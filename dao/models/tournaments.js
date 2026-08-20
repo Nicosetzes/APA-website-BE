@@ -14,6 +14,7 @@ const tournamentsSchema = new mongoose.Schema(
         groups: { type: Array, require: false, default: undefined, max: 8 },
         valid: { type: Boolean, require: false },
         daily_recap: { type: Object, require: false, default: {} },
+        legacy: { type: Boolean, require: false, default: false },
     },
     {
         collection: "tournaments",

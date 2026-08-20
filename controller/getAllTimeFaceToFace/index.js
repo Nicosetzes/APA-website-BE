@@ -36,8 +36,8 @@ const getAllTimeFaceToFace = async (req, res) => {
             )
 
             firstPlayerWins = selectedMatches.filter(({ outcome }) => {
-                let { playerThatWon } = outcome
-                return playerThatWon && playerThatWon.id == p1.id
+                let { draw, playerThatWon } = outcome
+                return playerThatWon && !draw && playerThatWon.id == p1.id
             })
 
             if (firstPlayerWins.length) {
@@ -78,8 +78,8 @@ const getAllTimeFaceToFace = async (req, res) => {
             }).length
 
             firstPlayerLosses = selectedMatches.filter(({ outcome }) => {
-                let { playerThatLost } = outcome
-                return playerThatLost && playerThatLost.id == p1.id
+                let { draw, playerThatLost } = outcome
+                return playerThatLost && !draw && playerThatLost.id == p1.id
             })
 
             if (firstPlayerLosses.length) {

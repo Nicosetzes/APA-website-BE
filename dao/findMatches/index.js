@@ -1,60 +1,128 @@
 const matchesModel = require("./../models/matches.js")
 
-const findMatches = async (page, teamName, date, played) => {
+const findMatches = async (filters) => {
     const limit = 20
+    const {
+        page = 0,
+        teamName,
+        player1,
+        player2,
+        tournamentId,
+        type,
+        outcome,
+        goalDiffOp = "gte",
+        goalDiffVal,
+        dateFrom,
+        dateTo,
+        played,
+    } = filters
 
-    // Build filter dynamically
-    const filter = { valid: { $ne: false } }
+    const queryConditions = [{ valid: { $ne: false } }]
 
-    // played can be "true" or "false" or undefined
     if (typeof played !== "undefined") {
-        const playedBool = String(played).toLowerCase() === "true"
-        filter.played = playedBool
+        queryConditions.push({
+            played: String(played).toLowerCase() === "true",
+        })
     } else {
-        // backward compatibility: default to played != false (same as before)
-        filter.played = { $ne: false }
+        queryConditions.push({ played: { $ne: false } })
     }
 
     if (teamName) {
-        filter.$or = [
-            { "teamP1.name": { $regex: teamName, $options: "i" } },
-            { "teamP2.name": { $regex: teamName, $options: "i" } },
-        ]
+        queryConditions.push({
+            $or: [
+                { "teamP1.name": { $regex: teamName, $options: "i" } },
+                { "teamP2.name": { $regex: teamName, $options: "i" } },
+            ],
+        })
     }
 
-    if (date) {
-        const parts = String(date).split("-")
-        if (parts.length === 3) {
-            const year = parseInt(parts[0], 10)
-            const month = parseInt(parts[1], 10) - 1
-            const day = parseInt(parts[2], 10)
+    if (tournamentId && tournamentId !== "all") {
+        queryConditions.push({ "tournament.id": tournamentId })
+    }
 
-            if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
-                const offset = 3 * 60 * 60 * 1000 // 3h en ms, difference between UTC and local time
+    if (type && type !== "all") {
+        if (type === "knockout")
+            queryConditions.push({
+                $or: [{ type: "playin" }, { type: "playoff" }],
+            })
+        else queryConditions.push({ type: type })
+    }
 
-                const start = new Date(
-                    Date.UTC(year, month, day, 0, 0, 0, 0) + offset
-                )
-                const end = new Date(
-                    Date.UTC(year, month, day + 1, 0, 0, 0, 0) + offset
-                )
-
-                filter.updatedAt = { $gte: start, $lt: end }
-            }
+    if (player1 && player1 !== "all") {
+        if (player2 && player2 !== "all") {
+            queryConditions.push({
+                $or: [
+                    { "playerP1.id": player1, "playerP2.id": player2 },
+                    { "playerP1.id": player2, "playerP2.id": player1 },
+                ],
+            })
+        } else {
+            queryConditions.push({
+                $or: [{ "playerP1.id": player1 }, { "playerP2.id": player1 }],
+            })
         }
     }
 
+    if (player1 && player1 !== "all" && outcome && outcome !== "all") {
+        if (outcome === "draw") {
+            queryConditions.push({ "outcome.draw": true })
+        } else if (outcome === "penalties") {
+            queryConditions.push({ "outcome.penalties": true })
+        } else if (outcome === "win") {
+            queryConditions.push({
+                "outcome.draw": false,
+                "outcome.playerThatWon.id": player1,
+            })
+        } else if (outcome === "loss") {
+            queryConditions.push({
+                "outcome.draw": false,
+                "outcome.playerThatLost.id": player1,
+            })
+        }
+    }
+
+    if (goalDiffVal !== undefined && goalDiffVal !== "") {
+        const diffValue = Number(goalDiffVal)
+        const mongoOp =
+            goalDiffOp === "lte" ? "$lte" : goalDiffOp === "eq" ? "$eq" : "$gte"
+
+        queryConditions.push({
+            "outcome.scoringDifference": { [mongoOp]: diffValue },
+        })
+    }
+
+    if (dateFrom || dateTo) {
+        const dateFilter = {}
+        const offset = 3 * 60 * 60 * 1000 // Offset de 3 hs
+
+        if (dateFrom) {
+            const [y, m, d] = dateFrom.split("-").map(Number)
+            dateFilter.$gte = new Date(Date.UTC(y, m - 1, d, 0, 0, 0) + offset)
+        }
+        if (dateTo) {
+            const [y, m, d] = dateTo.split("-").map(Number)
+            dateFilter.$lt = new Date(
+                Date.UTC(y, m - 1, d + 1, 0, 0, 0) + offset
+            )
+        }
+
+        queryConditions.push({ updatedAt: dateFilter })
+    }
+
+    const finalFilter = { $and: queryConditions }
+
     const [matches, amountOfTotalMatches] = await Promise.all([
         matchesModel
-            .find(filter)
+            .find(finalFilter)
             .limit(limit)
             .skip(page * limit)
             .sort({ updatedAt: -1, _id: -1 }),
-        matchesModel.countDocuments(filter),
+        matchesModel.countDocuments(finalFilter),
     ])
 
     return {
         matches,
+        totalMatches: amountOfTotalMatches,
         totalPages: Math.ceil(amountOfTotalMatches / limit),
         currentPage: Number(page),
     }
