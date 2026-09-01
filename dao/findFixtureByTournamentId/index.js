@@ -55,7 +55,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
             {
                 $facet: {
                     data: [
-                        { $sort: { played: 1, updatedAt: -1 } },
+                        { $sort: { played: 1, group: 1, updatedAt: -1 } },
                         { $skip: currentPage * limit },
                         { $limit: limit },
                     ],
