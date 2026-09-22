@@ -62,6 +62,7 @@ const postLogin = async (req, res) => {
             user: {
                 id: user._id,
                 nickname: user.nickname,
+                role: user.role || "user",
             },
             message: `Bienvenid@ ${user.nickname}`,
         })

@@ -25,6 +25,12 @@ const usersSchema = new mongoose.Schema(
             min: 1,
             max: 255,
         },
+        role: {
+            type: String,
+            enum: ["user", "superadmin"],
+            default: "user",
+            required: true,
+        },
         date: {
             type: Date,
             default: Date.now,

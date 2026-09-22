@@ -5,8 +5,8 @@ const deleteEdit = async (req, res) => {
     try {
         const { id } = req.params
 
-        // Find the edit
-        const edit = await editsModel.findById(id)
+        // The authorization middleware already loaded and checked ownership.
+        const edit = req.edit || (await editsModel.findById(id))
 
         if (!edit) {
             return res.status(404).json({

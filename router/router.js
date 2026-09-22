@@ -34,8 +34,6 @@ const {
     getUsers,
     postLogin,
     postLogout,
-    postSolicitateNewPassword,
-    postRetrievePassword,
     getTournaments,
     getTournamentImages,
     postTournaments,
@@ -68,7 +66,6 @@ const {
     getStatistics,
     getAllTimeFaceToFace,
     getAllTimeTeams,
-    majorUpdatesController,
     postDailyRecapByTournamentId,
     getDailyRecapByTournamentId,
     getMatchesSummaryByDate,
@@ -81,23 +78,33 @@ const {
     putCompleteTournamentById,
 } = require("./../controller")
 
-/* -------------------- isAUTH -------------------- */
+/* -------------------- AUTHORIZATION -------------------- */
 
-const { isAuth } = require("./auth")
+const {
+    isAuth,
+    requireTournamentAccess,
+    requireMatchInTournament,
+    requireEditOwnership,
+} = require("./auth")
 
 // ROOT
 
 root.get("/matches", getMatches)
 
-root.post("/matches", postMatch) // Provisoria, luego puede ser modificada //
-
-root.get("/update", majorUpdatesController)
+root.post(
+    "/matches",
+    isAuth,
+    requireTournamentAccess(
+        (req) => req.body?.tournament?.id ?? req.body?.tournament
+    ),
+    postMatch
+) // Provisoria, luego puede ser modificada //
 
 root.get("/edits", getEdits)
 
 root.post("/edits", isAuth, postEditsUpload.array("image", 10), postEdits)
 
-root.delete("/edits/:id", isAuth, deleteEdit)
+root.delete("/edits/:id", isAuth, requireEditOwnership, deleteEdit)
 
 // USERS
 
@@ -106,10 +113,6 @@ users.get("/", getUsers)
 users.post("/login", postLogin)
 
 users.post("/logout", isAuth, postLogout)
-
-users.post("/solicitate-password", postSolicitateNewPassword)
-
-users.post("/retrieve-password", postRetrievePassword)
 
 // TOURNAMENTS
 
@@ -127,29 +130,51 @@ tournaments.get("/:tournament/calculator", getCalculatorByTournamentId)
 
 tournaments.get("/:tournament/fixture", getFixtureByTournamentId)
 
-tournaments.post("/:tournament/fixture", isAuth, postFixtureByTournamentId)
+tournaments.post(
+    "/:tournament/fixture",
+    isAuth,
+    requireTournamentAccess(),
+    postFixtureByTournamentId
+)
 
 tournaments.get("/:tournament/players", getPlayersByTournamentId)
 
 tournaments.get("/:tournament/players/info", getPlayerInfoByTournamentId)
 
-tournaments.post("/:tournament/playin", isAuth, postPlayinByTournamentId)
+tournaments.post(
+    "/:tournament/playin",
+    isAuth,
+    requireTournamentAccess(),
+    postPlayinByTournamentId
+)
 
 tournaments.post(
     "/:tournament/playin/update",
     isAuth,
+    requireTournamentAccess(),
     postPlayinUpdateByTournamentId
 )
 
-tournaments.put("/:tournament/complete", isAuth, putCompleteTournamentById)
+tournaments.put(
+    "/:tournament/complete",
+    isAuth,
+    requireTournamentAccess(),
+    putCompleteTournamentById
+)
 
 tournaments.get("/:tournament/playin/matches", getPlayinMatchesByTournamentId)
 
-tournaments.post("/:tournament/playoff", isAuth, postPlayoffByTournamentId)
+tournaments.post(
+    "/:tournament/playoff",
+    isAuth,
+    requireTournamentAccess(),
+    postPlayoffByTournamentId
+)
 
 tournaments.post(
     "/:tournament/playoff/update",
     isAuth,
+    requireTournamentAccess(),
     postPlayoffUpdateByTournamentId
 )
 
@@ -159,24 +184,34 @@ tournaments.get("/:tournament/teams", getTeamsByTournamentId)
 
 tournaments.get("/:tournament/teams/:team/squad", getSquadByTeamId)
 
-tournaments.put("/:tournament/teams/:team/squad", isAuth, putSquadByTeamId)
+tournaments.put(
+    "/:tournament/teams/:team/squad",
+    isAuth,
+    requireTournamentAccess(),
+    putSquadByTeamId
+)
 
 tournaments.post(
     "/:tournament/matches/create-game/",
     isAuth,
+    requireTournamentAccess(),
     postMatchByTournamentId
 )
 
 tournaments.put(
     "/:tournament/matches/update-game/:match",
     isAuth,
+    requireTournamentAccess(),
+    requireMatchInTournament,
     putMatchByTournamentId
 )
+
 // DAILY RECAP
 // POST: create/update recap for a date
 tournaments.post(
     "/:tournament/daily-recap",
-    // isAuth,
+    isAuth,
+    requireTournamentAccess(),
     postDailyRecapByTournamentId
 )
 
@@ -186,6 +221,8 @@ tournaments.get("/:tournament/daily-recap", getDailyRecapByTournamentId)
 tournaments.put(
     "/:tournament/matches/delete-game/:match",
     isAuth,
+    requireTournamentAccess(),
+    requireMatchInTournament,
     putRemoveMatchByTournamentId
 )
 

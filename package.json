@@ -10,7 +10,8 @@
         "format:check": "prettier --check .",
         "format:write": "prettier --write .",
         "lint:check": "eslint .",
-        "lint:fix": "eslint --fix ."
+        "lint:fix": "eslint --fix .",
+        "roles:bootstrap": "node scripts/bootstrap-roles.js"
     },
     "author": "",
     "license": "ISC",
@@ -20,7 +21,6 @@
         "cloudinary": "^1.41.3",
         "cookie-parser": "^1.4.6",
         "cors": "^2.8.5",
-        "crypto": "^1.0.1",
         "dotenv": "^16.0.1",
         "es-toolkit": "^1.47.1",
         "eslint": "^8.23.0",
