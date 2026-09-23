@@ -2,13 +2,7 @@ const express = require("express")
 const cors = require("cors")
 const helmet = require("helmet")
 
-const {
-    root,
-    users,
-    tournaments,
-    statistics,
-    summary,
-} = require("./router/router")
+const { root, users, tournaments, statistics } = require("./router/router")
 const { HttpError, notFound, errorHandler } = require("./middleware/httpErrors")
 const { requestContext } = require("./middleware/requestContext")
 
@@ -53,8 +47,10 @@ const createApp = ({ ensureDatabase, getDatabaseStatus }) => {
 
         return res.status(isReady ? 200 : 503).json({
             status: isReady ? "ready" : "not_ready",
+            environment: process.env.VERCEL_ENV || process.env.NODE_ENV || null,
             checks: {
                 mongodb: database.state,
+                database: database.name ?? null,
             },
         })
     })
@@ -80,7 +76,6 @@ const createApp = ({ ensureDatabase, getDatabaseStatus }) => {
     app.use("/api/users", users)
     app.use("/api/tournaments", tournaments)
     app.use("/api/statistics", statistics)
-    app.use("/api/summary", summary)
 
     app.use(notFound)
     app.use(errorHandler)

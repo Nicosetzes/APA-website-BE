@@ -21,6 +21,7 @@ const getMongoUri = () => {
 
 const getDatabaseStatus = () => ({
     state: connectionStates[mongoose.connection.readyState] || "unknown",
+    name: mongoose.connection.name || null,
 })
 
 const connectMongo = async () => {

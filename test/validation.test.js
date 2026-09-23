@@ -80,16 +80,6 @@ test("knockout draws require two distinct penalty scores", async () => {
     assert.equal(validPenalties, undefined)
 })
 
-test("daily recap rejects impossible calendar dates", async () => {
-    const error = await runValidation(schemas.dailyRecap, {
-        params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
-        query: {},
-        body: { date: "2026-99-99", content: "recap" },
-    })
-
-    assert.equal(error.code, "VALIDATION_ERROR")
-})
-
 test("validation rejects malformed IDs, missing fields and unknown fields", async () => {
     const request = {
         params: {
@@ -133,41 +123,6 @@ test("edits pagination applies defaults, converts values and rejects invalid pag
     assert.equal(convertedError, undefined)
     assert.equal(convertedRequest.query.page, 2)
     assert.equal(invalidError.code, "VALIDATION_ERROR")
-})
-
-test("daily recap GET accepts latest or a real date and rejects invalid input", async () => {
-    const latestRequest = {
-        params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
-        query: {},
-        body: {},
-    }
-    const datedRequest = {
-        params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
-        query: { date: "2026-09-22" },
-        body: {},
-    }
-    const invalidRequest = {
-        params: { tournament: "invalid" },
-        query: { date: "2026-02-31" },
-        body: {},
-    }
-
-    assert.equal(
-        await runValidation(schemas.getDailyRecap, latestRequest),
-        undefined
-    )
-    assert.equal(
-        await runValidation(schemas.getDailyRecap, datedRequest),
-        undefined
-    )
-    assert.equal(datedRequest.query.date, "2026-09-22")
-
-    const invalidError = await runValidation(
-        schemas.getDailyRecap,
-        invalidRequest
-    )
-    assert.equal(invalidError.code, "VALIDATION_ERROR")
-    assert.equal(invalidError.details.length, 2)
 })
 
 test("fixture GET parses active FE filters and rejects malformed players/page", async () => {

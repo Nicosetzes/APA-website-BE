@@ -28,8 +28,6 @@ const group = Joi.string()
     .uppercase()
     .valid("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L")
 
-const matchType = Joi.string().valid("regular", "playin", "playoff")
-
 const tournamentParams = Joi.object({
     tournament: mongoId.required(),
 }).unknown(false)
@@ -38,29 +36,6 @@ const matchParams = Joi.object({
     tournament: mongoId.required(),
     match: mongoId.required(),
 }).unknown(false)
-
-const postMatchBody = Joi.object({
-    playerP1: entityReference.required(),
-    teamP1: entityReference.required(),
-    scoreP1: score.required(),
-    playerP2: entityReference.required(),
-    teamP2: entityReference.required(),
-    scoreP2: score.required(),
-    penaltyScoreP1: score.optional(),
-    penaltyScoreP2: score.optional(),
-    type: matchType.required(),
-    group: group.allow(null).optional(),
-    tournament: Joi.alternatives()
-        .try(
-            mongoId,
-            Joi.object({
-                id: mongoId.required(),
-                name: Joi.string().trim().min(1).max(255).optional(),
-            }).unknown(true)
-        )
-        .required(),
-    valid: Joi.boolean().optional(),
-}).unknown(true)
 
 const tournamentBody = Joi.object({
     cloudinary_id: Joi.string().trim().max(255).allow(null, "").optional(),
@@ -89,22 +64,6 @@ const tournamentBody = Joi.object({
         .min(1)
         .required(),
 }).unknown(false)
-
-const createMatchBody = Joi.object({
-    playerP1: entityReference.required(),
-    teamP1: entityReference.required(),
-    scoreP1: score.optional(),
-    seedP1: seed.optional(),
-    playerP2: entityReference.required(),
-    teamP2: entityReference.required(),
-    scoreP2: score.optional(),
-    seedP2: seed.optional(),
-    penaltyScoreP1: score.optional(),
-    penaltyScoreP2: score.optional(),
-    type: matchType.required(),
-    played: Joi.boolean().required(),
-    playoff_id: Joi.number().integer().min(1).optional(),
-}).unknown(true)
 
 const updateMatchBody = Joi.object({
     playerP1: entityReference.required(),
@@ -214,9 +173,6 @@ const optionalIdFilter = Joi.alternatives().try(
 )
 
 module.exports = {
-    postMatch: {
-        body: postMatchBody,
-    },
     getMatches: {
         query: Joi.object({
             page: Joi.number().integer().min(0).max(10000).default(0),
@@ -306,10 +262,6 @@ module.exports = {
             password: Joi.string().min(6).max(1024).required(),
         }).unknown(false),
     },
-    logout: {
-        body: emptyObject,
-        query: emptyObject,
-    },
     getTournamentResource: {
         params: tournamentParams,
         query: emptyObject,
@@ -384,53 +336,9 @@ module.exports = {
         }).unknown(false),
         query: emptyObject,
     },
-    updateSquad: {
-        params: Joi.object({
-            tournament: mongoId.required(),
-            team: externalId.required(),
-        }).unknown(false),
-        body: Joi.object({
-            squad: Joi.array()
-                .items(
-                    Joi.alternatives().try(
-                        Joi.object().unknown(true),
-                        Joi.string(),
-                        Joi.number()
-                    )
-                )
-                .required(),
-        }).unknown(false),
-        query: emptyObject,
-    },
-    createMatch: {
-        params: tournamentParams,
-        body: createMatchBody,
-        query: emptyObject,
-    },
     updateMatch: {
         params: matchParams,
         body: updateMatchBody,
-        query: emptyObject,
-    },
-    getDailyRecap: {
-        params: tournamentParams,
-        query: Joi.object({
-            date: calendarDate.optional(),
-        }).unknown(false),
-        body: emptyObject,
-    },
-    dailyRecap: {
-        params: tournamentParams,
-        body: Joi.object({
-            date: calendarDate.required(),
-            content: Joi.alternatives()
-                .try(
-                    Joi.string().min(1),
-                    Joi.object().unknown(true),
-                    Joi.array().items(Joi.any()).min(1)
-                )
-                .required(),
-        }).unknown(true),
         query: emptyObject,
     },
     removeMatch: {

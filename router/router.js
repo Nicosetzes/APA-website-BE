@@ -6,7 +6,6 @@ const root = Router()
 const users = Router()
 const tournaments = Router()
 const statistics = Router()
-const summary = Router()
 
 const asyncHandler = require("../utils/asyncHandler")
 const rawControllers = require("../controller")
@@ -19,18 +18,15 @@ const controllers = Object.fromEntries(
 
 const {
     getMatches,
-    postMatch,
     getUsers,
     getCurrentUser,
     postLogin,
-    postLogout,
     getTournaments,
     getTournamentImages,
     postTournaments,
     getTournamentById,
     getTournamentSummaryByTournamentId,
     getCalculatorByTournamentId,
-    getPlayersByTournamentId,
     getPlayerInfoByTournamentId,
     postPlayinByTournamentId,
     postPlayinUpdateByTournamentId,
@@ -38,29 +34,16 @@ const {
     postPlayoffByTournamentId,
     postPlayoffUpdateByTournamentId,
     getPlayoffMatchesByTournamentId,
-    getTeamsByTournamentId,
-    getSquadByTeamId,
-    putSquadByTeamId,
     getFixtureByTournamentId,
     postFixtureByTournamentId,
-    postMatchByTournamentId,
     putMatchByTournamentId,
     putRemoveMatchByTournamentId,
     getStandingsTableByTournamentId,
-    getStandingsPlayerInfoByTournamentId,
     getPlayoffsTableByTournamentId,
-    getPlayoffsPlayerInfoByTournamentId,
     getPlayoffsPreviewByTournamentId,
-    getPlayoffsBracketByTournamentId,
-    getPlayoffsUpdatedWinsByTournamentId,
     getStatistics,
     getAllTimeFaceToFace,
     getAllTimeTeams,
-    postDailyRecapByTournamentId,
-    getDailyRecapByTournamentId,
-    getMatchesSummaryByDate,
-    getStandingsSummaryByTournamentId,
-    getPlayerStatsSummaryByTournamentId,
     postEdits,
     postEditsUpload,
     getEdits,
@@ -86,16 +69,6 @@ const {
 
 root.get("/matches", validate("getMatches"), getMatches)
 
-root.post(
-    "/matches",
-    isAuth,
-    validate("postMatch"),
-    requireTournamentAccess(
-        (req) => req.body?.tournament?.id ?? req.body?.tournament
-    ),
-    postMatch
-)
-
 root.get("/edits", isAuth, validate("getEdits"), getEdits)
 
 root.post(
@@ -119,8 +92,6 @@ users.get("/me", isAuth, getCurrentUser)
 users.get("/", validate("getUsers"), getUsers)
 
 users.post("/login", loginRateLimit, validate("login"), postLogin)
-
-users.post("/logout", isAuth, validate("logout"), postLogout)
 
 tournaments.get("/", validate("getTournaments"), getTournaments)
 
@@ -159,8 +130,6 @@ tournaments.post(
     requireTournamentAccess(),
     postFixtureByTournamentId
 )
-
-tournaments.get("/:tournament/players", getPlayersByTournamentId)
 
 tournaments.get(
     "/:tournament/players/info",
@@ -220,26 +189,6 @@ tournaments.get(
     getPlayoffMatchesByTournamentId
 )
 
-tournaments.get("/:tournament/teams", getTeamsByTournamentId)
-
-tournaments.get("/:tournament/teams/:team/squad", getSquadByTeamId)
-
-tournaments.put(
-    "/:tournament/teams/:team/squad",
-    isAuth,
-    validate("updateSquad"),
-    requireTournamentAccess(),
-    putSquadByTeamId
-)
-
-tournaments.post(
-    "/:tournament/matches/create-game/",
-    isAuth,
-    validate("createMatch"),
-    requireTournamentAccess(),
-    postMatchByTournamentId
-)
-
 tournaments.put(
     "/:tournament/matches/update-game/:match",
     isAuth,
@@ -248,23 +197,6 @@ tournaments.put(
     requireMatchInTournament,
     validateMatchResult,
     putMatchByTournamentId
-)
-
-// DAILY RECAP
-// POST: create/update recap for a date
-tournaments.post(
-    "/:tournament/daily-recap",
-    isAuth,
-    validate("dailyRecap"),
-    requireTournamentAccess(),
-    postDailyRecapByTournamentId
-)
-
-// GET: retrieve recap for a specific date (?date=YYYY-MM-DD) or latest if omitted
-tournaments.get(
-    "/:tournament/daily-recap",
-    validate("getDailyRecap"),
-    getDailyRecapByTournamentId
 )
 
 tournaments.put(
@@ -283,35 +215,15 @@ tournaments.get(
 )
 
 tournaments.get(
-    "/:tournament/standings/player-info",
-    getStandingsPlayerInfoByTournamentId
-)
-
-tournaments.get(
     "/:tournament/playoffs/table",
     validate("getTournamentResource"),
     getPlayoffsTableByTournamentId
 )
 
 tournaments.get(
-    "/:tournament/playoffs/player-info",
-    getPlayoffsPlayerInfoByTournamentId
-)
-
-tournaments.get(
     "/:tournament/playoffs/preview",
     validate("getTournamentResource"),
     getPlayoffsPreviewByTournamentId
-)
-
-tournaments.get(
-    "/:tournament/playoffs/bracket",
-    getPlayoffsBracketByTournamentId
-)
-
-tournaments.get(
-    "/:tournament/playoffs/updated-wins",
-    getPlayoffsUpdatedWinsByTournamentId
 )
 
 // STATISTICS
@@ -330,22 +242,9 @@ statistics.get(
     getAllTimeTeams
 )
 
-// SUMMARY
-summary.get("/matches", getMatchesSummaryByDate)
-summary.get(
-    "/tournaments/:tournament/standings",
-    getStandingsSummaryByTournamentId
-)
-
-summary.get(
-    "/tournaments/:tournament/player-stats",
-    getPlayerStatsSummaryByTournamentId
-)
-
 module.exports = {
     root,
     users,
     tournaments,
     statistics,
-    summary,
 }

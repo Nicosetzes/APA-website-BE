@@ -24,7 +24,7 @@ test("health endpoints report process and database state", async () => {
     let databaseState = "disconnected"
     const app = createApp({
         ensureDatabase: async () => {},
-        getDatabaseStatus: () => ({ state: databaseState }),
+        getDatabaseStatus: () => ({ state: databaseState, name: "apa_test" }),
     })
 
     await withServer(app, async (baseUrl) => {
@@ -48,8 +48,12 @@ test("health endpoints report process and database state", async () => {
 
         databaseState = "connected"
         const readyResponse = await globalThis.fetch(`${baseUrl}/health/ready`)
+        const readyBody = await readyResponse.json()
         assert.equal(readyResponse.status, 200)
-        assert.equal((await readyResponse.json()).status, "ready")
+        assert.equal(readyBody.status, "ready")
+        // Diagnóstico de deployment: nombre de base y entorno, sin credenciales.
+        assert.equal(readyBody.checks.database, "apa_test")
+        assert.ok("environment" in readyBody)
     })
 })
 

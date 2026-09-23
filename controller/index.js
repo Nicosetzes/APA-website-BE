@@ -3,49 +3,29 @@ const getAllTimeTeams = require("./getAllTimeTeams")
 const getCalculatorByTournamentId = require("./getCalculatorByTournamentId")
 const getFixtureByTournamentId = require("./getFixtureByTournamentId")
 const getMatches = require("./getMatches")
-const getMatchesSummaryByDate = require("./getMatchesSummaryByDate")
 const putCompleteTournamentById = require("./putCompleteTournamentById")
 const getPlayerInfoByTournamentId = require("./getPlayerInfoByTournamentId")
-const getPlayersByTournamentId = require("./getPlayersByTournamentId")
-const getPlayerStatsSummaryByTournamentId = require("./getPlayerStatsSummaryByTournamentId")
 const getPlayinMatchesByTournamentId = require("./getPlayinMatchesByTournamentId")
-const getPlayoffsBracketByTournamentId = require("./getPlayoffsBracketByTournamentId")
 const getPlayoffMatchesByTournamentId = require("./getPlayoffMatchesByTournamentId")
-const getPlayoffsPlayerInfoByTournamentId = require("./getPlayoffsPlayerInfoByTournamentId")
 const getPlayoffsPreviewByTournamentId = require("./getPlayoffsPreviewByTournamentId")
 const getPlayoffsTableByTournamentId = require("./getPlayoffsTableByTournamentId")
-const getPlayoffsUpdatedWinsByTournamentId = require("./getPlayoffsUpdatedWinsByTournamentId")
-const getStandingsPlayerInfoByTournamentId = require("./getStandingsPlayerInfoByTournamentId")
-const getStandingsSummaryByTournamentId = require("./getStandingsSummaryByTournamentId")
 const getStandingsTableByTournamentId = require("./getStandingsTableByTournamentId")
 const getStatistics = require("./getStatistics")
-const getSquadByTeamId = require("./getSquadByTeamId")
-const getTeamsByTournamentId = require("./getTeamsByTournamentId")
 const getTournamentById = require("./getTournamentById")
 const getTournamentImages = require("./getTournamentImages")
 const getTournamentSummaryByTournamentId = require("./getTournamentSummaryByTournamentId")
 const getTournaments = require("./getTournaments")
 const getUsers = require("./getUsers")
 const getCurrentUser = require("./getCurrentUser")
-const getWorldCupPlayoffMatchesByTournamentId = require("./getWorldCupPlayoffMatchesByTournamentId")
-const getWorldCupPlayoffTeamsByTournamentId = require("./getWorldCupPlayoffTeamsByTournamentId")
-const getWorldCupStandingsByTournamentId = require("./getWorldCupStandingsByTournamentId")
 const postFixtureByTournamentId = require("./postFixtureByTournamentId")
 const postLogin = require("./postLogin")
-const postLogout = require("./postLogout")
-const postMatch = require("./postMatch")
-const postMatchByTournamentId = require("./postMatchByTournamentId")
 const postPlayinByTournamentId = require("./postPlayinByTournamentId")
 const postPlayinUpdateByTournamentId = require("./postPlayinUpdateByTournamentId")
 const postPlayoffByTournamentId = require("./postPlayoffByTournamentId")
 const postPlayoffUpdateByTournamentId = require("./postPlayoffUpdateByTournamentId")
 const postTournaments = require("./postTournaments")
-const postWorldCupMatchesByTournamentId = require("./postWorldCupMatchesByTournamentId")
 const putMatchByTournamentId = require("./putMatchByTournamentId")
 const putRemoveMatchByTournamentId = require("./putRemoveMatchByTournamentId")
-const putSquadByTeamId = require("./putSquadByTeamId")
-const postDailyRecapByTournamentId = require("./postDailyRecapByTournamentId")
-const getDailyRecapByTournamentId = require("./getDailyRecapByTournamentId")
 const { postEdits, postEditsUpload } = require("./postEdits")
 const getEdits = require("./getEdits")
 const deleteEdit = require("./deleteEdit")
@@ -57,47 +37,27 @@ module.exports = {
     getFixtureByTournamentId,
     getMatches,
     getPlayerInfoByTournamentId,
-    getPlayersByTournamentId,
     getPlayinMatchesByTournamentId,
-    getPlayoffsBracketByTournamentId,
     getPlayoffMatchesByTournamentId,
-    getPlayoffsPlayerInfoByTournamentId,
     getPlayoffsPreviewByTournamentId,
     getPlayoffsTableByTournamentId,
-    getPlayoffsUpdatedWinsByTournamentId,
-    getStandingsPlayerInfoByTournamentId,
     getStandingsTableByTournamentId,
     getStatistics,
-    getSquadByTeamId,
-    getTeamsByTournamentId,
     getTournamentById,
     getTournamentImages,
     getTournamentSummaryByTournamentId,
     getTournaments,
     getUsers,
     getCurrentUser,
-    getWorldCupPlayoffMatchesByTournamentId,
-    getWorldCupPlayoffTeamsByTournamentId,
-    getWorldCupStandingsByTournamentId,
-    getMatchesSummaryByDate,
-    getStandingsSummaryByTournamentId,
-    getPlayerStatsSummaryByTournamentId,
     postFixtureByTournamentId,
     postLogin,
-    postLogout,
-    postMatch,
-    postMatchByTournamentId,
     postPlayinByTournamentId,
     postPlayinUpdateByTournamentId,
     postPlayoffByTournamentId,
     postPlayoffUpdateByTournamentId,
     postTournaments,
-    postWorldCupMatchesByTournamentId,
     putMatchByTournamentId,
     putRemoveMatchByTournamentId,
-    putSquadByTeamId,
-    postDailyRecapByTournamentId,
-    getDailyRecapByTournamentId,
     postEdits,
     postEditsUpload,
     getEdits,
