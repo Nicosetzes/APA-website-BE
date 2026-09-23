@@ -1,71 +1,69 @@
-/* -------------------- DOTENV -------------------- */
+require("dotenv").config()
 
-const dotenv = require("dotenv").config()
+const { validateEnvironment } = require("./config/environment")
 
-/* -------------------- SERVER -------------------- */
+if (require.main === module || process.env.VERCEL) {
+    validateEnvironment()
+}
 
-const express = require("express")
-const cors = require("cors")
-
-const app = express()
-app.use(express.json())
-app.use(express.urlencoded({ extended: true }))
-app.use(express.static("public"))
-app.use(
-    cors({
-        origin:
-            process.env.NODE_ENV == "development"
-                ? "http://localhost:3000"
-                : [
-                      "https://apa-website-fe.vercel.app",
-                      "https://sitioapa.com.ar",
-                  ],
-    })
-)
-
-// IMPORTANTE: Tiene que ser así, intenté usar [] para permitir más de un dominio en production pero esta feature de CORS no fuciona en Vercel! //
-
-/* -------------------- DATABASE -------------------- */
-
-const mongoose = require("mongoose")
-
-mongoose
-    .connect(
-        `mongodb://${process.env.MONGO_USER}:${process.env.MONGO_PASS}@cluster0-shard-00-00.i6ffr.mongodb.net:27017,cluster0-shard-00-01.i6ffr.mongodb.net:27017,cluster0-shard-00-02.i6ffr.mongodb.net:27017/myFirstDatabase?ssl=true&replicaSet=atlas-vzvty3-shard-0&authSource=admin&retryWrites=true&w=majority`
-    )
-    .then(() => console.log("Base de datos MongoDB conectada"))
-    .catch((err) => console.log(err))
-
-/* -------------------- ROUTER -------------------- */
-
+const { createApp } = require("./app")
 const {
-    root,
-    users,
-    tournaments,
-    statistics,
-    summary,
-} = require("./router/router.js")
+    connectMongo,
+    disconnectMongo,
+    getDatabaseStatus,
+} = require("./database")
 
-app.get("/", (req, res) => {
-    res.send("Express on Vercel")
+const app = createApp({
+    ensureDatabase: connectMongo,
+    getDatabaseStatus,
 })
 
-app.use("/api", root)
-app.use("/api/users", users)
-app.use("/api/tournaments", tournaments)
-app.use("/api/statistics", statistics)
-app.use("/api/summary", summary)
+const start = async () => {
+    await connectMongo()
+    console.log("Base de datos MongoDB conectada")
 
-// DEFINO RUTAS INEXISTENTES //
+    const port = process.env.PORT || 5000
+    const server = app.listen(port, () => {
+        console.log(`EXPRESS server listening on port ${port}`)
+    })
 
-app.get("*", (req, res) => {
-    res.send("No se halló la página")
-})
+    let isShuttingDown = false
 
-const PORT = process.env.PORT || 5000
+    const shutdown = async (signal) => {
+        if (isShuttingDown) return
+        isShuttingDown = true
+        console.log(`${signal}: cerrando servidor`)
 
-app.listen(PORT, () => console.log(`EXPRESS server listening on port ${PORT}`))
+        const forceTimer = setTimeout(() => {
+            server.closeAllConnections()
+            process.exitCode = 1
+        }, 10000)
+        forceTimer.unref()
 
-// Export the Express API
+        try {
+            await new Promise((resolve, reject) => {
+                server.close((error) => {
+                    if (error) return reject(error)
+                    return resolve()
+                })
+            })
+            await disconnectMongo()
+            clearTimeout(forceTimer)
+        } catch (error) {
+            console.error("Error durante el cierre del servidor", error)
+            process.exitCode = 1
+        }
+    }
+
+    process.once("SIGINT", () => void shutdown("SIGINT"))
+    process.once("SIGTERM", () => void shutdown("SIGTERM"))
+}
+
+if (require.main === module) {
+    start().catch((error) => {
+        console.error("No se pudo iniciar el servidor", error)
+        process.exitCode = 1
+    })
+}
 
 module.exports = app

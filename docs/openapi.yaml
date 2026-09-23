@@ -1,0 +1,589 @@
+openapi: 3.0.3
+info:
+    title: APA Website API
+    version: 1.1.0
+    description: |
+        Contrato inicial de los endpoints principales consumidos por APA-website-FE.
+        Es incremental y todavía no documenta todas las consultas estadísticas y de resumen.
+servers:
+    - url: http://localhost:5000
+      description: Desarrollo local
+    - url: https://apa-website-be.vercel.app
+      description: Producción
+
+tags:
+    - name: Health
+    - name: Users
+    - name: Tournaments
+    - name: Matches
+    - name: Edits
+
+paths:
+    /health/live:
+        get:
+            tags: [Health]
+            summary: Comprueba que el proceso HTTP está activo
+            responses:
+                "200":
+                    description: Proceso activo
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/Liveness"
+    /health/ready:
+        get:
+            tags: [Health]
+            summary: Comprueba disponibilidad de MongoDB
+            responses:
+                "200":
+                    description: API lista
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/Readiness"
+                "503":
+                    description: MongoDB no disponible
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/Readiness"
+    /api/users/login:
+        post:
+            tags: [Users]
+            summary: Inicia una sesión
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/LoginRequest"
+            responses:
+                "200":
+                    description: Sesión iniciada
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/LoginResponse"
+                "400":
+                    description: Input inválido o credenciales incorrectas
+                    content:
+                        application/json:
+                            schema:
+                                oneOf:
+                                    - $ref: "#/components/schemas/ErrorResponse"
+                                    - $ref: "#/components/schemas/LegacyAuthErrorResponse"
+    /api/users/me:
+        get:
+            tags: [Users]
+            summary: Valida la sesión y devuelve identidad y rol vigentes
+            security:
+                - bearerAuth: []
+            responses:
+                "200":
+                    description: Sesión válida
+                    headers:
+                        Cache-Control:
+                            schema:
+                                type: string
+                            example: no-store
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/CurrentUserResponse"
+                "401":
+                    $ref: "#/components/responses/InvalidSession"
+    /api/tournaments:
+        get:
+            tags: [Tournaments]
+            summary: Lista torneos
+            parameters:
+                - in: query
+                  name: status
+                  schema:
+                      type: string
+                      enum: [active, finalized]
+                - in: query
+                  name: legacy
+                  schema:
+                      type: boolean
+            responses:
+                "200":
+                    description: Lista de torneos
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: "#/components/schemas/Tournament"
+        post:
+            tags: [Tournaments]
+            summary: Crea un torneo
+            security:
+                - bearerAuth: []
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/CreateTournamentRequest"
+            responses:
+                "200":
+                    description: Torneo creado
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/Tournament"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    $ref: "#/components/responses/InvalidSession"
+    /api/tournaments/{tournament}:
+        get:
+            tags: [Tournaments]
+            summary: Obtiene un torneo
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+            responses:
+                "200":
+                    description: Torneo
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/Tournament"
+    /api/tournaments/{tournament}/fixture:
+        get:
+            tags: [Matches]
+            summary: Obtiene el fixture de un torneo
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+                - in: query
+                  name: page
+                  schema:
+                      type: integer
+                      minimum: 0
+                - in: query
+                  name: team
+                  schema:
+                      type: string
+                - in: query
+                  name: group
+                  schema:
+                      type: string
+            responses:
+                "200":
+                    description: Fixture y metadatos de paginación
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                additionalProperties: true
+        post:
+            tags: [Matches]
+            summary: Genera el fixture
+            security:
+                - bearerAuth: []
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            required: [group]
+                            additionalProperties: false
+                            properties:
+                                group:
+                                    type: string
+                                    nullable: true
+                                    pattern: "^[A-L]$"
+            responses:
+                "200":
+                    description: Fixture generado
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "403":
+                    $ref: "#/components/responses/Forbidden"
+    /api/tournaments/{tournament}/matches/update-game/{match}:
+        put:
+            tags: [Matches]
+            summary: Carga o modifica el resultado de un partido
+            security:
+                - bearerAuth: []
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+                - $ref: "#/components/parameters/MatchId"
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/UpdateMatchRequest"
+            responses:
+                "200":
+                    description: Partido actualizado
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "403":
+                    $ref: "#/components/responses/Forbidden"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+    /api/tournaments/{tournament}/matches/delete-game/{match}:
+        put:
+            tags: [Matches]
+            summary: Quita lógicamente el resultado de un partido
+            security:
+                - bearerAuth: []
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+                - $ref: "#/components/parameters/MatchId"
+            requestBody:
+                required: false
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            additionalProperties: false
+            responses:
+                "200":
+                    description: Resultado quitado
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "403":
+                    $ref: "#/components/responses/Forbidden"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+    /api/edits:
+        get:
+            tags: [Edits]
+            summary: Lista imágenes editadas
+            parameters:
+                - in: query
+                  name: page
+                  schema:
+                      type: integer
+                      minimum: 1
+            responses:
+                "200":
+                    description: Página de edits
+        post:
+            tags: [Edits]
+            summary: Sube hasta diez imágenes
+            security:
+                - bearerAuth: []
+            requestBody:
+                required: true
+                content:
+                    multipart/form-data:
+                        schema:
+                            type: object
+                            required: [image]
+                            properties:
+                                image:
+                                    type: array
+                                    minItems: 1
+                                    maxItems: 10
+                                    items:
+                                        type: string
+                                        format: binary
+            responses:
+                "200":
+                    description: Imágenes subidas
+                "401":
+                    $ref: "#/components/responses/InvalidSession"
+    /api/edits/{id}:
+        delete:
+            tags: [Edits]
+            summary: Elimina un edit propio o, para superadmin, cualquier edit
+            security:
+                - bearerAuth: []
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                      $ref: "#/components/schemas/MongoId"
+            responses:
+                "200":
+                    description: Edit eliminado
+                "403":
+                    $ref: "#/components/responses/Forbidden"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+
+components:
+    securitySchemes:
+        bearerAuth:
+            type: http
+            scheme: bearer
+            bearerFormat: JWT
+    parameters:
+        TournamentId:
+            in: path
+            name: tournament
+            required: true
+            schema:
+                $ref: "#/components/schemas/MongoId"
+        MatchId:
+            in: path
+            name: match
+            required: true
+            schema:
+                $ref: "#/components/schemas/MongoId"
+    responses:
+        BadRequest:
+            description: Solicitud inválida
+            content:
+                application/json:
+                    schema:
+                        $ref: "#/components/schemas/ErrorResponse"
+        InvalidSession:
+            description: Sesión ausente o inválida
+            content:
+                application/json:
+                    schema:
+                        $ref: "#/components/schemas/ErrorResponse"
+        Forbidden:
+            description: Usuario autenticado sin permisos sobre el recurso
+            content:
+                application/json:
+                    schema:
+                        $ref: "#/components/schemas/ErrorResponse"
+        NotFound:
+            description: Recurso inexistente
+            content:
+                application/json:
+                    schema:
+                        $ref: "#/components/schemas/ErrorResponse"
+    schemas:
+        MongoId:
+            type: string
+            pattern: "^[a-fA-F0-9]{24}$"
+        User:
+            type: object
+            required: [id, nickname, role]
+            properties:
+                id:
+                    $ref: "#/components/schemas/MongoId"
+                nickname:
+                    type: string
+                role:
+                    type: string
+                    enum: [user, superadmin]
+        EntityReference:
+            type: object
+            required: [id, name]
+            properties:
+                id:
+                    oneOf:
+                        - type: string
+                        - type: integer
+                name:
+                    type: string
+            additionalProperties: true
+        LoginRequest:
+            type: object
+            required: [email, password]
+            additionalProperties: false
+            properties:
+                email:
+                    type: string
+                    format: email
+                password:
+                    type: string
+                    minLength: 6
+                    maxLength: 1024
+        LoginResponse:
+            type: object
+            required: [auth, token, user, message]
+            properties:
+                auth:
+                    type: boolean
+                    example: true
+                token:
+                    type: string
+                user:
+                    $ref: "#/components/schemas/User"
+                message:
+                    type: string
+        CurrentUserResponse:
+            type: object
+            required: [auth, user]
+            properties:
+                auth:
+                    type: boolean
+                    example: true
+                user:
+                    $ref: "#/components/schemas/User"
+        CreateTournamentRequest:
+            type: object
+            required: [format, name, players, teams]
+            additionalProperties: false
+            properties:
+                cloudinary_id:
+                    type: string
+                    nullable: true
+                format:
+                    type: string
+                    enum:
+                        [
+                            champions_league,
+                            league,
+                            league_playin_playoff,
+                            playoff,
+                            super_cup,
+                            world_cup,
+                            world_cup_2026,
+                        ]
+                name:
+                    type: string
+                    minLength: 1
+                    maxLength: 100
+                players:
+                    type: array
+                    minItems: 1
+                    items:
+                        $ref: "#/components/schemas/EntityReference"
+                teams:
+                    type: array
+                    minItems: 1
+                    items:
+                        type: object
+                        required: [team, player]
+                        properties:
+                            team:
+                                $ref: "#/components/schemas/EntityReference"
+                            player:
+                                $ref: "#/components/schemas/EntityReference"
+                            group:
+                                type: string
+                                pattern: "^[A-L]$"
+                            playoff_id:
+                                type: integer
+                                minimum: 1
+                        additionalProperties: true
+        Tournament:
+            type: object
+            required: [_id, name, format, players, teams]
+            properties:
+                _id:
+                    $ref: "#/components/schemas/MongoId"
+                name:
+                    type: string
+                format:
+                    type: string
+                players:
+                    type: array
+                    items:
+                        $ref: "#/components/schemas/EntityReference"
+                teams:
+                    type: array
+                    items:
+                        type: object
+                        additionalProperties: true
+            additionalProperties: true
+        UpdateMatchRequest:
+            type: object
+            required: [playerP1, teamP1, scoreP1, playerP2, teamP2, scoreP2]
+            additionalProperties: false
+            properties:
+                playerP1:
+                    $ref: "#/components/schemas/EntityReference"
+                teamP1:
+                    $ref: "#/components/schemas/EntityReference"
+                scoreP1:
+                    type: integer
+                    minimum: 0
+                    maximum: 24
+                seedP1:
+                    oneOf:
+                        - type: string
+                        - type: integer
+                penaltyScoreP1:
+                    type: integer
+                    minimum: 0
+                    maximum: 24
+                playerP2:
+                    $ref: "#/components/schemas/EntityReference"
+                teamP2:
+                    $ref: "#/components/schemas/EntityReference"
+                scoreP2:
+                    type: integer
+                    minimum: 0
+                    maximum: 24
+                seedP2:
+                    oneOf:
+                        - type: string
+                        - type: integer
+                penaltyScoreP2:
+                    type: integer
+                    minimum: 0
+                    maximum: 24
+                valid:
+                    type: boolean
+                isThisTheFinal:
+                    type: boolean
+        ErrorDetail:
+            type: object
+            required: [source, path, code]
+            properties:
+                source:
+                    type: string
+                    enum: [params, query, body]
+                path:
+                    type: string
+                code:
+                    type: string
+        ErrorResponse:
+            type: object
+            required: [error]
+            properties:
+                error:
+                    type: object
+                    required: [code, message, details]
+                    properties:
+                        code:
+                            type: string
+                        message:
+                            type: string
+                        details:
+                            type: array
+                            items:
+                                $ref: "#/components/schemas/ErrorDetail"
+        LegacyAuthErrorResponse:
+            type: object
+            required: [auth, message]
+            properties:
+                auth:
+                    type: boolean
+                    example: false
+                message:
+                    type: string
+        Liveness:
+            type: object
+            required: [status]
+            properties:
+                status:
+                    type: string
+                    enum: [ok]
+        Readiness:
+            type: object
+            required: [status, checks]
+            properties:
+                status:
+                    type: string
+                    enum: [ready, not_ready]
+                checks:
+                    type: object
+                    required: [mongodb]
+                    properties:
+                        mongodb:
+                            type: string
+                            enum:
+                                [
+                                    disconnected,
+                                    connected,
+                                    connecting,
+                                    disconnecting,
+                                    unknown,
+                                ]

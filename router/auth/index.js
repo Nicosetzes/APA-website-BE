@@ -5,20 +5,15 @@ const usersModel = require("../../dao/models/users")
 const tournamentsModel = require("../../dao/models/tournaments")
 const matchesModel = require("../../dao/models/matches")
 const editsModel = require("../../dao/models/edits")
+const { HttpError } = require("../../middleware/httpErrors")
 
-const invalidSession = (res, message) =>
-    res.status(403).json({
-        auth: false,
-        code: "INVALID_SESSION",
-        message,
-    })
+const invalidSession = (res, next, message) => {
+    res.set("WWW-Authenticate", "Bearer")
+    return next(new HttpError(401, "INVALID_SESSION", message))
+}
 
-const forbidden = (res, message) =>
-    res.status(403).json({
-        auth: true,
-        code: "FORBIDDEN",
-        message,
-    })
+const forbidden = (next, message) =>
+    next(new HttpError(403, "FORBIDDEN", message))
 
 const normalizeId = (value) => {
     if (value === null || value === undefined) return null
@@ -44,7 +39,7 @@ const isAuth = async (req, res, next) => {
     const authHeader = req.headers.authorization
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return invalidSession(res, "No existe sesión activa")
+        return invalidSession(res, next, "No existe sesión activa")
     }
 
     const token = authHeader.substring(7)
@@ -55,6 +50,7 @@ const isAuth = async (req, res, next) => {
     } catch (error) {
         return invalidSession(
             res,
+            next,
             "Sesión no válida, error en las credenciales"
         )
     }
@@ -62,6 +58,7 @@ const isAuth = async (req, res, next) => {
     if (!mongoose.isValidObjectId(tokenData.id)) {
         return invalidSession(
             res,
+            next,
             "La sesión no corresponde a un usuario válido"
         )
     }
@@ -75,6 +72,7 @@ const isAuth = async (req, res, next) => {
         if (!user) {
             return invalidSession(
                 res,
+                next,
                 "La sesión no corresponde a un usuario válido"
             )
         }
@@ -86,13 +84,16 @@ const isAuth = async (req, res, next) => {
         }
 
         return next()
-    } catch (error) {
-        console.error("Authentication user lookup failed:", error)
-        return res.status(500).json({
-            auth: false,
-            code: "AUTHENTICATION_ERROR",
-            message: "No se pudo validar la sesión",
-        })
+    } catch (cause) {
+        return next(
+            new HttpError(
+                500,
+                "AUTHENTICATION_ERROR",
+                "No se pudo validar la sesión",
+                [],
+                { cause }
+            )
+        )
     }
 }
 
@@ -103,11 +104,13 @@ const requireTournamentAccess = (
         const tournamentId = getTournamentId(req)
 
         if (!mongoose.isValidObjectId(tournamentId)) {
-            return res.status(400).json({
-                auth: true,
-                code: "INVALID_TOURNAMENT_ID",
-                message: "El torneo indicado no es válido",
-            })
+            return next(
+                new HttpError(
+                    400,
+                    "INVALID_TOURNAMENT_ID",
+                    "El torneo indicado no es válido"
+                )
+            )
         }
 
         try {
@@ -117,11 +120,13 @@ const requireTournamentAccess = (
                 .lean()
 
             if (!tournament) {
-                return res.status(404).json({
-                    auth: true,
-                    code: "TOURNAMENT_NOT_FOUND",
-                    message: "No se encontró el torneo",
-                })
+                return next(
+                    new HttpError(
+                        404,
+                        "TOURNAMENT_NOT_FOUND",
+                        "No se encontró el torneo"
+                    )
+                )
             }
 
             req.tournament = tournament
@@ -131,19 +136,22 @@ const requireTournamentAccess = (
             const participantIds = getParticipantIds(tournament)
             if (!participantIds.has(normalizeId(req.user.id))) {
                 return forbidden(
-                    res,
+                    next,
                     "No tenés permisos para modificar este torneo"
                 )
             }
 
             return next()
-        } catch (error) {
-            console.error("Tournament authorization failed:", error)
-            return res.status(500).json({
-                auth: true,
-                code: "AUTHORIZATION_ERROR",
-                message: "No se pudo validar el acceso al torneo",
-            })
+        } catch (cause) {
+            return next(
+                new HttpError(
+                    500,
+                    "AUTHORIZATION_ERROR",
+                    "No se pudo validar el acceso al torneo",
+                    [],
+                    { cause }
+                )
+            )
         }
     }
 }
@@ -152,39 +160,46 @@ const requireMatchInTournament = async (req, res, next) => {
     const { match: matchId, tournament: tournamentId } = req.params
 
     if (!mongoose.isValidObjectId(matchId)) {
-        return res.status(400).json({
-            auth: true,
-            code: "INVALID_MATCH_ID",
-            message: "El partido indicado no es válido",
-        })
+        return next(
+            new HttpError(
+                400,
+                "INVALID_MATCH_ID",
+                "El partido indicado no es válido"
+            )
+        )
     }
 
     try {
         const match = await matchesModel
             .findById(matchId)
-            .select("tournament")
+            .select("tournament type seedP1 seedP2")
             .lean()
 
         if (
             !match ||
             normalizeId(match.tournament?.id) !== normalizeId(tournamentId)
         ) {
-            return res.status(404).json({
-                auth: true,
-                code: "MATCH_NOT_FOUND",
-                message: "No se encontró el partido en el torneo indicado",
-            })
+            return next(
+                new HttpError(
+                    404,
+                    "MATCH_NOT_FOUND",
+                    "No se encontró el partido en el torneo indicado"
+                )
+            )
         }
 
         req.match = match
         return next()
-    } catch (error) {
-        console.error("Match authorization failed:", error)
-        return res.status(500).json({
-            auth: true,
-            code: "AUTHORIZATION_ERROR",
-            message: "No se pudo validar el acceso al partido",
-        })
+    } catch (cause) {
+        return next(
+            new HttpError(
+                500,
+                "AUTHORIZATION_ERROR",
+                "No se pudo validar el acceso al partido",
+                [],
+                { cause }
+            )
+        )
     }
 }
 
@@ -192,40 +207,47 @@ const requireEditOwnership = async (req, res, next) => {
     const { id } = req.params
 
     if (!mongoose.isValidObjectId(id)) {
-        return res.status(400).json({
-            auth: true,
-            code: "INVALID_EDIT_ID",
-            message: "La edición indicada no es válida",
-        })
+        return next(
+            new HttpError(
+                400,
+                "INVALID_EDIT_ID",
+                "La edición indicada no es válida"
+            )
+        )
     }
 
     try {
         const edit = await editsModel.findById(id)
 
         if (!edit) {
-            return res.status(404).json({
-                auth: true,
-                code: "EDIT_NOT_FOUND",
-                message: "No se encontró la edición",
-            })
+            return next(
+                new HttpError(
+                    404,
+                    "EDIT_NOT_FOUND",
+                    "No se encontró la edición"
+                )
+            )
         }
 
         if (
             req.user.role !== "superadmin" &&
             normalizeId(edit.user) !== normalizeId(req.user.id)
         ) {
-            return forbidden(res, "No tenés permisos para borrar esta edición")
+            return forbidden(next, "No tenés permisos para borrar esta edición")
         }
 
         req.edit = edit
         return next()
-    } catch (error) {
-        console.error("Edit authorization failed:", error)
-        return res.status(500).json({
-            auth: true,
-            code: "AUTHORIZATION_ERROR",
-            message: "No se pudo validar el acceso a la edición",
-        })
+    } catch (cause) {
+        return next(
+            new HttpError(
+                500,
+                "AUTHORIZATION_ERROR",
+                "No se pudo validar el acceso a la edición",
+                [],
+                { cause }
+            )
+        )
     }
 }
 

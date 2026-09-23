@@ -1,12 +1,6 @@
-const dotenv = require("dotenv").config()
-
 const express = require("express")
 
-/* -------------------- ROUTER -------------------- */
-
 const { Router } = express
-
-// Defino todos los routers de la aplicación //
 
 const root = Router()
 const users = Router()
@@ -14,24 +8,20 @@ const tournaments = Router()
 const statistics = Router()
 const summary = Router()
 
-root.use(express.json())
-users.use(express.json())
-tournaments.use(express.json())
-statistics.use(express.json())
-summary.use(express.json())
-
-root.use(express.urlencoded({ extended: true }))
-users.use(express.urlencoded({ extended: true }))
-tournaments.use(express.urlencoded({ extended: true }))
-statistics.use(express.urlencoded({ extended: true }))
-summary.use(express.urlencoded({ extended: true }))
-
-/* -------------------- API -------------------- */
+const asyncHandler = require("../utils/asyncHandler")
+const rawControllers = require("../controller")
+const controllers = Object.fromEntries(
+    Object.entries(rawControllers).map(([name, value]) => [
+        name,
+        typeof value === "function" ? asyncHandler(value) : value,
+    ])
+)
 
 const {
     getMatches,
     postMatch,
     getUsers,
+    getCurrentUser,
     postLogin,
     postLogout,
     getTournaments,
@@ -76,9 +66,12 @@ const {
     getEdits,
     deleteEdit,
     putCompleteTournamentById,
-} = require("./../controller")
+} = controllers
 
-/* -------------------- AUTHORIZATION -------------------- */
+const validateRequest = require("../middleware/validateRequest")
+const validateMatchResult = require("../middleware/validateMatchResult")
+const requestSchemas = require("../validation/requestSchemas")
+const validate = (schemaName) => validateRequest(requestSchemas[schemaName])
 
 const {
     isAuth,
@@ -87,40 +80,43 @@ const {
     requireEditOwnership,
 } = require("./auth")
 
-// ROOT
-
 root.get("/matches", getMatches)
 
 root.post(
     "/matches",
     isAuth,
+    validate("postMatch"),
     requireTournamentAccess(
         (req) => req.body?.tournament?.id ?? req.body?.tournament
     ),
     postMatch
-) // Provisoria, luego puede ser modificada //
+)
 
 root.get("/edits", getEdits)
 
 root.post("/edits", isAuth, postEditsUpload.array("image", 10), postEdits)
 
-root.delete("/edits/:id", isAuth, requireEditOwnership, deleteEdit)
+root.delete(
+    "/edits/:id",
+    isAuth,
+    validate("deleteEdit"),
+    requireEditOwnership,
+    deleteEdit
+)
 
-// USERS
+users.get("/me", isAuth, getCurrentUser)
 
 users.get("/", getUsers)
 
-users.post("/login", postLogin)
+users.post("/login", validate("login"), postLogin)
 
-users.post("/logout", isAuth, postLogout)
-
-// TOURNAMENTS
+users.post("/logout", isAuth, validate("logout"), postLogout)
 
 tournaments.get("/", getTournaments)
 
 tournaments.get("/images", getTournamentImages)
 
-tournaments.post("/", isAuth, postTournaments)
+tournaments.post("/", isAuth, validate("createTournament"), postTournaments)
 
 tournaments.get("/:tournament", getTournamentById)
 
@@ -133,6 +129,7 @@ tournaments.get("/:tournament/fixture", getFixtureByTournamentId)
 tournaments.post(
     "/:tournament/fixture",
     isAuth,
+    validate("fixture"),
     requireTournamentAccess(),
     postFixtureByTournamentId
 )
@@ -144,6 +141,7 @@ tournaments.get("/:tournament/players/info", getPlayerInfoByTournamentId)
 tournaments.post(
     "/:tournament/playin",
     isAuth,
+    validate("playin"),
     requireTournamentAccess(),
     postPlayinByTournamentId
 )
@@ -151,6 +149,7 @@ tournaments.post(
 tournaments.post(
     "/:tournament/playin/update",
     isAuth,
+    validate("playinUpdate"),
     requireTournamentAccess(),
     postPlayinUpdateByTournamentId
 )
@@ -158,6 +157,7 @@ tournaments.post(
 tournaments.put(
     "/:tournament/complete",
     isAuth,
+    validate("completeTournament"),
     requireTournamentAccess(),
     putCompleteTournamentById
 )
@@ -167,6 +167,7 @@ tournaments.get("/:tournament/playin/matches", getPlayinMatchesByTournamentId)
 tournaments.post(
     "/:tournament/playoff",
     isAuth,
+    validate("createPlayoff"),
     requireTournamentAccess(),
     postPlayoffByTournamentId
 )
@@ -174,6 +175,7 @@ tournaments.post(
 tournaments.post(
     "/:tournament/playoff/update",
     isAuth,
+    validate("updatePlayoff"),
     requireTournamentAccess(),
     postPlayoffUpdateByTournamentId
 )
@@ -187,6 +189,7 @@ tournaments.get("/:tournament/teams/:team/squad", getSquadByTeamId)
 tournaments.put(
     "/:tournament/teams/:team/squad",
     isAuth,
+    validate("updateSquad"),
     requireTournamentAccess(),
     putSquadByTeamId
 )
@@ -194,6 +197,7 @@ tournaments.put(
 tournaments.post(
     "/:tournament/matches/create-game/",
     isAuth,
+    validate("createMatch"),
     requireTournamentAccess(),
     postMatchByTournamentId
 )
@@ -201,8 +205,10 @@ tournaments.post(
 tournaments.put(
     "/:tournament/matches/update-game/:match",
     isAuth,
+    validate("updateMatch"),
     requireTournamentAccess(),
     requireMatchInTournament,
+    validateMatchResult,
     putMatchByTournamentId
 )
 
@@ -211,6 +217,7 @@ tournaments.put(
 tournaments.post(
     "/:tournament/daily-recap",
     isAuth,
+    validate("dailyRecap"),
     requireTournamentAccess(),
     postDailyRecapByTournamentId
 )
@@ -221,6 +228,7 @@ tournaments.get("/:tournament/daily-recap", getDailyRecapByTournamentId)
 tournaments.put(
     "/:tournament/matches/delete-game/:match",
     isAuth,
+    validate("removeMatch"),
     requireTournamentAccess(),
     requireMatchInTournament,
     putRemoveMatchByTournamentId
