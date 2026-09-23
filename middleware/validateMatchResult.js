@@ -13,11 +13,9 @@ const validateMatchResult = (req, res, next) => {
         persistedMatch.type === "playoff" ||
         persistedMatch.type === "playin" ||
         hasPersistedSeeds
-    const bodyHasSeeds =
-        body.seedP1 !== undefined || body.seedP2 !== undefined
+    const bodyHasSeeds = body.seedP1 !== undefined || body.seedP2 !== undefined
     const bodyHasPenalties =
-        body.penaltyScoreP1 !== undefined ||
-        body.penaltyScoreP2 !== undefined
+        body.penaltyScoreP1 !== undefined || body.penaltyScoreP2 !== undefined
 
     if (!isKnockout) {
         if (bodyHasSeeds || bodyHasPenalties) {

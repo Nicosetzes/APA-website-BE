@@ -29,10 +29,7 @@ test("tournament list controller preserves filters and array response", async ()
     })
     const response = createResponse()
 
-    await controller(
-        { query: { legacy: false, status: "active" } },
-        response
-    )
+    await controller({ query: { legacy: false, status: "active" } }, response)
 
     assert.deepEqual(received, [false, "active"])
     assert.equal(response.statusCode, 200)

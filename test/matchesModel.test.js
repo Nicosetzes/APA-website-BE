@@ -6,7 +6,9 @@ const matchesModel = require("../dao/models/matches")
 test("new v1 matches require routing fields", async () => {
     const match = new matchesModel({})
 
-    const error = await match.validate().catch((validationError) => validationError)
+    const error = await match
+        .validate()
+        .catch((validationError) => validationError)
 
     assert.ok(error.errors.type)
     assert.ok(error.errors.tournament)
@@ -21,7 +23,9 @@ test("new v1 matches reject invalid type and tournament reference", async () => 
         played: false,
     })
 
-    const error = await match.validate().catch((validationError) => validationError)
+    const error = await match
+        .validate()
+        .catch((validationError) => validationError)
 
     assert.ok(error.errors.type)
     assert.ok(error.errors.tournament)

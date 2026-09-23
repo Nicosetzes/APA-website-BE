@@ -5,9 +5,7 @@ const tournamentsModel = require("../dao/models/tournaments")
 const matchesModel = require("../dao/models/matches")
 const createTournament = require("../dao/createTournament")
 const createPlayoffByTournamentId = require("../dao/createPlayoffByTournamentId")
-const {
-    createPostTournaments,
-} = require("../controller/postTournaments")
+const { createPostTournaments } = require("../controller/postTournaments")
 const withTransaction = require("../utils/withTransaction")
 
 const createResponse = () => ({

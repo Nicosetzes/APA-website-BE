@@ -1,0 +1,45 @@
+{
+    "comentario": "Vulnerabilidades high/critical aceptadas temporalmente. CI falla ante cualquier hallazgo que no esté acá, así que esta lista es la deuda de seguridad explícita. Cada entrada necesita motivo y plan.",
+    "aceptadas": [
+        {
+            "paquete": "tar",
+            "motivo": "Transitiva de bcrypt vía @mapbox/node-pre-gyp. Se usa al instalar el binario, no en el camino de request. Requiere bcrypt major.",
+            "plan": "Migrar bcrypt 5.x a 6.x en un lote propio con tests de login"
+        },
+        {
+            "paquete": "@mapbox/node-pre-gyp",
+            "motivo": "Misma cadena que tar: dependencia de instalación de bcrypt.",
+            "plan": "Se resuelve junto con bcrypt 6.x"
+        },
+        {
+            "paquete": "jsonwebtoken",
+            "motivo": "El arreglo exige major 9.x, que cambia el manejo de claves y algoritmos. Afecta autenticación, no se sube sin pruebas.",
+            "plan": "Lote dedicado: subir a 9.x, revisar firma/verificación y correr el smoke de escritura"
+        },
+        {
+            "paquete": "cloudinary",
+            "motivo": "El arreglo exige major 2.x. Afecta uploads de edits e imágenes de torneos.",
+            "plan": "Lote dedicado junto a multer-storage-cloudinary, validando upload y delete en preview"
+        },
+        {
+            "paquete": "multer-storage-cloudinary",
+            "motivo": "npm propone 2.2.1, que es un downgrade respecto del 4.x actual y rompe la API. Depende de la migración de cloudinary.",
+            "plan": "Evaluar reemplazo del adaptador o subir cloudinary y fijar el adaptador compatible"
+        },
+        {
+            "paquete": "nodemon",
+            "motivo": "Sólo desarrollo, no se despliega. El arreglo es major.",
+            "plan": "Subir a nodemon 3.x cuando se toque tooling"
+        },
+        {
+            "paquete": "semver",
+            "motivo": "Transitiva de nodemon, sólo desarrollo.",
+            "plan": "Se resuelve con nodemon 3.x"
+        },
+        {
+            "paquete": "simple-update-notifier",
+            "motivo": "Transitiva de nodemon, sólo desarrollo.",
+            "plan": "Se resuelve con nodemon 3.x"
+        }
+    ]
+}
