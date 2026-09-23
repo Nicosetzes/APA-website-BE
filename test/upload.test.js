@@ -7,8 +7,10 @@ const express = require("express")
 const multer = require("multer")
 
 const {
+    DEFAULT_EDIT_UPLOAD_FOLDER,
     EDIT_UPLOAD_MAX_FILE_SIZE_BYTES,
     EDIT_UPLOAD_MAX_FILES,
+    getEditUploadFolder,
 } = require("../config/uploads")
 const { editFileFilter, postEditsUpload } = require("../controller/postEdits")
 const { errorHandler } = require("../middleware/httpErrors")
@@ -141,4 +143,26 @@ test("more than 10 files return 400", async () => {
         assert.equal(response.status, 400)
         assert.equal(body.error.code, "TOO_MANY_FILES")
     })
+})
+
+test("edit uploads default to the edits folder and can be moved per environment", (t) => {
+    const originalFolder = process.env.CLOUDINARY_EDITS_FOLDER
+
+    t.after(() => {
+        if (originalFolder === undefined) {
+            delete process.env.CLOUDINARY_EDITS_FOLDER
+        } else {
+            process.env.CLOUDINARY_EDITS_FOLDER = originalFolder
+        }
+    })
+
+    delete process.env.CLOUDINARY_EDITS_FOLDER
+    assert.equal(getEditUploadFolder(), DEFAULT_EDIT_UPLOAD_FOLDER)
+    assert.equal(getEditUploadFolder(), "edits")
+
+    process.env.CLOUDINARY_EDITS_FOLDER = "  edits-preview  "
+    assert.equal(getEditUploadFolder(), "edits-preview")
+
+    process.env.CLOUDINARY_EDITS_FOLDER = "   "
+    assert.equal(getEditUploadFolder(), "edits")
 })

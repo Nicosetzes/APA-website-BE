@@ -40,11 +40,10 @@ test("health endpoints report process and database state", async () => {
         const notReadyResponse = await globalThis.fetch(
             `${baseUrl}/health/ready`
         )
+        const notReadyBody = await notReadyResponse.json()
         assert.equal(notReadyResponse.status, 503)
-        assert.equal(
-            (await notReadyResponse.json()).checks.mongodb,
-            "disconnected"
-        )
+        assert.equal(notReadyBody.checks.mongodb, "disconnected")
+        assert.ok("environment" in notReadyBody)
 
         databaseState = "connected"
         const readyResponse = await globalThis.fetch(`${baseUrl}/health/ready`)

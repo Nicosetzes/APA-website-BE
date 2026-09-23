@@ -1,6 +1,14 @@
 const mongoose = require("mongoose")
 
+const logger = require("./utils/logger")
+
 let connectionPromise
+
+// Por si el driver alguna vez incluye el URI completo en el mensaje.
+const sanitizeConnectionError = (message = "") =>
+    String(message)
+        .replace(/mongodb(\+srv)?:\/\/[^\s]*/gi, "mongodb://<redactado>")
+        .slice(0, 400)
 
 const connectionStates = [
     "disconnected",
@@ -31,6 +39,14 @@ const connectMongo = async () => {
     const pendingConnection = mongoose
         .connect(getMongoUri(), { serverSelectionTimeoutMS: 5000 })
         .then(() => mongoose.connection)
+        .catch((error) => {
+            logger.error("mongo_connection_failed", {
+                errorName: error.name || "Error",
+                reason: sanitizeConnectionError(error.message),
+            })
+
+            throw error
+        })
 
     connectionPromise = pendingConnection
 

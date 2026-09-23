@@ -6,6 +6,7 @@ const cloudinary = require("../../cloudinary")
 const {
     EDIT_UPLOAD_MAX_FILE_SIZE_BYTES,
     EDIT_UPLOAD_MAX_FILES,
+    getEditUploadFolder,
     isAllowedEditMimeType,
 } = require("../../config/uploads")
 const { HttpError } = require("../../middleware/httpErrors")
@@ -15,7 +16,7 @@ const withTransaction = require("../../utils/withTransaction")
 const storage = new CloudinaryStorage({
     cloudinary,
     params: {
-        folder: "edits",
+        folder: getEditUploadFolder(),
         allowed_formats: ["jpg", "jpeg", "png", "webp"],
     },
 })

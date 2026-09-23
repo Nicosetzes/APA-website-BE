@@ -36,8 +36,11 @@ const createApp = ({ ensureDatabase, getDatabaseStatus }) => {
         } catch (error) {
             return res.status(503).json({
                 status: "not_ready",
+                environment:
+                    process.env.VERCEL_ENV || process.env.NODE_ENV || null,
                 checks: {
                     mongodb: getDatabaseStatus().state,
+                    database: null,
                 },
             })
         }

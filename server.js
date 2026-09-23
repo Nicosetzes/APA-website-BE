@@ -7,6 +7,7 @@ if (require.main === module || process.env.VERCEL) {
 }
 
 const { createApp } = require("./app")
+const { shouldBlockLocalStart } = require("./config/databaseSafety")
 const {
     connectMongo,
     disconnectMongo,
@@ -20,7 +21,28 @@ const app = createApp({
 
 const start = async () => {
     await connectMongo()
-    console.log("Base de datos MongoDB conectada")
+
+    const { name: databaseName } = getDatabaseStatus()
+    console.log(`Base de datos MongoDB conectada: ${databaseName}`)
+
+    if (
+        shouldBlockLocalStart({
+            databaseName,
+            isManagedDeployment: Boolean(process.env.VERCEL),
+            allowProductionDatabase: process.env.ALLOW_PRODUCTION_DB === "true",
+        })
+    ) {
+        console.error(
+            `\nArranque bloqueado: "${databaseName}" no es una base de pruebas.` +
+                "\nNavegar el FE contra el server local escribe en la base." +
+                "\nApuntá MONGO_URI a la base de desarrollo, o si de verdad" +
+                " necesitás producción, arrancá con ALLOW_PRODUCTION_DB=true.\n"
+        )
+
+        await disconnectMongo()
+        process.exitCode = 1
+        return
+    }
 
     const port = process.env.PORT || 5000
     const server = app.listen(port, () => {
