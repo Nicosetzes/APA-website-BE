@@ -1,4 +1,4 @@
-const Joi = require("@hapi/joi")
+const Joi = require("joi")
 
 const emptyObject = Joi.object({}).unknown(false)
 
@@ -162,9 +162,138 @@ const isValidCalendarDate = (value, helpers) => {
     return value
 }
 
+const fixturePlayerIds = Joi.array().items(externalId).min(1).max(2).unique()
+
+const jsonFixturePlayerIds = Joi.any().custom((raw, helpers) => {
+    if (typeof raw !== "string" || raw.length > 500) {
+        return helpers.error("any.invalid")
+    }
+
+    try {
+        const parsed = JSON.parse(raw)
+        const { value, error } = fixturePlayerIds.validate(parsed, {
+            abortEarly: false,
+            convert: true,
+        })
+
+        return error ? helpers.error("any.invalid") : value
+    } catch (error) {
+        return helpers.error("any.invalid")
+    }
+})
+
+const calculatorTeamIds = Joi.array().items(externalId).min(1).max(40).unique()
+
+const jsonCalculatorTeamIds = Joi.any().custom((raw, helpers) => {
+    if (typeof raw !== "string" || raw.length > 1000) {
+        return helpers.error("any.invalid")
+    }
+
+    try {
+        const parsed = JSON.parse(raw)
+        const { value, error } = calculatorTeamIds.validate(parsed, {
+            abortEarly: false,
+            convert: true,
+        })
+
+        return error ? helpers.error("any.invalid") : value
+    } catch (error) {
+        return helpers.error("any.invalid")
+    }
+})
+
+const calendarDate = Joi.string()
+    .pattern(/^\d{4}-\d{2}-\d{2}$/)
+    .custom(isValidCalendarDate)
+
+// El listado histórico acepta "all" y "" como "sin filtro" porque el FE
+// mantiene esos valores en la URL; el DAO ya los interpreta así.
+const optionalIdFilter = Joi.alternatives().try(
+    mongoId,
+    Joi.string().valid("all", "")
+)
+
 module.exports = {
     postMatch: {
         body: postMatchBody,
+    },
+    getMatches: {
+        query: Joi.object({
+            page: Joi.number().integer().min(0).max(10000).default(0),
+            teamName: Joi.string().trim().min(1).max(100).allow("").optional(),
+            player1: optionalIdFilter.optional(),
+            player2: optionalIdFilter.optional(),
+            tournamentId: optionalIdFilter.optional(),
+            type: Joi.string()
+                .valid("all", "regular", "knockout", "playin", "playoff")
+                .optional(),
+            outcome: Joi.string()
+                .valid("all", "win", "draw", "loss", "penalties")
+                .optional(),
+            goalDiffOp: Joi.string().valid("gte", "lte", "eq").default("gte"),
+            goalDiffVal: Joi.number()
+                .integer()
+                .min(0)
+                .max(99)
+                .allow("")
+                .optional(),
+            dateFrom: calendarDate.optional(),
+            dateTo: calendarDate.optional(),
+            played: Joi.boolean().optional(),
+        }).unknown(false),
+        body: emptyObject,
+    },
+    getStatistics: {
+        query: Joi.object({
+            tournament: mongoId.optional(),
+        }).unknown(false),
+        body: emptyObject,
+    },
+    getTournamentImages: {
+        params: emptyObject,
+        query: emptyObject,
+        body: emptyObject,
+    },
+    getAllTimeStatistics: {
+        params: emptyObject,
+        query: emptyObject,
+        body: emptyObject,
+    },
+    getUsers: {
+        params: emptyObject,
+        query: emptyObject,
+        body: emptyObject,
+    },
+    getCalculator: {
+        params: tournamentParams,
+        query: Joi.object({
+            teams: jsonCalculatorTeamIds.required(),
+        }).unknown(false),
+        body: emptyObject,
+    },
+    getPlayerInfo: {
+        params: tournamentParams,
+        query: Joi.object({
+            // Acepta "all", ObjectId y también IDs históricos no canónicos.
+            player: externalId.optional(),
+            matches: Joi.boolean()
+                .truthy("1", "yes", "on")
+                .falsy("0", "no", "off")
+                .optional(),
+        }).unknown(false),
+        body: emptyObject,
+    },
+    getStandingsTable: {
+        params: tournamentParams,
+        query: Joi.object({
+            group: group.optional(),
+        }).unknown(false),
+        body: emptyObject,
+    },
+    getEdits: {
+        query: Joi.object({
+            page: Joi.number().integer().min(1).max(10000).default(1),
+        }).unknown(false),
     },
     deleteEdit: {
         params: Joi.object({ id: mongoId.required() }).unknown(false),
@@ -181,9 +310,31 @@ module.exports = {
         body: emptyObject,
         query: emptyObject,
     },
+    getTournamentResource: {
+        params: tournamentParams,
+        query: emptyObject,
+        body: emptyObject,
+    },
+    getTournaments: {
+        query: Joi.object({
+            status: Joi.string().valid("active", "finalized").optional(),
+            legacy: Joi.boolean().optional(),
+        }).unknown(false),
+        body: emptyObject,
+    },
     createTournament: {
         body: tournamentBody,
         query: emptyObject,
+    },
+    getFixture: {
+        params: tournamentParams,
+        query: Joi.object({
+            page: Joi.number().integer().min(0).max(10000).default(0),
+            team: Joi.string().trim().min(1).max(100).optional(),
+            group: group.optional(),
+            players: jsonFixturePlayerIds.optional(),
+        }).unknown(false),
+        body: emptyObject,
     },
     fixture: {
         params: tournamentParams,
@@ -191,6 +342,11 @@ module.exports = {
             group: group.allow(null).required(),
         }).unknown(false),
         query: emptyObject,
+    },
+    getPlayin: {
+        params: tournamentParams,
+        query: emptyObject,
+        body: emptyObject,
     },
     playin: {
         params: tournamentParams,
@@ -210,6 +366,11 @@ module.exports = {
         params: tournamentParams,
         body: emptyObject,
         query: emptyObject,
+    },
+    getPlayoff: {
+        params: tournamentParams,
+        query: emptyObject,
+        body: emptyObject,
     },
     createPlayoff: {
         params: tournamentParams,
@@ -251,13 +412,17 @@ module.exports = {
         body: updateMatchBody,
         query: emptyObject,
     },
+    getDailyRecap: {
+        params: tournamentParams,
+        query: Joi.object({
+            date: calendarDate.optional(),
+        }).unknown(false),
+        body: emptyObject,
+    },
     dailyRecap: {
         params: tournamentParams,
         body: Joi.object({
-            date: Joi.string()
-                .pattern(/^\d{4}-\d{2}-\d{2}$/)
-                .custom(isValidCalendarDate)
-                .required(),
+            date: calendarDate.required(),
             content: Joi.alternatives()
                 .try(
                     Joi.string().min(1),

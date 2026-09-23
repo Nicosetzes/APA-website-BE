@@ -2,58 +2,65 @@ const {
     originateTournament,
     originatePlayoffByTournamentId,
 } = require("./../../service")
+const withTransaction = require("../../utils/withTransaction")
 
-const postTournaments = async (req, res) => {
-    const { cloudinary_id, format, name, players, teams } = req.body
+const GROUP_FORMATS = new Set([
+    "champions_league",
+    "league_playin_playoff",
+    "super_cup",
+    "world_cup",
+    "world_cup_2026",
+])
 
-    try {
-        let groups
+const createPostTournaments = (dependencies = {}) => {
+    const createTournament =
+        dependencies.originateTournament || originateTournament
+    const createInitialPlayoff =
+        dependencies.originatePlayoffByTournamentId ||
+        originatePlayoffByTournamentId
+    const runInTransaction = dependencies.withTransaction || withTransaction
+
+    return async (req, res) => {
+        const { cloudinary_id, format, name, players, teams } = req.body
+        const tournament = {
+            cloudinary_id: cloudinary_id ?? null,
+            format,
+            name,
+            players,
+            teams,
+        }
+
         let newTournament
 
-        if (
-            format == "champions_league" ||
-            format == "league_playin_playoff" ||
-            format == "super_cup" ||
-            format == "world_cup" ||
-            format == "world_cup_2026"
-        ) {
-            groups = Array.from(new Set(teams.map(({ group }) => group)))
+        if (GROUP_FORMATS.has(format)) {
+            tournament.groups = Array.from(
+                new Set(teams.map(({ group }) => group))
+            )
                 .filter(Boolean)
                 .sort((a, b) => String(a).localeCompare(String(b)))
 
-            newTournament = await originateTournament({
-                cloudinary_id: cloudinary_id ?? null,
-                format,
-                groups,
-                name,
-                players,
-                teams,
+            newTournament = await createTournament(tournament)
+        } else if (format === "playoff") {
+            newTournament = await runInTransaction(async (session) => {
+                const createdTournament = await createTournament(tournament, {
+                    session,
+                })
+
+                await createInitialPlayoff(createdTournament, teams, {
+                    session,
+                })
+
+                return createdTournament
             })
-        } else if (format == "playoff") {
-            // Create tournament first
-            newTournament = await originateTournament({
-                cloudinary_id: cloudinary_id ?? null,
-                format,
-                name,
-                players,
-                teams,
-            })
-            // Generate Round of 32 playoff matches
-            await originatePlayoffByTournamentId(newTournament, teams)
         } else {
-            newTournament = await originateTournament({
-                cloudinary_id: cloudinary_id ?? null,
-                format,
-                name,
-                players,
-                teams,
-            })
+            newTournament = await createTournament(tournament)
         }
 
-        res.status(200).json(newTournament)
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
+        return res.status(200).json(newTournament)
     }
 }
 
+const postTournaments = createPostTournaments()
+
 module.exports = postTournaments
+module.exports.createPostTournaments = createPostTournaments

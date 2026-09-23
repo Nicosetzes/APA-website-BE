@@ -3,51 +3,111 @@ const {
     retrieveTournamentById,
     retrievePlayoffMatchesByTournamentId,
 } = require("./../../service")
+const { HttpError } = require("../../middleware/httpErrors")
+const withTransaction = require("../../utils/withTransaction")
 
-// champions_league uses home+away brackets and is not handled here yet
 const FORMAT_TO_START_SIZE = {
     playoff: 32,
     world_cup_2026: 32,
     world_cup: 16,
     league_playin_playoff: 16,
+    super_cup: 16,
 }
 
-const postPlayoffUpdateByTournamentId = async (req, res) => {
-    const { tournament } = req.params
+const validatePlayoffState = (matches, startSize) => {
+    const ids = new Set()
 
-    try {
-        const { id, name, format } = await retrieveTournamentById(tournament)
-
-        if (format === "champions_league") {
-            return res.status(501).json({
-                message:
-                    "La actualización automática de playoffs para el formato champions_league aún no está implementada.",
-            })
+    for (const match of matches) {
+        const id = Number(match.playoff_id)
+        if (!Number.isInteger(id) || id < 1 || id >= startSize || ids.has(id)) {
+            throw new HttpError(
+                422,
+                "PLAYOFF_DATA_INVALID",
+                "El bracket contiene IDs inválidos o duplicados"
+            )
         }
+        ids.add(id)
 
-        const startSize = FORMAT_TO_START_SIZE[format] ?? 16
-        const matches = await retrievePlayoffMatchesByTournamentId(tournament)
-
-        const { created, updated } = await generatePlayoffUpdate(
-            { id, name },
-            matches,
-            startSize
-        )
-
-        const allNew = [...created, ...updated]
-
-        return allNew.length
-            ? res.status(200).json({
-                  matches: allNew,
-                  message: `Se han generado/actualizado partidos nuevos (${allNew.length})`,
-              })
-            : res.status(200).json({
-                  matches: allNew,
-                  message: `No hay partidos nuevos para generar`,
-              })
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
+        if (
+            match.played === true &&
+            (!match.outcome?.playerThatWon || !match.outcome?.teamThatWon)
+        ) {
+            throw new HttpError(
+                422,
+                "PLAYOFF_DATA_INVALID",
+                "El bracket contiene partidos jugados sin ganador válido"
+            )
+        }
     }
 }
 
+const createPostPlayoffUpdateByTournamentId = (dependencies = {}) => {
+    const retrieveTournament =
+        dependencies.retrieveTournamentById || retrieveTournamentById
+    const retrieveMatches =
+        dependencies.retrievePlayoffMatchesByTournamentId ||
+        retrievePlayoffMatchesByTournamentId
+    const generateUpdate =
+        dependencies.generatePlayoffUpdate || generatePlayoffUpdate
+    const runInTransaction = dependencies.withTransaction || withTransaction
+
+    return async (req, res) => {
+        const { tournament } = req.params
+
+        const result = await runInTransaction(async (session) => {
+            const options = { session }
+            const tournamentData = await retrieveTournament(tournament, options)
+
+            if (!tournamentData) {
+                throw new HttpError(
+                    404,
+                    "TOURNAMENT_NOT_FOUND",
+                    "No se encontró el torneo"
+                )
+            }
+
+            const startSize = FORMAT_TO_START_SIZE[tournamentData.format]
+            if (!startSize) {
+                throw new HttpError(
+                    422,
+                    "PLAYOFF_UPDATE_UNSUPPORTED",
+                    "El formato del torneo no admite actualización automática del playoff"
+                )
+            }
+
+            const matches = await retrieveMatches(tournament, options)
+            if (matches.length === 0) {
+                throw new HttpError(
+                    409,
+                    "PLAYOFF_NOT_READY",
+                    "El bracket del playoff aún no fue generado"
+                )
+            }
+
+            validatePlayoffState(matches, startSize)
+
+            const update = await generateUpdate(
+                { id: tournamentData.id, name: tournamentData.name },
+                matches,
+                startSize,
+                options
+            )
+
+            return [...update.created, ...update.updated]
+        })
+
+        return res.status(200).json({
+            matches: result,
+            message: result.length
+                ? `Se han generado/actualizado partidos nuevos (${result.length})`
+                : "No hay partidos nuevos para generar",
+        })
+    }
+}
+
+const postPlayoffUpdateByTournamentId = createPostPlayoffUpdateByTournamentId()
+
 module.exports = postPlayoffUpdateByTournamentId
+module.exports.createPostPlayoffUpdateByTournamentId =
+    createPostPlayoffUpdateByTournamentId
+module.exports.validatePlayoffState = validatePlayoffState

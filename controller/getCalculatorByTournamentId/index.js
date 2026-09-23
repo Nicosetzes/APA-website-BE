@@ -3,28 +3,32 @@ const {
     retrieveTeamRemainingMatchesByTournamentId,
 } = require("./../../service")
 
-const getCalculatorByTournamentId = async (req, res) => {
-    try {
+const createGetCalculatorByTournamentId = (dependencies = {}) => {
+    const retrieveTeamRemainingMatches =
+        dependencies.retrieveTeamRemainingMatchesByTournamentId ||
+        retrieveTeamRemainingMatchesByTournamentId
+    const retrieveStandings =
+        dependencies.retrieveStandingsForCalculatorByTournamentId ||
+        retrieveStandingsForCalculatorByTournamentId
+
+    return async (req, res) => {
         const { tournament } = req.params
-        let teamIDs
-        if (req.query.teams) teamIDs = JSON.parse(req.query.teams)
+        // Joi ya parseó y acotó el JSON de `teams`.
+        const teamIDs = req.query.teams
 
-        // Necesito calcular los partidos restantes de cada uno de los equipos seleccionados
+        // Partidos restantes de cada equipo seleccionado y tabla del torneo
+        // con PJ, PG, PE, PP y PTS.
+        const [teams, standings] = await Promise.all([
+            retrieveTeamRemainingMatches(tournament, teamIDs),
+            retrieveStandings(tournament),
+        ])
 
-        const teams = await retrieveTeamRemainingMatchesByTournamentId(
-            tournament,
-            teamIDs
-        )
-
-        // También traigo todos los equipos del torneo, con la siguiente info: PJ, PG, PE, PP, PTS
-
-        const standings = await retrieveStandingsForCalculatorByTournamentId(tournament)
-
-        res.status(200).json({ teams, standings })
-        // Agregar excepción en caso de error
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
+        return res.status(200).json({ teams, standings })
     }
 }
 
+const getCalculatorByTournamentId = createGetCalculatorByTournamentId()
+
 module.exports = getCalculatorByTournamentId
+module.exports.createGetCalculatorByTournamentId =
+    createGetCalculatorByTournamentId

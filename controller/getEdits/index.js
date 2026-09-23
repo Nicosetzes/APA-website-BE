@@ -1,43 +1,46 @@
 const editsModel = require("./../../dao/models/edits")
 
-const getEdits = async (req, res) => {
-    try {
-        const page = parseInt(req.query.page) || 1
-        const limit = 9
-        const skip = (page - 1) * limit
+const EDITS_PER_PAGE = 9
 
-        // Get total count for pagination info
-        const totalEdits = await editsModel.countDocuments()
-        const totalPages = Math.ceil(totalEdits / limit)
+const findEditsPage = ({ skip, limit }) =>
+    editsModel
+        .find()
+        .populate("user", "name nickname")
+        .sort({ createdAt: -1, _id: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
 
-        // Get paginated edits, sorted by newest first (with stable sort using _id)
-        const edits = await editsModel
-            .find()
-            .populate("user", "name nickname")
-            .sort({ createdAt: -1, _id: -1 })
-            .skip(skip)
-            .limit(limit)
-            .lean()
+const createGetEdits = (dependencies = {}) => {
+    const countEdits =
+        dependencies.countEdits || (() => editsModel.countDocuments())
+    const findEdits = dependencies.findEdits || findEditsPage
 
-        res.json({
+    return async (req, res) => {
+        const page = req.query.page
+        const skip = (page - 1) * EDITS_PER_PAGE
+        const [totalEdits, edits] = await Promise.all([
+            countEdits(),
+            findEdits({ skip, limit: EDITS_PER_PAGE }),
+        ])
+        const totalPages = Math.ceil(totalEdits / EDITS_PER_PAGE)
+
+        return res.json({
             success: true,
             data: edits,
             pagination: {
                 currentPage: page,
                 totalPages,
                 totalEdits,
-                editsPerPage: limit,
+                editsPerPage: EDITS_PER_PAGE,
                 hasNextPage: page < totalPages,
                 hasPrevPage: page > 1,
             },
         })
-    } catch (err) {
-        console.error("Get edits error:", err)
-        res.status(500).json({
-            success: false,
-            message: err.message || "Failed to retrieve edits",
-        })
     }
 }
 
+const getEdits = createGetEdits()
+
 module.exports = getEdits
+module.exports.createGetEdits = createGetEdits

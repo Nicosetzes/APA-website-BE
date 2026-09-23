@@ -3,14 +3,33 @@ const {
     orderMatchesFromTournamentById,
     retrieveAllNotPlayedMatchesByTournamentId,
 } = require("./../../service")
+const { HttpError } = require("../../middleware/httpErrors")
 
-const getStandingsTableByTournamentId = async (req, res) => {
-    const { tournament } = req.params
-    const { group } = req.query
+const createGetStandingsTableByTournamentId = (dependencies = {}) => {
+    const retrieveTournament =
+        dependencies.retrieveTournamentById || retrieveTournamentById
+    const orderTournamentMatches =
+        dependencies.orderMatchesFromTournamentById ||
+        orderMatchesFromTournamentById
+    const retrieveNotPlayedMatches =
+        dependencies.retrieveAllNotPlayedMatchesByTournamentId ||
+        retrieveAllNotPlayedMatchesByTournamentId
 
-    try {
-        const { id, name, format, teams, groups } =
-            await retrieveTournamentById(tournament)
+    return async (req, res) => {
+        const { tournament } = req.params
+        const { group } = req.query
+
+        const tournamentDoc = await retrieveTournament(tournament)
+
+        if (!tournamentDoc) {
+            throw new HttpError(
+                404,
+                "TOURNAMENT_NOT_FOUND",
+                "No se encontró el torneo indicado"
+            )
+        }
+
+        const { id, name, format, teams, groups } = tournamentDoc
 
         const computeGroupStandings = async (targetGroup) => {
             const teamsInGroup = targetGroup
@@ -18,11 +37,8 @@ const getStandingsTableByTournamentId = async (req, res) => {
                 : teams
 
             const [matches, notPlayedMatches] = await Promise.all([
-                orderMatchesFromTournamentById(tournament, targetGroup),
-                retrieveAllNotPlayedMatchesByTournamentId(
-                    tournament,
-                    targetGroup
-                ),
+                orderTournamentMatches(tournament, targetGroup),
+                retrieveNotPlayedMatches(tournament, targetGroup),
             ])
 
             const statsMap = new Map()
@@ -321,14 +337,16 @@ const getStandingsTableByTournamentId = async (req, res) => {
             },
         ]
 
-        res.status(200).send({
+        return res.status(200).send({
             id,
             name,
             standings,
         })
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
     }
 }
 
+const getStandingsTableByTournamentId = createGetStandingsTableByTournamentId()
+
 module.exports = getStandingsTableByTournamentId
+module.exports.createGetStandingsTableByTournamentId =
+    createGetStandingsTableByTournamentId

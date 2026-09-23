@@ -1,9 +1,13 @@
 const { retrieveAllUsers, retrieveAllMatches } = require("./../../service")
 
-const getAllTimeFaceToFace = async (req, res) => {
-    try {
-        const players = await retrieveAllUsers()
-        const matches = await retrieveAllMatches()
+const createGetAllTimeFaceToFace = (dependencies = {}) => {
+    const retrieveUsers = dependencies.retrieveAllUsers || retrieveAllUsers
+    const retrieveMatches =
+        dependencies.retrieveAllMatches || retrieveAllMatches
+
+    return async (req, res) => {
+        const players = (await retrieveUsers()) || []
+        const matches = (await retrieveMatches()) || []
 
         const allMatchups = players.flatMap((v, i) =>
             players.slice(i + 1).map((w) => {
@@ -14,29 +18,25 @@ const getAllTimeFaceToFace = async (req, res) => {
             })
         )
 
-        let firstPlayerWins
-        let firstPlayerAmountOfWins
-        let firstPlayerBestWin
-        let firstPlayerDraws
-        let firstPlayerLosses
-        let firstPlayerAmountOfLosses
-        let firstPlayerWorstLoss
-        let firstPlayerAmountOfMatches
-        let firstPlayerGoalsFor
-        let firstPlayerGoalsAgainst
-        let firstPlayerScoringDifference
-
         const faceToFace = []
 
         allMatchups.forEach(({ p1, p2 }) => {
+            // Los acumuladores viven dentro del loop: antes eran variables del
+            // scope exterior y un cruce sin victorias heredaba los valores del
+            // cruce anterior.
+            let firstPlayerAmountOfWins = 0
+            let firstPlayerBestWin = null
+            let firstPlayerAmountOfLosses = 0
+            let firstPlayerWorstLoss = null
+
             const selectedMatches = matches.filter(
                 ({ playerP1, playerP2 }) =>
-                    (playerP1.id == p1.id && playerP2.id == p2.id) ||
-                    (playerP2.id == p1.id && playerP1.id == p2.id)
+                    (playerP1?.id == p1.id && playerP2?.id == p2.id) ||
+                    (playerP2?.id == p1.id && playerP1?.id == p2.id)
             )
 
-            firstPlayerWins = selectedMatches.filter(({ outcome }) => {
-                let { draw, playerThatWon } = outcome
+            const firstPlayerWins = selectedMatches.filter(({ outcome }) => {
+                const { draw, playerThatWon } = outcome || {}
                 return playerThatWon && !draw && playerThatWon.id == p1.id
             })
 
@@ -72,13 +72,13 @@ const getAllTimeFaceToFace = async (req, res) => {
                 firstPlayerAmountOfWins = firstPlayerWins.length
             }
 
-            firstPlayerDraws = selectedMatches.filter(({ outcome }) => {
-                let { draw } = outcome
+            const firstPlayerDraws = selectedMatches.filter(({ outcome }) => {
+                const { draw } = outcome || {}
                 return draw
             }).length
 
-            firstPlayerLosses = selectedMatches.filter(({ outcome }) => {
-                let { draw, playerThatLost } = outcome
+            const firstPlayerLosses = selectedMatches.filter(({ outcome }) => {
+                const { draw, playerThatLost } = outcome || {}
                 return playerThatLost && !draw && playerThatLost.id == p1.id
             })
 
@@ -114,31 +114,31 @@ const getAllTimeFaceToFace = async (req, res) => {
                 firstPlayerAmountOfLosses = firstPlayerLosses.length
             }
 
-            firstPlayerGoalsFor =
+            const firstPlayerGoalsFor =
                 selectedMatches
-                    .filter(({ playerP1 }) => playerP1.id == p1.id)
+                    .filter(({ playerP1 }) => playerP1?.id == p1.id)
                     .reduce((acc, curr) => {
-                        return acc + curr.scoreP1
+                        return acc + (Number(curr.scoreP1) || 0)
                     }, 0) +
                 selectedMatches
-                    .filter(({ playerP2 }) => playerP2.id == p1.id)
+                    .filter(({ playerP2 }) => playerP2?.id == p1.id)
                     .reduce((acc, curr) => {
-                        return acc + curr.scoreP2
+                        return acc + (Number(curr.scoreP2) || 0)
                     }, 0)
 
-            firstPlayerGoalsAgainst =
+            const firstPlayerGoalsAgainst =
                 selectedMatches
-                    .filter(({ playerP1 }) => playerP1.id == p1.id)
+                    .filter(({ playerP1 }) => playerP1?.id == p1.id)
                     .reduce((acc, curr) => {
-                        return acc + curr.scoreP2
+                        return acc + (Number(curr.scoreP2) || 0)
                     }, 0) +
                 selectedMatches
-                    .filter(({ playerP2 }) => playerP2.id == p1.id)
+                    .filter(({ playerP2 }) => playerP2?.id == p1.id)
                     .reduce((acc, curr) => {
-                        return acc + curr.scoreP1
+                        return acc + (Number(curr.scoreP1) || 0)
                     }, 0)
 
-            firstPlayerScoringDifference =
+            const firstPlayerScoringDifference =
                 firstPlayerGoalsFor - firstPlayerGoalsAgainst
 
             faceToFace.push({
@@ -176,10 +176,11 @@ const getAllTimeFaceToFace = async (req, res) => {
             })
         })
 
-        res.status(200).send(faceToFace)
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
+        return res.status(200).send(faceToFace)
     }
 }
 
+const getAllTimeFaceToFace = createGetAllTimeFaceToFace()
+
 module.exports = getAllTimeFaceToFace
+module.exports.createGetAllTimeFaceToFace = createGetAllTimeFaceToFace

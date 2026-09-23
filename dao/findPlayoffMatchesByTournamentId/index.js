@@ -1,14 +1,16 @@
 const matchesModel = require("./../models/matches.js")
 
-const findPlayoffMatchesByTournamentId = async (id) => {
-    const matches = await matchesModel
+const findPlayoffMatchesByTournamentId = async (id, options = {}) => {
+    const query = matchesModel
         .find({
             "tournament.id": id,
             type: "playoff",
         })
         .sort({ playoff_id: 1 })
 
-    return matches
+    if (options.session) query.session(options.session)
+
+    return query
 }
 
 module.exports = findPlayoffMatchesByTournamentId

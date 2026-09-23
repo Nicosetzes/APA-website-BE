@@ -12,7 +12,6 @@ const postMatch = async (req, res) => {
         penaltyScoreP2,
         type,
         group,
-        tournament,
         valid,
     } = req.body
 
@@ -84,7 +83,10 @@ const postMatch = async (req, res) => {
             playerP2,
             teamP2,
             type,
-            tournament,
+            tournament: {
+                id: req.tournament._id,
+                name: req.tournament.name,
+            },
             played: true,
             group,
             outcome,

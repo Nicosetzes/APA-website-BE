@@ -3,19 +3,38 @@ const {
     retrieveTournamentById,
     retrievePlayinMatchesByTournamentId,
 } = require("./../../service")
+const { HttpError } = require("../../middleware/httpErrors")
 
-const getPlayoffsTableByTournamentId = async (req, res) => {
-    const { tournament } = req.params
+const createGetPlayoffsTableByTournamentId = (dependencies = {}) => {
+    const retrieveTournament =
+        dependencies.retrieveTournamentById || retrieveTournamentById
+    const orderTournamentMatches =
+        dependencies.orderMatchesFromTournamentById ||
+        orderMatchesFromTournamentById
+    const retrievePlayinMatches =
+        dependencies.retrievePlayinMatchesByTournamentId ||
+        retrievePlayinMatchesByTournamentId
 
-    try {
-        const { teams, format } = await retrieveTournamentById(tournament)
+    return async (req, res) => {
+        const { tournament } = req.params
 
-        const matches = await orderMatchesFromTournamentById(tournament)
+        const tournamentDoc = await retrieveTournament(tournament)
+
+        if (!tournamentDoc) {
+            throw new HttpError(
+                404,
+                "TOURNAMENT_NOT_FOUND",
+                "No se encontró el torneo indicado"
+            )
+        }
+
+        const { teams = [], format } = tournamentDoc
+
+        const matches = (await orderTournamentMatches(tournament)) || []
 
         if (format == "league_playin_playoff") {
-            const playinMatches = await retrievePlayinMatchesByTournamentId(
-                tournament
-            )
+            const playinMatches =
+                (await retrievePlayinMatches(tournament)) || []
 
             const teamsFromGroupA = teams.filter(({ group }) => group == "A")
             const teamsFromGroupB = teams.filter(({ group }) => group == "B")
@@ -164,20 +183,12 @@ const getPlayoffsTableByTournamentId = async (req, res) => {
             const sortedStandingsFromGroupA = standingsFromGroupA.sort(cmp)
             const sortedStandingsFromGroupB = standingsFromGroupB.sort(cmp)
 
+            // Los 6 primeros de cada grupo. `filter(Boolean)` cubre torneos
+            // históricos con grupos incompletos, que antes rompían al comparar.
             const allPlayoffTeams = [
-                sortedStandingsFromGroupA.at(0),
-                sortedStandingsFromGroupA.at(1),
-                sortedStandingsFromGroupA.at(2),
-                sortedStandingsFromGroupA.at(3),
-                sortedStandingsFromGroupA.at(4),
-                sortedStandingsFromGroupA.at(5),
-                sortedStandingsFromGroupB.at(0),
-                sortedStandingsFromGroupB.at(1),
-                sortedStandingsFromGroupB.at(2),
-                sortedStandingsFromGroupB.at(3),
-                sortedStandingsFromGroupB.at(4),
-                sortedStandingsFromGroupB.at(5),
-            ]
+                ...sortedStandingsFromGroupA.slice(0, 6),
+                ...sortedStandingsFromGroupB.slice(0, 6),
+            ].filter(Boolean)
 
             const allPlayoffTeamsSorted = allPlayoffTeams.sort(cmp)
 
@@ -264,19 +275,21 @@ const getPlayoffsTableByTournamentId = async (req, res) => {
                 // Utilizo .push para mutar el array original (por scope), con spread operator puedo concatenar y mutar al mismo tiempo
 
                 allPlayoffTeamsSorted.push(
-                    ...sortedHigherPlayinTeams,
-                    ...sortedLowerPlayinTeams
+                    ...sortedHigherPlayinTeams.filter(Boolean),
+                    ...sortedLowerPlayinTeams.filter(Boolean)
                 )
             }
 
             return res.status(200).json({ standings: allPlayoffTeamsSorted })
-        } else {
-            /* No se devuelve */
-            return res.status(200).json({ standings: [] })
         }
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
+
+        // Los demás formatos no exponen tabla de playoffs.
+        return res.status(200).json({ standings: [] })
     }
 }
 
+const getPlayoffsTableByTournamentId = createGetPlayoffsTableByTournamentId()
+
 module.exports = getPlayoffsTableByTournamentId
+module.exports.createGetPlayoffsTableByTournamentId =
+    createGetPlayoffsTableByTournamentId

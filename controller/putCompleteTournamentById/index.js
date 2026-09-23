@@ -1,22 +1,14 @@
 const {
     retrieveTournamentById,
     retrieveAllPlayedMatchesByTournamentId,
+    modifyTournamentOutcome,
 } = require("./../../service")
-const { modifyTournamentOutcome } = require("./../../service")
+const { HttpError } = require("../../middleware/httpErrors")
 
 // Helper to compute champion and finalist for league format
 const computeLeagueOutcome = (matches, teams) => {
     const statsMap = new Map()
-    const teamInfoMap = new Map()
-    // Build team info map for id->{id, name}, and player info for id->{id, name}
-    teams.forEach(({ team, player }) => {
-        teamInfoMap.set(team.id, { id: team.id, name: team.name })
-        if (player)
-            teamInfoMap.set(`player_${player.id}`, {
-                id: player.id,
-                name: player.name,
-            })
-    })
+
     const ensureTeam = (teamObj, playerObj) => {
         if (!statsMap.has(teamObj.id)) {
             statsMap.set(teamObj.id, {
@@ -115,34 +107,80 @@ const computeLeagueOutcome = (matches, teams) => {
     }
 }
 
-const putCompleteTournamentById = async (req, res) => {
-    const tournamentId = req.params.tournament
-    try {
-        const tournament = await retrieveTournamentById(tournamentId)
-        if (!tournament) return res.status(404).send("Tournament not found")
+const createPutCompleteTournamentById = (dependencies = {}) => {
+    const retrieveTournament =
+        dependencies.retrieveTournamentById || retrieveTournamentById
+    const retrievePlayedMatches =
+        dependencies.retrieveAllPlayedMatchesByTournamentId ||
+        retrieveAllPlayedMatchesByTournamentId
+    const modifyOutcome =
+        dependencies.modifyTournamentOutcome || modifyTournamentOutcome
+
+    return async (req, res) => {
+        const tournamentId = req.params.tournament
+        const tournament = await retrieveTournament(tournamentId)
+
+        if (!tournament) {
+            throw new HttpError(
+                404,
+                "TOURNAMENT_NOT_FOUND",
+                "No se encontró el torneo indicado"
+            )
+        }
+
         if (tournament.format !== "league") {
-            return res
-                .status(400)
-                .send(
-                    "Only league format tournaments can be completed with this endpoint"
-                )
+            throw new HttpError(
+                422,
+                "UNSUPPORTED_TOURNAMENT_FORMAT",
+                "Sólo los torneos de formato liga se cierran por este endpoint"
+            )
         }
+
         if (!tournament.ongoing) {
-            return res.status(400).send("Tournament is already completed")
+            throw new HttpError(
+                409,
+                "TOURNAMENT_ALREADY_COMPLETED",
+                "El torneo ya está finalizado"
+            )
         }
-        const matches = await retrieveAllPlayedMatchesByTournamentId(
-            tournamentId
-        )
+
+        const matches = (await retrievePlayedMatches(tournamentId)) || []
         const teams = tournament.teams || []
         const { champion, finalist } = computeLeagueOutcome(matches, teams)
-        await modifyTournamentOutcome(tournamentId, champion, finalist)
-        res.status(200).json({
+
+        // Evita cerrar torneos con outcome incompleto, como los que quedaron
+        // finalizados sin campeón en el histórico.
+        if (!champion || !finalist) {
+            throw new HttpError(
+                422,
+                "TOURNAMENT_OUTCOME_NOT_RESOLVABLE",
+                "No se puede determinar campeón y finalista con los partidos jugados"
+            )
+        }
+
+        const completedTournament = await modifyOutcome(
+            tournamentId,
+            champion,
+            finalist
+        )
+
+        if (!completedTournament) {
+            throw new HttpError(
+                404,
+                "TOURNAMENT_NOT_FOUND",
+                "No se encontró el torneo indicado"
+            )
+        }
+
+        return res.status(200).json({
             message: "Tournament marked as completed",
             outcome: { champion, finalist },
         })
-    } catch (err) {
-        res.status(500).send("Something went wrong! " + err)
     }
 }
 
+const putCompleteTournamentById = createPutCompleteTournamentById()
+
 module.exports = putCompleteTournamentById
+module.exports.createPutCompleteTournamentById = createPutCompleteTournamentById
+module.exports.computeLeagueOutcome = computeLeagueOutcome

@@ -3,7 +3,7 @@ const tournamentsModel = require("./../models/tournaments.js")
 const findTournaments = async (legacy, status) => {
     let tournaments
 
-    if (legacy === "false") {
+    if (legacy === false) {
         tournaments = await tournamentsModel
             .find(
                 { legacy: { $ne: true }, valid: { $ne: false } },

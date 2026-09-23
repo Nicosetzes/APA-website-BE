@@ -1,20 +1,31 @@
 const { modifyMatchResultToRemoveIt } = require("./../../service")
+const { HttpError } = require("../../middleware/httpErrors")
 
-const putRemoveMatchByTournamentId = async (req, res) => {
-    // const tournamentId = req.params.id
-    const matchId = req.params.match
+const createPutRemoveMatchByTournamentId = (dependencies = {}) => {
+    const removeMatchResult =
+        dependencies.modifyMatchResultToRemoveIt || modifyMatchResultToRemoveIt
 
-    try {
-        const deletedResult = await modifyMatchResultToRemoveIt(matchId) // I make an update on the result in "face-to-face" collection
+    return async (req, res) => {
+        const { match } = req.params
 
-        deletedResult
-            ? res.status(200).json(deletedResult)
-            : res.status(500).json({
-                  message: `El partido de ID ${matchId} no se encuentra en la base de datos`,
-              })
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
+        // `requireMatchInTournament` ya verificó pertenencia y existencia; este
+        // 404 cubre la carrera en la que el partido desaparece en el medio.
+        const matchWithoutResult = await removeMatchResult(match)
+
+        if (!matchWithoutResult) {
+            throw new HttpError(
+                404,
+                "MATCH_NOT_FOUND",
+                "No se encontró el partido a modificar"
+            )
+        }
+
+        return res.status(200).json(matchWithoutResult)
     }
 }
 
+const putRemoveMatchByTournamentId = createPutRemoveMatchByTournamentId()
+
 module.exports = putRemoveMatchByTournamentId
+module.exports.createPutRemoveMatchByTournamentId =
+    createPutRemoveMatchByTournamentId

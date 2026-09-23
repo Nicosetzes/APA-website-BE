@@ -1,6 +1,10 @@
 const { createPlayoffByTournamentId } = require("./../../dao")
 
-const originatePlayoffByTournamentId = async (tournament, teams) => {
+const originatePlayoffByTournamentId = async (
+    tournament,
+    teams,
+    options = {}
+) => {
     // Extract only id and name from tournament object
     const tournamentRef = {
         id: String(tournament._id || tournament.id),
@@ -42,7 +46,7 @@ const originatePlayoffByTournamentId = async (tournament, teams) => {
             }
         })
 
-    return await createPlayoffByTournamentId(playoffMatches)
+    return await createPlayoffByTournamentId(playoffMatches, options)
 }
 
 module.exports = originatePlayoffByTournamentId

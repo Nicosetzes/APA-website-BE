@@ -8,6 +8,19 @@ const {
 const {
     fixtureGenerationTwoMatches,
 } = require("./../../fixture-generation/with-groups/two-matches")
+const { HttpError } = require("../../middleware/httpErrors")
+
+const ensureGeneratedFixture = (matches) => {
+    if (!Array.isArray(matches)) {
+        throw new HttpError(
+            422,
+            "FIXTURE_GENERATION_FAILED",
+            "No se pudo generar el fixture con las asignaciones actuales"
+        )
+    }
+
+    return matches
+}
 
 const originateFixtureByTournamentId = async (
     format,
@@ -30,7 +43,10 @@ const originateFixtureByTournamentId = async (
         matches = fixtureGenerationOneMatch(tournament, players, teams)
     else matches = fixtureGenerationWithoutGroups(teams, players, tournament)
 
+    ensureGeneratedFixture(matches)
+
     return await createFixtureByTournamentId(matches)
 }
 
 module.exports = originateFixtureByTournamentId
+module.exports.ensureGeneratedFixture = ensureGeneratedFixture

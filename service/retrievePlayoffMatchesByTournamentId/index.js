@@ -1,7 +1,7 @@
 const { findPlayoffMatchesByTournamentId } = require("./../../dao")
 
-const retrievePlayoffMatchesByTournamentId = async (id) => {
-    return await findPlayoffMatchesByTournamentId(id)
+const retrievePlayoffMatchesByTournamentId = async (id, options = {}) => {
+    return findPlayoffMatchesByTournamentId(id, options)
 }
 
 module.exports = retrievePlayoffMatchesByTournamentId

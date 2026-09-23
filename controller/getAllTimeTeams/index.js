@@ -1,28 +1,28 @@
 const { retrieveAllMatches } = require("./../../service")
 
-const getAllTimeTeams = async (req, res) => {
-    try {
-        const matches = await retrieveAllMatches()
+const createGetAllTimeTeams = (dependencies = {}) => {
+    const retrieveMatches =
+        dependencies.retrieveAllMatches || retrieveAllMatches
+
+    return async (req, res) => {
+        const matches = (await retrieveMatches()) || []
 
         // Use Maps for O(1) lookups instead of repeated array filters
         const teamStats = new Map() // team.id -> { team, wins, draws, losses }
         const playerTeamStats = new Map() // "playerId|teamId|tournamentId" -> stats
-        const uniqueTeams = new Set()
-        const uniquePlayerTeamTournaments = new Map()
 
         // Single pass through matches to aggregate all stats
         for (const match of matches) {
             const { playerP1, playerP2, teamP1, teamP2, tournament, outcome } =
                 match
-            const isPenalty = outcome?.penalties || false
 
-            // Track unique teams
-            uniqueTeams.add(
-                JSON.stringify({ id: teamP1.id, name: teamP1.name })
-            )
-            uniqueTeams.add(
-                JSON.stringify({ id: teamP2.id, name: teamP2.name })
-            )
+            // Los partidos históricos incompletos se ignoran en lugar de
+            // romper el agregado entero.
+            if (!teamP1?.id || !teamP2?.id || !playerP1?.id || !playerP2?.id) {
+                continue
+            }
+
+            const isPenalty = outcome?.penalties || false
 
             // Helper to update team stats (for total points leaderboard)
             const updateTeamStats = (team, result) => {
@@ -48,7 +48,7 @@ const getAllTimeTeams = async (req, res) => {
                 tournamentData,
                 result
             ) => {
-                const key = `${player.id}|${team.id}|${tournamentData.id}`
+                const key = `${player.id}|${team.id}|${tournamentData?.id}`
                 if (!playerTeamStats.has(key)) {
                     playerTeamStats.set(key, {
                         player: { id: player.id, name: player.name },
@@ -58,7 +58,6 @@ const getAllTimeTeams = async (req, res) => {
                         draws: 0,
                         losses: 0,
                     })
-                    uniquePlayerTeamTournaments.set(key, true)
                 }
                 const stats = playerTeamStats.get(key)
                 if (result === "win") stats.wins++
@@ -156,13 +155,14 @@ const getAllTimeTeams = async (req, res) => {
             })
             .slice(0, 10)
 
-        res.status(200).json({
+        return res.status(200).json({
             completeStatsByTotalPoints,
             completeStatsByEffectiveness,
         })
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
     }
 }
 
+const getAllTimeTeams = createGetAllTimeTeams()
+
 module.exports = getAllTimeTeams
+module.exports.createGetAllTimeTeams = createGetAllTimeTeams

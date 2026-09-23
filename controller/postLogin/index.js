@@ -1,56 +1,48 @@
-const { retrieveUserByUserName } = require("./../../service")
-
 const bcrypt = require("bcrypt")
 const jwt = require("jsonwebtoken")
-const jwtKey = process.env.TOKEN_SECRET
-const Joi = require("@hapi/joi")
 
-const postLogin = async (req, res) => {
-    const schemaLogin = Joi.object({
-        email: Joi.string().max(255).required().email().messages({
-            "string.empty": `Ingrese un email`,
-            "any.required": `El email es requerido`,
-            "string.email": `Debe ingresar un email válido`,
-        }),
-        password: Joi.string().min(6).max(1024).required().messages({
-            "string.min": `La contraseña debe tener un mínimo de {#limit} caracteres`,
-            "string.empty": `Ingrese una contraseña`,
-            "any.required": `La contraseña es requerida`,
-        }),
-    })
+const { retrieveUserByUserName } = require("./../../service")
+const { HttpError } = require("../../middleware/httpErrors")
 
-    try {
-        const { error } = schemaLogin.validate(req.body)
+// Hash descartable de una cadena aleatoria. Se compara contra él cuando el
+// usuario no existe, para que la respuesta tarde lo mismo que con un usuario
+// real y no se pueda enumerar cuentas por tiempo.
+const DUMMY_PASSWORD_HASH =
+    "$2b$10$RhvZqqG2.zO0JZJKYwloQePtjfL4.ioKtQSDQM4COEHL9vc40Y9Cq"
 
-        if (error)
-            return res.status(400).send({
-                auth: false,
-                message: error.details[0].message,
-            })
+const invalidCredentials = () =>
+    new HttpError(
+        401,
+        "INVALID_CREDENTIALS",
+        "El email o la contraseña no son correctos"
+    )
 
-        let { email, password } = req.body
+const createPostLogin = (dependencies = {}) => {
+    const retrieveUser =
+        dependencies.retrieveUserByUserName || retrieveUserByUserName
+    const comparePassword = dependencies.comparePassword || bcrypt.compare
+    const signToken = dependencies.signToken || jwt.sign
 
-        const user = await retrieveUserByUserName(email)
+    return async (req, res) => {
+        const { email, password } = req.body
+        const user = await retrieveUser(email)
 
-        if (!user)
-            return res.status(400).send({
-                auth: false,
-                message: "El usuario ingresado no existe",
-            })
+        // Misma respuesta para usuario inexistente y contraseña incorrecta.
+        const isPasswordValid = await comparePassword(
+            password,
+            user?.password || DUMMY_PASSWORD_HASH
+        )
 
-        const isPasswordValid = await bcrypt.compare(password, user.password)
-        if (!isPasswordValid)
-            return res.status(400).send({
-                auth: false,
-                message: "La contraseña ingresada no es correcta",
-            })
+        if (!user || !isPasswordValid) {
+            throw invalidCredentials()
+        }
 
-        const token = jwt.sign(
+        const token = signToken(
             {
                 id: user._id,
                 name: user.nickname,
             },
-            jwtKey,
+            process.env.TOKEN_SECRET,
             {
                 expiresIn: "24h",
             }
@@ -58,7 +50,7 @@ const postLogin = async (req, res) => {
 
         return res.status(200).send({
             auth: true,
-            token: token,
+            token,
             user: {
                 id: user._id,
                 nickname: user.nickname,
@@ -66,12 +58,10 @@ const postLogin = async (req, res) => {
             },
             message: `Bienvenid@ ${user.nickname}`,
         })
-    } catch (err) {
-        return res.status(500).send({
-            auth: false,
-            message: `Error inesperado, intente más tarde`,
-        })
     }
 }
 
+const postLogin = createPostLogin()
+
 module.exports = postLogin
+module.exports.createPostLogin = createPostLogin

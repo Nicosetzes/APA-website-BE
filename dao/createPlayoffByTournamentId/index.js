@@ -1,8 +1,7 @@
 const matchesModel = require("./../models/matches.js")
 
-const createPlayoffByTournamentId = async (matches) => {
-    const newMatches = await matchesModel.insertMany(matches)
-    return newMatches
+const createPlayoffByTournamentId = async (matches, options = {}) => {
+    return matchesModel.insertMany(matches, options)
 }
 
 module.exports = createPlayoffByTournamentId

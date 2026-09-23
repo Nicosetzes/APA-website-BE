@@ -1,14 +1,17 @@
 const { retrieveTournaments } = require("./../../service")
 
-const getTournaments = async (req, res) => {
-    const { legacy, status } = req.query
+const createGetTournaments = (dependencies = {}) => {
+    const retrieve = dependencies.retrieveTournaments || retrieveTournaments
 
-    try {
-        const tournamentsFromDB = await retrieveTournaments(legacy, status)
-        res.status(200).json(tournamentsFromDB)
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
+    return async (req, res) => {
+        const { legacy, status } = req.query
+        const tournaments = await retrieve(legacy, status)
+
+        return res.status(200).json(tournaments)
     }
 }
 
+const getTournaments = createGetTournaments()
+
 module.exports = getTournaments
+module.exports.createGetTournaments = createGetTournaments

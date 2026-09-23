@@ -1,13 +1,26 @@
 const { retrieveTournamentById } = require("./../../service")
+const { HttpError } = require("../../middleware/httpErrors")
 
-const getTournamentById = async (req, res) => {
-    const tournamentId = req.params.tournament
-    try {
-        const tournament = await retrieveTournamentById(tournamentId)
-        res.status(200).json(tournament)
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
+const createGetTournamentById = (dependencies = {}) => {
+    const retrieveTournament =
+        dependencies.retrieveTournamentById || retrieveTournamentById
+
+    return async (req, res) => {
+        const tournament = await retrieveTournament(req.params.tournament)
+
+        if (!tournament) {
+            throw new HttpError(
+                404,
+                "TOURNAMENT_NOT_FOUND",
+                "No se encontró el torneo"
+            )
+        }
+
+        return res.status(200).json(tournament)
     }
 }
 
+const getTournamentById = createGetTournamentById()
+
 module.exports = getTournamentById
+module.exports.createGetTournamentById = createGetTournamentById

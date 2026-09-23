@@ -2,61 +2,74 @@ const {
     originateFixtureByTournamentId,
     retrieveTournamentById,
 } = require("./../../service")
+const { HttpError } = require("../../middleware/httpErrors")
 
-const postFixtureByTournamentId = async (req, res) => {
-    const { group } = req.body
-    const { tournament } = req.params
+const createPostFixtureByTournamentId = (dependencies = {}) => {
+    const retrieveTournament =
+        dependencies.retrieveTournamentById || retrieveTournamentById
+    const originateFixture =
+        dependencies.originateFixtureByTournamentId ||
+        originateFixtureByTournamentId
 
-    try {
-        const { id, name, players, teams, groups, format } =
-            await retrieveTournamentById(tournament)
+    return async (req, res) => {
+        const { group } = req.body
+        const { tournament } = req.params
+        const tournamentData = await retrieveTournament(tournament)
 
-        const playerIDs = players.map(({ id }) => id)
-
-        const tournamentForFixtureGeneration = { id, name }
-
-        const formatForFixtureGeneration = format
-
-        let teamsForFixtureGeneration
-        let playersForFixtureGeneration
-
-        if (groups?.length) {
-            // El torneo tiene grupos //
-            teamsForFixtureGeneration = group
-                ? teams.filter((team) => team.group == group)
-                : teams.filter((team) => team.group == "A")
-
-            const playerIDsFromGroup = teamsForFixtureGeneration.map(
-                ({ player }) => player.id
+        if (!tournamentData) {
+            throw new HttpError(
+                404,
+                "TOURNAMENT_NOT_FOUND",
+                "No se encontró el torneo"
             )
-
-            const uniquePlayerIDsFromGroup = Array.from(
-                new Set(playerIDsFromGroup)
-            )
-
-            playersForFixtureGeneration = uniquePlayerIDsFromGroup.map((id) => {
-                return {
-                    id,
-                    name: players.filter((player) => player.id == id).at(0)
-                        .name,
-                }
-            })
-        } else {
-            // El torneo no tiene grupos //
-            playersForFixtureGeneration = players
-            teamsForFixtureGeneration = teams
         }
 
-        const fixture = await originateFixtureByTournamentId(
-            formatForFixtureGeneration,
-            tournamentForFixtureGeneration,
-            playersForFixtureGeneration,
-            teamsForFixtureGeneration
+        const { id, name, players, teams, groups, format } = tournamentData
+        const tournamentReference = { id, name }
+        let teamsForFixture
+        let playersForFixture
+
+        if (groups?.length) {
+            const selectedGroup = group || "A"
+            teamsForFixture = teams.filter(
+                (entry) => entry.group === selectedGroup
+            )
+            const playerIds = [
+                ...new Set(teamsForFixture.map((entry) => entry.player.id)),
+            ]
+
+            playersForFixture = playerIds.map((playerId) => {
+                const player = players.find(
+                    (entry) => String(entry.id) === String(playerId)
+                )
+
+                if (!player) {
+                    throw new HttpError(
+                        422,
+                        "TOURNAMENT_PARTICIPANTS_INVALID",
+                        "El torneo contiene asignaciones de jugadores inválidas"
+                    )
+                }
+
+                return { id: playerId, name: player.name }
+            })
+        } else {
+            playersForFixture = players
+            teamsForFixture = teams
+        }
+
+        const fixture = await originateFixture(
+            format,
+            tournamentReference,
+            playersForFixture,
+            teamsForFixture
         )
-        res.status(200).json(fixture)
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
+
+        return res.status(200).json(fixture)
     }
 }
 
+const postFixtureByTournamentId = createPostFixtureByTournamentId()
+
 module.exports = postFixtureByTournamentId
+module.exports.createPostFixtureByTournamentId = createPostFixtureByTournamentId

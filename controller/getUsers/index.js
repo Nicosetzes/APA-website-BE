@@ -1,19 +1,22 @@
 const { retrieveAllUsers } = require("./../../service")
 
-const getUsers = async (req, res) => {
-    // const { query } = req.query
-    try {
-        const allPlayers = await retrieveAllUsers()
+const createGetUsers = (dependencies = {}) => {
+    const retrieveUsers = dependencies.retrieveAllUsers || retrieveAllUsers
+
+    return async (req, res) => {
+        const allPlayers = (await retrieveUsers()) || []
         const players = allPlayers.map(({ _id, nickname }) => {
             return {
                 id: _id,
                 name: nickname,
             }
         })
-        res.json(players)
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
+
+        return res.status(200).json(players)
     }
 }
 
+const getUsers = createGetUsers()
+
 module.exports = getUsers
+module.exports.createGetUsers = createGetUsers

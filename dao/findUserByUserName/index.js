@@ -1,7 +1,7 @@
 const usersModel = require("./../models/users.js")
 
 const findUserByUserName = async (email) => {
-    const foundUser = await usersModel.findOne({ email })
+    const foundUser = await usersModel.findOne({ email }).select("+password")
     return foundUser
 }
 

@@ -4,6 +4,7 @@ const {
     retrieveTournamentPlayersByTournamentId,
     retrieveAllPlayedMatchesByTournamentId,
 } = require("../../service")
+const { HttpError } = require("../../middleware/httpErrors")
 
 const computeStreak = (results) => {
     if (!results.length) return null
@@ -13,26 +14,39 @@ const computeStreak = (results) => {
     return { type, count }
 }
 
-const getPlayerInfoByTournamentId = async (req, res) => {
-    const { tournament } = req.params
-    const playerQuery = (req.query.player || "all").toString()
-    // matches=true by default; treat 'false', '0', 'no', 'off' (case-insensitive) as false
-    const { matches: matchesQuery } = req.query
-    const includeMatches =
-        matchesQuery === undefined
-            ? true
-            : !["false", "0", "no", "off"].includes(
-                  String(matchesQuery).toLowerCase()
-              )
+const createGetPlayerInfoByTournamentId = (dependencies = {}) => {
+    const retrievePlayerMatches =
+        dependencies.retrievePlayerMatchesByTournamentId ||
+        retrievePlayerMatchesByTournamentId
+    const retrieveTournament =
+        dependencies.retrieveTournamentById || retrieveTournamentById
+    const retrieveTournamentPlayers =
+        dependencies.retrieveTournamentPlayersByTournamentId ||
+        retrieveTournamentPlayersByTournamentId
+    const retrievePlayedMatches =
+        dependencies.retrieveAllPlayedMatchesByTournamentId ||
+        retrieveAllPlayedMatchesByTournamentId
 
-    try {
+    return async (req, res) => {
+        const { tournament } = req.params
+        const playerQuery = (req.query.player || "all").toString()
+        // matches=true por defecto; Joi ya normalizó false/0/no/off a booleano
+        const { matches: matchesQuery } = req.query
+        const includeMatches = matchesQuery === undefined ? true : matchesQuery
+
         // Always grab tournament data for teams and players list
-        const tournamentDoc = await retrieveTournamentById(tournament)
-        if (!tournamentDoc) return res.status(404).send("Tournament not found")
+        const tournamentDoc = await retrieveTournament(tournament)
+
+        if (!tournamentDoc) {
+            throw new HttpError(
+                404,
+                "TOURNAMENT_NOT_FOUND",
+                "No se encontró el torneo indicado"
+            )
+        }
 
         const teams = tournamentDoc.teams || []
-        const playersList =
-            (await retrieveTournamentPlayersByTournamentId(tournament)) || []
+        const playersList = (await retrieveTournamentPlayers(tournament)) || []
 
         // Helper to get player name from tournament players list
         const getName = (id) => {
@@ -42,8 +56,7 @@ const getPlayerInfoByTournamentId = async (req, res) => {
 
         if (playerQuery === "all") {
             // Fetch all played & valid matches once
-            const allMatches =
-                (await retrieveAllPlayedMatchesByTournamentId(tournament)) || []
+            const allMatches = (await retrievePlayedMatches(tournament)) || []
 
             // Ensure all players appear even with zero matches
             const resultMap = new Map()
@@ -194,7 +207,7 @@ const getPlayerInfoByTournamentId = async (req, res) => {
 
         // Single player path
         const playerId = String(playerQuery)
-        const matchesFromDB = await retrievePlayerMatchesByTournamentId(
+        const matchesFromDB = await retrievePlayerMatches(
             tournament,
             playerId,
             true
@@ -308,9 +321,11 @@ const getPlayerInfoByTournamentId = async (req, res) => {
         if (includeMatches) response.matches = matchesFromDB
 
         return res.status(200).json(response)
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
     }
 }
 
+const getPlayerInfoByTournamentId = createGetPlayerInfoByTournamentId()
+
 module.exports = getPlayerInfoByTournamentId
+module.exports.createGetPlayerInfoByTournamentId =
+    createGetPlayerInfoByTournamentId

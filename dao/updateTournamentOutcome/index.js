@@ -1,16 +1,19 @@
 const tournamentsModel = require("./../models/tournaments.js")
 
-const updateTournamentOutcome = async (tournament, champion, finalist) => {
-    const updatedTournament = await tournamentsModel.findByIdAndUpdate(
+const updateTournamentOutcome = async (
+    tournament,
+    champion,
+    finalist,
+    options = {}
+) => {
+    return tournamentsModel.findByIdAndUpdate(
         tournament,
         {
             ongoing: false,
             outcome: { champion, finalist },
         },
-        { new: true }
+        { ...options, new: true }
     )
-
-    return updatedTournament
 }
 
 module.exports = updateTournamentOutcome

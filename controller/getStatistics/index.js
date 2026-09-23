@@ -4,13 +4,23 @@ const {
     retrieveTournamentById,
     orderMatchesFromTournamentById,
 } = require("./../../service")
+const { HttpError } = require("../../middleware/httpErrors")
 
 // Combined summary stats and streaks endpoint
 // GET /api/statistics[?tournament=<id>]
 // - Global: aggregates across all tournaments for all users
 // - Tournament-scoped: aggregates only matches from that tournament and only players registered in it
-const getStatistics = async (req, res) => {
-    try {
+const createGetStatistics = (dependencies = {}) => {
+    const retrieveUsers = dependencies.retrieveAllUsers || retrieveAllUsers
+    const retrieveMatches =
+        dependencies.retrieveAllMatches || retrieveAllMatches
+    const retrieveTournament =
+        dependencies.retrieveTournamentById || retrieveTournamentById
+    const orderTournamentMatches =
+        dependencies.orderMatchesFromTournamentById ||
+        orderMatchesFromTournamentById
+
+    return async (req, res) => {
         const tournamentId = String(req.query?.tournament || "").trim()
 
         let players = []
@@ -18,8 +28,16 @@ const getStatistics = async (req, res) => {
         let scope = { tournament: null }
 
         if (tournamentId) {
-            const tDoc = await retrieveTournamentById(tournamentId)
-            if (!tDoc) return res.status(404).send("Tournament not found")
+            const tDoc = await retrieveTournament(tournamentId)
+
+            if (!tDoc) {
+                throw new HttpError(
+                    404,
+                    "TOURNAMENT_NOT_FOUND",
+                    "No se encontró el torneo indicado"
+                )
+            }
+
             scope.tournament = tournamentId
 
             // Only players from this tournament
@@ -29,19 +47,16 @@ const getStatistics = async (req, res) => {
             }))
             // All played valid matches across groups, newest first
             matches =
-                (await orderMatchesFromTournamentById(
-                    tournamentId,
-                    undefined,
-                    true
-                )) || []
+                (await orderTournamentMatches(tournamentId, undefined, true)) ||
+                []
         } else {
             // Global: all users and all matches
-            const allUsers = await retrieveAllUsers()
+            const allUsers = await retrieveUsers()
             players = (allUsers || []).map((p) => ({
                 id: String(p.id),
                 name: p.nickname || p.name || String(p.id),
             }))
-            matches = (await retrieveAllMatches()) || []
+            matches = (await retrieveMatches()) || []
         }
 
         // Index players for fast lookup and include zeros for missing
@@ -769,9 +784,10 @@ const getStatistics = async (req, res) => {
             },
             records,
         })
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
     }
 }
 
+const getStatistics = createGetStatistics()
+
 module.exports = getStatistics
+module.exports.createGetStatistics = createGetStatistics

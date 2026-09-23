@@ -1,141 +1,202 @@
 const {
     orderMatchesFromTournamentById,
     originatePlayinByTournamentId,
+    retrievePlayinMatchesByTournamentId,
     retrieveTournamentById,
 } = require("./../../service")
+const { HttpError } = require("../../middleware/httpErrors")
 
-const postPlayinByTournamentId = async (req, res) => {
-    const { group } = req.body
-    const { tournament } = req.params
+const sameId = (left, right) => String(left) === String(right)
+const hasReference = (value) =>
+    value?.id !== undefined &&
+    typeof value.name === "string" &&
+    value.name.trim().length > 0
 
-    try {
-        const standings = []
+const calculateStandings = (teams, matches) => {
+    if (
+        teams.length < 10 ||
+        teams.some(
+            ({ team, player }) => !hasReference(team) || !hasReference(player)
+        )
+    ) {
+        throw new HttpError(
+            422,
+            "PLAYIN_PARTICIPANTS_INVALID",
+            "El grupo necesita al menos diez asignaciones válidas"
+        )
+    }
 
-        const { id, name, teams } = await retrieveTournamentById(tournament)
+    if (
+        matches.some(
+            (match) =>
+                !hasReference(match.teamP1) ||
+                !hasReference(match.teamP2) ||
+                !Number.isFinite(match.scoreP1) ||
+                !Number.isFinite(match.scoreP2)
+        )
+    ) {
+        throw new HttpError(
+            422,
+            "PLAYIN_DATA_INVALID",
+            "Los resultados de la fase regular no son válidos"
+        )
+    }
 
-        const tournamentForFixtureGeneration = { id, name }
-
-        const teamsFromGroup = teams.filter((team) => team.group == group)
-
-        const matches = await orderMatchesFromTournamentById(tournament, group)
-
-        teamsFromGroup.forEach(async ({ team, player }) => {
-            let wins = matches.filter(
-                ({ outcome }) => outcome?.teamThatWon?.id == team.id
+    return teams
+        .map(({ team, player }) => {
+            const wins = matches.filter(({ outcome }) =>
+                sameId(outcome?.teamThatWon?.id, team.id)
             ).length
-            let draws = matches.filter(
+            const draws = matches.filter(
                 ({ teamP1, teamP2, outcome }) =>
-                    (teamP1.id == team.id || teamP2.id == team.id) &&
+                    (sameId(teamP1.id, team.id) ||
+                        sameId(teamP2.id, team.id)) &&
                     outcome?.draw
             ).length
-            let goalsFor =
-                matches
-                    .filter(({ teamP1 }) => teamP1.id == team.id)
-                    .reduce((acc, curr) => {
-                        return acc + curr.scoreP1
-                    }, 0) +
-                matches
-                    .filter(({ teamP2 }) => teamP2.id == team.id)
-                    .reduce((acc, curr) => {
-                        return acc + curr.scoreP2
-                    }, 0)
-            let goalsAgainst =
-                matches
-                    .filter(({ teamP1 }) => teamP1.id == team.id)
-                    .reduce((acc, curr) => {
-                        return acc + curr.scoreP2
-                    }, 0) +
-                matches
-                    .filter(({ teamP2 }) => teamP2.id == team.id)
-                    .reduce((acc, curr) => {
-                        return acc + curr.scoreP1
-                    }, 0)
-            let scoringDifference = goalsFor - goalsAgainst
-            let points = wins * 3 + draws
+            const goalsFor = matches.reduce((total, match) => {
+                if (sameId(match.teamP1.id, team.id)) {
+                    return total + match.scoreP1
+                }
+                if (sameId(match.teamP2.id, team.id)) {
+                    return total + match.scoreP2
+                }
+                return total
+            }, 0)
+            const goalsAgainst = matches.reduce((total, match) => {
+                if (sameId(match.teamP1.id, team.id)) {
+                    return total + match.scoreP2
+                }
+                if (sameId(match.teamP2.id, team.id)) {
+                    return total + match.scoreP1
+                }
+                return total
+            }, 0)
 
-            standings.push({
+            return {
                 team,
                 player,
                 goalsFor,
                 goalsAgainst,
-                scoringDifference,
-                points,
-            })
+                scoringDifference: goalsFor - goalsAgainst,
+                points: wins * 3 + draws,
+            }
         })
+        .sort(
+            (left, right) =>
+                right.points - left.points ||
+                right.scoringDifference - left.scoringDifference ||
+                right.goalsFor - left.goalsFor ||
+                left.goalsAgainst - right.goalsAgainst
+        )
+}
 
-        const sortedStandings = standings.sort((a, b) => {
-            if (a.points > b.points) return -1
-            if (a.points < b.points) return 1
+const toMatchSide = ({ player, team }, seed) => ({
+    player: { id: player.id, name: player.name },
+    team: { id: team.id, name: team.name },
+    seed,
+})
 
-            if (a.scoringDifference > b.scoringDifference) return -1
-            if (a.scoringDifference < b.scoringDifference) return 1
+const buildFirstRound = (standings, tournament, group) => {
+    const first = toMatchSide(standings[6], "7")
+    const second = toMatchSide(standings[7], "8")
+    const third = toMatchSide(standings[8], "9")
+    const fourth = toMatchSide(standings[9], "10")
+    const firstId = group === "A" ? 1 : 3
 
-            if (a.goalsFor > b.goalsFor) return -1
-            if (a.goalsFor < b.goalsFor) return 1
+    return [
+        {
+            playerP1: first.player,
+            teamP1: first.team,
+            seedP1: first.seed,
+            playerP2: second.player,
+            teamP2: second.team,
+            seedP2: second.seed,
+            type: "playin",
+            tournament,
+            played: false,
+            playoff_id: firstId,
+            group,
+        },
+        {
+            playerP1: third.player,
+            teamP1: third.team,
+            seedP1: third.seed,
+            playerP2: fourth.player,
+            teamP2: fourth.team,
+            seedP2: fourth.seed,
+            type: "playin",
+            tournament,
+            played: false,
+            playoff_id: firstId + 1,
+            group,
+        },
+    ]
+}
 
-            if (a.goalsAgainst > b.goalsAgainst) return 1
-            if (a.goalsAgainst < b.goalsAgainst) return -1
-        })
+const createPostPlayinByTournamentId = (dependencies = {}) => {
+    const retrieveTournament =
+        dependencies.retrieveTournamentById || retrieveTournamentById
+    const retrievePlayinMatches =
+        dependencies.retrievePlayinMatchesByTournamentId ||
+        retrievePlayinMatchesByTournamentId
+    const orderMatches =
+        dependencies.orderMatchesFromTournamentById ||
+        orderMatchesFromTournamentById
+    const originatePlayin =
+        dependencies.originatePlayinByTournamentId ||
+        originatePlayinByTournamentId
 
-        const playinMatches = [
-            {
-                playerP1: {
-                    id: sortedStandings.at(6).player.id,
-                    name: sortedStandings.at(6).player.name,
-                },
-                teamP1: {
-                    id: sortedStandings.at(6).team.id,
-                    name: sortedStandings.at(6).team.name,
-                },
-                seedP1: "7",
-                playerP2: {
-                    id: sortedStandings.at(7).player.id,
-                    name: sortedStandings.at(7).player.name,
-                },
-                teamP2: {
-                    id: sortedStandings.at(7).team.id,
-                    name: sortedStandings.at(7).team.name,
-                },
-                seedP2: "8",
-                type: "playin",
-                tournament: tournamentForFixtureGeneration,
-                played: false,
-                playoff_id: group == "A" ? 1 : 3,
-                group,
-            },
-            {
-                playerP1: {
-                    id: sortedStandings.at(8).player.id,
-                    name: sortedStandings.at(8).player.name,
-                },
-                teamP1: {
-                    id: sortedStandings.at(8).team.id,
-                    name: sortedStandings.at(8).team.name,
-                },
-                seedP1: "9",
-                playerP2: {
-                    id: sortedStandings.at(9).player.id,
-                    name: sortedStandings.at(9).player.name,
-                },
-                teamP2: {
-                    id: sortedStandings.at(9).team.id,
-                    name: sortedStandings.at(9).team.name,
-                },
-                seedP2: "10",
-                type: "playin",
-                tournament: tournamentForFixtureGeneration,
-                played: false,
-                playoff_id: group == "A" ? 2 : 4,
-                group,
-            },
-        ]
+    return async (req, res) => {
+        const { group } = req.body
+        const { tournament } = req.params
+        const tournamentData = await retrieveTournament(tournament)
 
-        const playin = await originatePlayinByTournamentId(playinMatches)
+        if (!tournamentData) {
+            throw new HttpError(
+                404,
+                "TOURNAMENT_NOT_FOUND",
+                "No se encontró el torneo"
+            )
+        }
+        if (
+            tournamentData.format !== "league_playin_playoff" ||
+            !tournamentData.groups?.includes(group)
+        ) {
+            throw new HttpError(
+                422,
+                "PLAYIN_UNSUPPORTED_TOURNAMENT",
+                "El torneo o grupo no admite play-in"
+            )
+        }
 
-        res.status(200).json(playin)
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
+        const existingMatches = await retrievePlayinMatches(tournament)
+        if (existingMatches.some((match) => match.group === group)) {
+            throw new HttpError(
+                409,
+                "PLAYIN_ALREADY_EXISTS",
+                "El play-in de este grupo ya fue generado"
+            )
+        }
+
+        const teams = tournamentData.teams.filter(
+            (entry) => entry.group === group
+        )
+        const regularMatches = await orderMatches(tournament, group)
+        const standings = calculateStandings(teams, regularMatches)
+        const playinMatches = buildFirstRound(
+            standings,
+            { id: tournamentData.id, name: tournamentData.name },
+            group
+        )
+        const playin = await originatePlayin(playinMatches)
+
+        return res.status(200).json(playin)
     }
 }
 
+const postPlayinByTournamentId = createPostPlayinByTournamentId()
+
 module.exports = postPlayinByTournamentId
+module.exports.buildFirstRound = buildFirstRound
+module.exports.calculateStandings = calculateStandings
+module.exports.createPostPlayinByTournamentId = createPostPlayinByTournamentId

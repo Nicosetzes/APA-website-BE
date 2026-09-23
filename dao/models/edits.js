@@ -12,14 +12,16 @@ const editSchema = new mongoose.Schema(
         url: {
             type: String,
             required: true,
+            trim: true,
+            minlength: 1,
+            maxlength: 2048,
         },
         public_id: {
             type: String,
             required: true,
-        },
-        createdAt: {
-            type: Date,
-            default: Date.now,
+            trim: true,
+            minlength: 1,
+            maxlength: 512,
         },
     },
     { collection, timestamps: true }

@@ -3,73 +3,133 @@ const {
     retrieveTournamentById,
     retrievePlayinMatchesByTournamentId,
 } = require("./../../service")
+const { HttpError } = require("../../middleware/httpErrors")
 
-const postPlayinUpdateByTournamentId = async (req, res) => {
-    const { round } = req.body
-    const { tournament } = req.params
+const hasOutcome = (match) =>
+    match?.played === true &&
+    match.outcome?.playerThatWon &&
+    match.outcome?.teamThatWon &&
+    match.outcome?.seedFromTeamThatWon &&
+    match.outcome?.playerThatLost &&
+    match.outcome?.teamThatLost &&
+    match.outcome?.seedFromTeamThatLost
 
-    try {
-        const { id, name } = await retrieveTournamentById(tournament)
+const createPlayinMap = (matches) => {
+    const matchById = new Map()
 
-        const matches = await retrievePlayinMatchesByTournamentId(tournament)
-
-        const newMatches = []
-
-        if (round == 2) {
-            const playedMatches = matches
-                .filter(({ played }) => played)
-                .map(({ playoff_id }) => playoff_id)
-
-            if (playedMatches.includes(1) && playedMatches.includes(2)) {
-                // Primero chequeo que, a pesar de cumplirse estas condiciones, el partido no se haya generado con anterioridad //
-                !matches.filter(({ playoff_id }) => playoff_id == 5).length &&
-                    newMatches.push({
-                        playerP1: matches.at(0).outcome.playerThatLost,
-                        teamP1: matches.at(0).outcome.teamThatLost,
-                        seedP1: matches.at(0).outcome.seedFromTeamThatLost,
-                        playerP2: matches.at(1).outcome.playerThatWon,
-                        teamP2: matches.at(1).outcome.teamThatWon,
-                        seedP2: matches.at(1).outcome.seedFromTeamThatWon,
-                        type: "playin",
-                        tournament: { id, name },
-                        played: false,
-                        playoff_id: 5,
-                        group: matches.at(0).group,
-                    })
-            }
-
-            if (playedMatches.includes(3) && playedMatches.includes(4)) {
-                // Primero chequeo que, a pesar de cumplirse estas condiciones, el partido no se haya generado con anterioridad //
-                !matches.filter(({ playoff_id }) => playoff_id == 6).length &&
-                    newMatches.push({
-                        playerP1: matches.at(2).outcome.playerThatLost,
-                        teamP1: matches.at(2).outcome.teamThatLost,
-                        seedP1: matches.at(2).outcome.seedFromTeamThatLost,
-                        playerP2: matches.at(3).outcome.playerThatWon,
-                        teamP2: matches.at(3).outcome.teamThatWon,
-                        seedP2: matches.at(3).outcome.seedFromTeamThatWon,
-                        type: "playin",
-                        tournament: { id, name },
-                        played: false,
-                        playoff_id: 6,
-                        group: matches.at(2).group,
-                    })
-            }
-
-            let newPlayinMatches
-            if (newMatches.length) {
-                newPlayinMatches = await originatePlayinByTournamentId(
-                    newMatches
-                )
-                return res.status(200).json(newPlayinMatches)
-            } else
-                return res.status(500).json({
-                    message: "No hay partidos nuevos para generar",
-                })
+    matches.forEach((match) => {
+        const id = Number(match.playoff_id)
+        if (matchById.has(id)) {
+            throw new HttpError(
+                409,
+                "PLAYIN_STATE_CONFLICT",
+                "El play-in contiene partidos duplicados"
+            )
         }
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
+        matchById.set(id, match)
+    })
+
+    return matchById
+}
+
+const buildSecondRoundMatch = (
+    matchById,
+    firstSourceId,
+    secondSourceId,
+    destinationId,
+    tournament
+) => {
+    if (matchById.has(destinationId)) return null
+
+    const first = matchById.get(firstSourceId)
+    const second = matchById.get(secondSourceId)
+    if (!first?.played || !second?.played) return null
+
+    if (!hasOutcome(first) || !hasOutcome(second)) {
+        throw new HttpError(
+            422,
+            "PLAYIN_DATA_INVALID",
+            "Los partidos jugados no tienen outcomes válidos"
+        )
+    }
+
+    return {
+        playerP1: first.outcome.playerThatLost,
+        teamP1: first.outcome.teamThatLost,
+        seedP1: first.outcome.seedFromTeamThatLost,
+        playerP2: second.outcome.playerThatWon,
+        teamP2: second.outcome.teamThatWon,
+        seedP2: second.outcome.seedFromTeamThatWon,
+        type: "playin",
+        tournament,
+        played: false,
+        playoff_id: destinationId,
+        group: first.group,
     }
 }
 
+const createPostPlayinUpdateByTournamentId = (dependencies = {}) => {
+    const retrieveTournament =
+        dependencies.retrieveTournamentById || retrieveTournamentById
+    const retrieveMatches =
+        dependencies.retrievePlayinMatchesByTournamentId ||
+        retrievePlayinMatchesByTournamentId
+    const originatePlayin =
+        dependencies.originatePlayinByTournamentId ||
+        originatePlayinByTournamentId
+
+    return async (req, res) => {
+        const { tournament } = req.params
+        const tournamentData = await retrieveTournament(tournament)
+
+        if (!tournamentData) {
+            throw new HttpError(
+                404,
+                "TOURNAMENT_NOT_FOUND",
+                "No se encontró el torneo"
+            )
+        }
+        if (tournamentData.format !== "league_playin_playoff") {
+            throw new HttpError(
+                422,
+                "PLAYIN_UNSUPPORTED_TOURNAMENT",
+                "El torneo no admite play-in"
+            )
+        }
+
+        const matches = await retrieveMatches(tournament)
+        const matchById = createPlayinMap(matches)
+        const tournamentReference = {
+            id: tournamentData.id,
+            name: tournamentData.name,
+        }
+        const newMatches = [
+            buildSecondRoundMatch(matchById, 1, 2, 5, tournamentReference),
+            buildSecondRoundMatch(matchById, 3, 4, 6, tournamentReference),
+        ].filter(Boolean)
+
+        if (newMatches.length === 0) {
+            const alreadyGenerated = matchById.has(5) && matchById.has(6)
+            throw new HttpError(
+                409,
+                alreadyGenerated
+                    ? "PLAYIN_ROUND_ALREADY_GENERATED"
+                    : "PLAYIN_ROUND_NOT_READY",
+                alreadyGenerated
+                    ? "La segunda ronda ya fue generada"
+                    : "La primera ronda todavía no está completa"
+            )
+        }
+
+        const newPlayinMatches = await originatePlayin(newMatches)
+        return res.status(200).json(newPlayinMatches)
+    }
+}
+
+const postPlayinUpdateByTournamentId = createPostPlayinUpdateByTournamentId()
+
 module.exports = postPlayinUpdateByTournamentId
+module.exports.buildSecondRoundMatch = buildSecondRoundMatch
+module.exports.createPlayinMap = createPlayinMap
+module.exports.createPostPlayinUpdateByTournamentId =
+    createPostPlayinUpdateByTournamentId

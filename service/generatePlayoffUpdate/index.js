@@ -4,7 +4,12 @@ const {
 } = require("./../../dao")
 
 // idStart(r) = startSize * (1 - 1/2^(r-1)) + 1,  matchCount(r) = startSize / 2^r
-const generatePlayoffUpdate = async (tournament, matches, startSize) => {
+const generatePlayoffUpdate = async (
+    tournament,
+    matches,
+    startSize,
+    options = {}
+) => {
     const totalRounds = Math.log2(startSize)
 
     const toCreate = []
@@ -65,16 +70,21 @@ const generatePlayoffUpdate = async (tournament, matches, startSize) => {
     }
 
     const created = toCreate.length
-        ? await createPlayoffByTournamentId(toCreate)
+        ? await createPlayoffByTournamentId(toCreate, options)
         : []
 
-    const updated = await Promise.all(
-        toUpdate.map(({ playoffId, fields }) =>
-            updatePlayoffMatchTeams(tournament.id, playoffId, fields)
+    const updated = []
+    for (const { playoffId, fields } of toUpdate) {
+        const result = await updatePlayoffMatchTeams(
+            tournament.id,
+            playoffId,
+            fields,
+            options
         )
-    )
+        if (result) updated.push(result)
+    }
 
-    return { created, updated: updated.filter(Boolean) }
+    return { created, updated }
 }
 
 module.exports = generatePlayoffUpdate

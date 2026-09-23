@@ -116,7 +116,7 @@ const requireTournamentAccess = (
         try {
             const tournament = await tournamentsModel
                 .findById(tournamentId)
-                .select("players teams")
+                .select("name players teams")
                 .lean()
 
             if (!tournament) {

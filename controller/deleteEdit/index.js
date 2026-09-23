@@ -1,43 +1,44 @@
 const editsModel = require("./../../dao/models/edits")
 const cloudinary = require("../../cloudinary")
+const { HttpError } = require("../../middleware/httpErrors")
+const logger = require("../../utils/logger")
 
-const deleteEdit = async (req, res) => {
-    try {
+const createDeleteEdit = (dependencies = {}) => {
+    const destroyAsset =
+        dependencies.destroyAsset ||
+        ((publicId) => cloudinary.uploader.destroy(publicId))
+    const deleteEditById =
+        dependencies.deleteEditById ||
+        ((id) => editsModel.findByIdAndDelete(id))
+    const requestLogger = dependencies.logger || logger
+
+    return async (req, res) => {
         const { id } = req.params
-
-        // The authorization middleware already loaded and checked ownership.
-        const edit = req.edit || (await editsModel.findById(id))
+        const edit = req.edit
 
         if (!edit) {
-            return res.status(404).json({
-                success: false,
-                message: "Edit not found",
+            throw new HttpError(404, "EDIT_NOT_FOUND", "No se encontró el edit")
+        }
+
+        try {
+            await destroyAsset(edit.public_id)
+        } catch (error) {
+            requestLogger.error("cloudinary_delete_failed", {
+                requestId: req.requestId || null,
             })
         }
 
-        // Delete from Cloudinary
-        try {
-            await cloudinary.uploader.destroy(edit.public_id)
-        } catch (cloudinaryError) {
-            console.error("Cloudinary deletion error:", cloudinaryError)
-            // Continue even if Cloudinary deletion fails
-        }
+        await deleteEditById(id)
 
-        // Delete from database
-        await editsModel.findByIdAndDelete(id)
-
-        res.json({
+        return res.json({
             success: true,
             message: "Edit deleted successfully",
             deletedId: id,
         })
-    } catch (err) {
-        console.error("Delete edit error:", err)
-        res.status(500).json({
-            success: false,
-            message: err.message || "Failed to delete edit",
-        })
     }
 }
 
+const deleteEdit = createDeleteEdit()
+
 module.exports = deleteEdit
+module.exports.createDeleteEdit = createDeleteEdit

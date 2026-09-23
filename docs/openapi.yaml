@@ -16,6 +16,7 @@ tags:
     - name: Users
     - name: Tournaments
     - name: Matches
+    - name: Statistics
     - name: Edits
 
 paths:
@@ -65,13 +66,53 @@ paths:
                             schema:
                                 $ref: "#/components/schemas/LoginResponse"
                 "400":
-                    description: Input inválido o credenciales incorrectas
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    description: |
+                        Credenciales incorrectas. La respuesta es idéntica para
+                        email inexistente y contraseña equivocada.
                     content:
                         application/json:
                             schema:
-                                oneOf:
-                                    - $ref: "#/components/schemas/ErrorResponse"
-                                    - $ref: "#/components/schemas/LegacyAuthErrorResponse"
+                                $ref: "#/components/schemas/ErrorResponse"
+                "429":
+                    description: Demasiados intentos fallidos desde la misma IP
+                    headers:
+                        Retry-After:
+                            schema:
+                                type: integer
+                            description: Segundos hasta el próximo intento permitido
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/users:
+        get:
+            tags: [Users]
+            summary: Listado público de jugadores para selectores
+            responses:
+                "200":
+                    description: Jugadores con id y nombre visible
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    type: object
+                                    required: [id, name]
+                                    properties:
+                                        id:
+                                            type: string
+                                        name:
+                                            type: string
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
     /api/users/me:
         get:
             tags: [Users]
@@ -92,6 +133,237 @@ paths:
                                 $ref: "#/components/schemas/CurrentUserResponse"
                 "401":
                     $ref: "#/components/responses/InvalidSession"
+    /api/matches:
+        get:
+            tags: [Matches]
+            summary: Lista partidos históricos con filtros y paginación
+            parameters:
+                - in: query
+                  name: page
+                  schema:
+                      type: integer
+                      minimum: 0
+                      maximum: 10000
+                      default: 0
+                - in: query
+                  name: teamName
+                  description: Coincidencia parcial sobre el nombre de cualquiera de los equipos
+                  schema:
+                      type: string
+                      maxLength: 100
+                - in: query
+                  name: player1
+                  description: ID de jugador, o "all"/"" para no filtrar
+                  schema:
+                      type: string
+                - in: query
+                  name: player2
+                  description: Rival de player1; requiere player1 para tener efecto
+                  schema:
+                      type: string
+                - in: query
+                  name: tournamentId
+                  description: ID de torneo, o "all"/"" para no filtrar
+                  schema:
+                      type: string
+                - in: query
+                  name: type
+                  schema:
+                      type: string
+                      enum: [all, regular, knockout, playin, playoff]
+                - in: query
+                  name: outcome
+                  description: Resultado desde la perspectiva de player1
+                  schema:
+                      type: string
+                      enum: [all, win, draw, loss, penalties]
+                - in: query
+                  name: goalDiffOp
+                  schema:
+                      type: string
+                      enum: [gte, lte, eq]
+                      default: gte
+                - in: query
+                  name: goalDiffVal
+                  schema:
+                      type: integer
+                      minimum: 0
+                      maximum: 99
+                - in: query
+                  name: dateFrom
+                  schema:
+                      type: string
+                      pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+                - in: query
+                  name: dateTo
+                  schema:
+                      type: string
+                      pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+                - in: query
+                  name: played
+                  description: Por defecto se excluyen los partidos no jugados
+                  schema:
+                      type: boolean
+            responses:
+                "200":
+                    description: Página de partidos con totales
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                properties:
+                                    matches:
+                                        type: array
+                                        items:
+                                            type: object
+                                            additionalProperties: true
+                                    totalMatches:
+                                        type: integer
+                                    totalPages:
+                                        type: integer
+                                    currentPage:
+                                        type: integer
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/statistics/all-time/teams:
+        get:
+            tags: [Statistics]
+            summary: Top 10 de equipos por puntos y por efectividad
+            description: |
+                `completeStatsByTotalPoints` agrupa por equipo.
+                `completeStatsByEffectiveness` agrupa por jugador, equipo y
+                torneo, y exige al menos 10 partidos. Las victorias por penales
+                no cuentan como victoria.
+            responses:
+                "200":
+                    description: Leaderboards históricos de equipos
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                required:
+                                    - completeStatsByTotalPoints
+                                    - completeStatsByEffectiveness
+                                properties:
+                                    completeStatsByTotalPoints:
+                                        type: array
+                                        items:
+                                            type: object
+                                            additionalProperties: true
+                                    completeStatsByEffectiveness:
+                                        type: array
+                                        items:
+                                            type: object
+                                            additionalProperties: true
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/statistics/all-time/face-to-face:
+        get:
+            tags: [Statistics]
+            summary: Historial de cruces entre cada par de jugadores
+            description: |
+                Una entrada por par de jugadores, con los totales espejados en
+                `p1` y `p2`. `bestWin` es `null` cuando ese jugador no le ganó
+                nunca al otro.
+            responses:
+                "200":
+                    description: Historial por par
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    type: object
+                                    required: [p1, p2]
+                                    properties:
+                                        p1:
+                                            type: object
+                                            additionalProperties: true
+                                        p2:
+                                            type: object
+                                            additionalProperties: true
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/statistics:
+        get:
+            tags: [Statistics]
+            summary: Agregados, leaderboards y records de jugadores
+            description: |
+                Sin `tournament` agrega todos los usuarios y partidos.
+                Con `tournament` restringe a los jugadores inscriptos y a los
+                partidos válidos jugados de ese torneo, y agrega `longest_streak`
+                por jugador. El detalle interno de cada leaderboard todavía no
+                está descripto campo por campo.
+            parameters:
+                - in: query
+                  name: tournament
+                  schema:
+                      type: string
+                      pattern: "^[a-f\\d]{24}$"
+            responses:
+                "200":
+                    description: Estadísticas calculadas
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                required:
+                                    - scope
+                                    - players
+                                    - decisiveMatchesStats
+                                    - leaderboards
+                                    - records
+                                properties:
+                                    scope:
+                                        type: object
+                                        properties:
+                                            tournament:
+                                                type: string
+                                                nullable: true
+                                    players:
+                                        type: array
+                                        items:
+                                            type: object
+                                            additionalProperties: true
+                                    decisiveMatchesStats:
+                                        type: array
+                                        items:
+                                            type: object
+                                            additionalProperties: true
+                                    leaderboards:
+                                        type: object
+                                        additionalProperties: true
+                                    records:
+                                        type: object
+                                        additionalProperties: true
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
     /api/tournaments:
         get:
             tags: [Tournaments]
@@ -115,6 +387,14 @@ paths:
                                 type: array
                                 items:
                                     $ref: "#/components/schemas/Tournament"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
         post:
             tags: [Tournaments]
             summary: Crea un torneo
@@ -150,6 +430,40 @@ paths:
                         application/json:
                             schema:
                                 $ref: "#/components/schemas/Tournament"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/tournaments/{tournament}/summary:
+        get:
+            tags: [Tournaments]
+            summary: Obtiene resumen, recientes y estadísticas de participantes
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+            responses:
+                "200":
+                    description: Summary del torneo
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                additionalProperties: true
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
     /api/tournaments/{tournament}/fixture:
         get:
             tags: [Matches]
@@ -161,14 +475,25 @@ paths:
                   schema:
                       type: integer
                       minimum: 0
+                      maximum: 10000
+                      default: 0
                 - in: query
                   name: team
                   schema:
                       type: string
+                      minLength: 1
+                      maxLength: 100
                 - in: query
                   name: group
                   schema:
                       type: string
+                      pattern: "^[A-L]$"
+                - in: query
+                  name: players
+                  description: Array JSON con uno o dos IDs únicos de jugadores
+                  schema:
+                      type: string
+                      maxLength: 500
             responses:
                 "200":
                     description: Fixture y metadatos de paginación
@@ -177,6 +502,14 @@ paths:
                             schema:
                                 type: object
                                 additionalProperties: true
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
         post:
             tags: [Matches]
             summary: Genera el fixture
@@ -202,8 +535,257 @@ paths:
                     description: Fixture generado
                 "400":
                     $ref: "#/components/responses/BadRequest"
+                "401":
+                    $ref: "#/components/responses/InvalidSession"
                 "403":
                     $ref: "#/components/responses/Forbidden"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "422":
+                    description: Asignaciones inválidas o generación imposible
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/tournaments/images:
+        get:
+            tags: [Tournaments]
+            summary: Imágenes de torneos disponibles en Cloudinary
+            responses:
+                "200":
+                    description: Listado de imágenes
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                required: [success, data]
+                                properties:
+                                    success:
+                                        type: boolean
+                                    total:
+                                        type: integer
+                                    data:
+                                        type: array
+                                        items:
+                                            type: object
+                                            properties:
+                                                cloudinary_id:
+                                                    type: string
+                                                url:
+                                                    type: string
+                                                format:
+                                                    type: string
+                                                width:
+                                                    type: integer
+                                                height:
+                                                    type: integer
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "502":
+                    description: El proveedor de imágenes falló; el detalle no se expone
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/tournaments/{tournament}/complete:
+        put:
+            tags: [Tournaments]
+            summary: Cierra un torneo de formato liga y fija su outcome
+            description: |
+                Calcula campeón y finalista desde los partidos jugados y marca el
+                torneo como finalizado. Rechaza formatos distintos de `league`,
+                torneos ya cerrados y torneos sin outcome determinable.
+            security:
+                - bearerAuth: []
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+            responses:
+                "200":
+                    description: Torneo cerrado
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                required: [message, outcome]
+                                properties:
+                                    message:
+                                        type: string
+                                    outcome:
+                                        type: object
+                                        properties:
+                                            champion:
+                                                type: object
+                                                additionalProperties: true
+                                            finalist:
+                                                type: object
+                                                additionalProperties: true
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    $ref: "#/components/responses/InvalidSession"
+                "403":
+                    $ref: "#/components/responses/Forbidden"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "409":
+                    description: El torneo ya está finalizado
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "422":
+                    description: Formato no soportado u outcome no determinable
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/tournaments/{tournament}/calculator:
+        get:
+            tags: [Tournaments]
+            summary: Partidos restantes de los equipos elegidos y tabla del torneo
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+                - in: query
+                  name: teams
+                  required: true
+                  description: Array JSON de 1 a 40 IDs de equipo, sin repetidos
+                  schema:
+                      type: string
+                      maxLength: 1000
+            responses:
+                "200":
+                    description: Datos para la calculadora
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                required: [teams, standings]
+                                properties:
+                                    teams:
+                                        type: array
+                                        items:
+                                            type: object
+                                            additionalProperties: true
+                                    standings:
+                                        type: array
+                                        items:
+                                            type: object
+                                            additionalProperties: true
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/tournaments/{tournament}/players/info:
+        get:
+            tags: [Tournaments]
+            summary: Estadísticas de un jugador del torneo, o de todos
+            description: |
+                Con `player=<id>` devuelve un objeto con `player`, `teams`,
+                `stats`, `bestTeam` y `worstTeam`. Sin `player`, o con
+                `player=all`, devuelve `{ players: [...] }` con una entrada por
+                jugador inscripto, incluidos los que no jugaron. `matches=false`
+                omite el listado de partidos.
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+                - in: query
+                  name: player
+                  description: ID del jugador, o "all" para todos
+                  schema:
+                      type: string
+                      maxLength: 100
+                - in: query
+                  name: matches
+                  description: Acepta true/false, 1/0, yes/no, on/off
+                  schema:
+                      type: boolean
+                      default: true
+            responses:
+                "200":
+                    description: Estadísticas del jugador o de todos
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                additionalProperties: true
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/tournaments/{tournament}/standings/table:
+        get:
+            tags: [Tournaments]
+            summary: Tabla de posiciones del torneo
+            description: |
+                Devuelve una entrada por grupo. Si el torneo tiene grupos y no se
+                envía `group`, devuelve todos; si no tiene grupos, devuelve una
+                sola entrada con `group` ausente. En formato `league` agrega
+                `eliminated`, y en `league_playin_playoff` además
+                `directlyQualified` y `playinQualified`.
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+                - in: query
+                  name: group
+                  schema:
+                      type: string
+                      pattern: "^[A-L]$"
+            responses:
+                "200":
+                    description: Posiciones calculadas
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                required: [id, name, standings]
+                                properties:
+                                    id:
+                                        type: string
+                                    name:
+                                        type: string
+                                    standings:
+                                        type: array
+                                        items:
+                                            type: object
+                                            properties:
+                                                group:
+                                                    type: string
+                                                    nullable: true
+                                                teams:
+                                                    type: array
+                                                    items:
+                                                        type: object
+                                                        additionalProperties: true
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
     /api/tournaments/{tournament}/matches/update-game/{match}:
         put:
             tags: [Matches]
@@ -253,19 +835,395 @@ paths:
                     $ref: "#/components/responses/Forbidden"
                 "404":
                     $ref: "#/components/responses/NotFound"
+    /api/tournaments/{tournament}/playoffs/preview:
+        get:
+            tags: [Tournaments]
+            summary: Previsualización de cruces y tabla de mejores terceros
+            description: |
+                Disponible sólo para los formatos con bracket de fase de grupos,
+                hoy `super_cup` y `world_cup_2026`. Para cualquier otro formato
+                responde `422`.
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+            responses:
+                "200":
+                    description: Cruces previstos y tabla de terceros
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                required: [bracketPreview, thirdsTable]
+                                properties:
+                                    bracketPreview:
+                                        type: array
+                                        items:
+                                            type: object
+                                            additionalProperties: true
+                                    thirdsTable:
+                                        type: array
+                                        items:
+                                            type: object
+                                            additionalProperties: true
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "422":
+                    description: El formato no tiene previsualización de cruces
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/tournaments/{tournament}/playoffs/table:
+        get:
+            tags: [Tournaments]
+            summary: Tabla de clasificados al playoff
+            description: |
+                Sólo devuelve datos para el formato `league_playin_playoff`: los
+                seis mejores de cada grupo y, detrás, los clasificados por
+                play-in, primero los de la ronda inicial. Para cualquier otro
+                formato devuelve `standings: []`.
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+            responses:
+                "200":
+                    description: Clasificados ordenados
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                required: [standings]
+                                properties:
+                                    standings:
+                                        type: array
+                                        items:
+                                            type: object
+                                            additionalProperties: true
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/tournaments/{tournament}/playoff/matches:
+        get:
+            tags: [Matches]
+            summary: Lista los partidos de playoff; un array vacío es válido
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+            responses:
+                "200":
+                    description: Objeto con array matches
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/tournaments/{tournament}/playoff:
+        post:
+            tags: [Matches]
+            summary: Genera el bracket inicial para formatos con fase previa
+            security:
+                - bearerAuth: []
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+            requestBody:
+                required: false
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            additionalProperties: false
+            responses:
+                "200":
+                    description: Array de partidos creados
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    $ref: "#/components/responses/InvalidSession"
+                "403":
+                    $ref: "#/components/responses/Forbidden"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "409":
+                    description: El playoff ya existe o la fase previa no está lista
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "422":
+                    description: Formato, participantes o datos del torneo incompatibles
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "500":
+                    description: Error inesperado de generación o persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/tournaments/{tournament}/playoff/update:
+        post:
+            tags: [Matches]
+            summary: Crea o completa destinos elegibles del bracket
+            description: No exige completar la fase de grupos. El campo round se conserva por compatibilidad; el servidor evalúa todo el bracket disponible.
+            security:
+                - bearerAuth: []
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+            requestBody:
+                required: false
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            additionalProperties: false
+                            properties:
+                                round:
+                                    type: integer
+                                    minimum: 2
+                                    maximum: 5
+            responses:
+                "200":
+                    description: Objeto con matches creados/actualizados y mensaje; array vacío es un no-op válido
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    $ref: "#/components/responses/InvalidSession"
+                "403":
+                    $ref: "#/components/responses/Forbidden"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "409":
+                    description: El bracket inicial todavía no existe
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "422":
+                    description: Formato no soportado o estado del bracket inválido
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "500":
+                    description: Error transaccional o interno
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/tournaments/{tournament}/playin/matches:
+        get:
+            tags: [Matches]
+            summary: Lista los partidos de play-in; un array vacío es válido
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+            responses:
+                "200":
+                    description: Objeto con array matches
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/tournaments/{tournament}/playin:
+        post:
+            tags: [Matches]
+            summary: Genera la primera ronda de play-in para un grupo
+            security:
+                - bearerAuth: []
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            required: [group]
+                            additionalProperties: false
+                            properties:
+                                group:
+                                    type: string
+                                    enum: [A, B]
+            responses:
+                "200":
+                    description: Array de partidos creados
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    $ref: "#/components/responses/InvalidSession"
+                "403":
+                    $ref: "#/components/responses/Forbidden"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "409":
+                    description: El play-in ya existe o su estado es conflictivo
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "422":
+                    description: Formato, participantes o datos persistidos inválidos
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/tournaments/{tournament}/playin/update:
+        post:
+            tags: [Matches]
+            summary: Genera los partidos faltantes de la segunda ronda de play-in
+            security:
+                - bearerAuth: []
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            required: [round]
+                            additionalProperties: false
+                            properties:
+                                round:
+                                    type: integer
+                                    enum: [2]
+            responses:
+                "200":
+                    description: Array de uno o dos partidos creados
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    $ref: "#/components/responses/InvalidSession"
+                "403":
+                    $ref: "#/components/responses/Forbidden"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "409":
+                    description: Primera ronda incompleta, segunda ronda existente o estado duplicado
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "422":
+                    description: Formato u outcomes persistidos inválidos
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/tournaments/{tournament}/daily-recap:
+        get:
+            tags: [Tournaments]
+            summary: Obtiene el recap de una fecha o el último disponible
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+                - in: query
+                  name: date
+                  schema:
+                      type: string
+                      format: date
+            responses:
+                "200":
+                    description: Recap encontrado
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+        post:
+            tags: [Tournaments]
+            summary: Crea o reemplaza el recap de una fecha
+            security:
+                - bearerAuth: []
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            required: [date, content]
+                            properties:
+                                date:
+                                    type: string
+                                    format: date
+                                content:
+                                    oneOf:
+                                        - type: string
+                                        - type: object
+                                        - type: array
+            responses:
+                "200":
+                    description: Recap guardado
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    $ref: "#/components/responses/InvalidSession"
+                "403":
+                    $ref: "#/components/responses/Forbidden"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
     /api/edits:
         get:
             tags: [Edits]
             summary: Lista imágenes editadas
+            security:
+                - bearerAuth: []
             parameters:
                 - in: query
                   name: page
                   schema:
                       type: integer
                       minimum: 1
+                      maximum: 10000
+                      default: 1
             responses:
                 "200":
                     description: Página de edits
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    $ref: "#/components/responses/InvalidSession"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
         post:
             tags: [Edits]
             summary: Sube hasta diez imágenes
@@ -289,8 +1247,43 @@ paths:
             responses:
                 "200":
                     description: Imágenes subidas
+                "400":
+                    description: Cantidad o estructura de archivos inválida
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
                 "401":
                     $ref: "#/components/responses/InvalidSession"
+                "413":
+                    description: Algún archivo supera 3 MB
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "415":
+                    description: El formato no es JPG, PNG o WebP
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "429":
+                    description: Límite de solicitudes de upload alcanzado para el usuario
+                    headers:
+                        Retry-After:
+                            schema:
+                                type: integer
+                            description: Segundos hasta el próximo upload permitido
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "500":
+                    description: Falló la persistencia; el código indica si la limpieza Cloudinary fue completa o parcial
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
     /api/edits/{id}:
         delete:
             tags: [Edits]
@@ -306,10 +1299,20 @@ paths:
             responses:
                 "200":
                     description: Edit eliminado
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    $ref: "#/components/responses/InvalidSession"
                 "403":
                     $ref: "#/components/responses/Forbidden"
                 "404":
                     $ref: "#/components/responses/NotFound"
+                "500":
+                    description: Error al eliminar la referencia Mongo
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
 
 components:
     securitySchemes:
@@ -472,6 +1475,10 @@ components:
                     type: string
                 format:
                     type: string
+                schemaVersion:
+                    type: integer
+                    enum: [1]
+                    description: Presente sólo en documentos creados bajo el contrato versionado actual
                 players:
                     type: array
                     items:
@@ -540,7 +1547,7 @@ components:
             properties:
                 error:
                     type: object
-                    required: [code, message, details]
+                    required: [code, message, details, requestId]
                     properties:
                         code:
                             type: string
@@ -550,15 +1557,9 @@ components:
                             type: array
                             items:
                                 $ref: "#/components/schemas/ErrorDetail"
-        LegacyAuthErrorResponse:
-            type: object
-            required: [auth, message]
-            properties:
-                auth:
-                    type: boolean
-                    example: false
-                message:
-                    type: string
+                        requestId:
+                            type: string
+                            description: Identificador de correlación también presente en X-Request-Id
         Liveness:
             type: object
             required: [status]

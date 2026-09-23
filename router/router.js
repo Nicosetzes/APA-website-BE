@@ -70,6 +70,10 @@ const {
 
 const validateRequest = require("../middleware/validateRequest")
 const validateMatchResult = require("../middleware/validateMatchResult")
+const {
+    editUploadRateLimit,
+    loginRateLimit,
+} = require("../middleware/rateLimits")
 const requestSchemas = require("../validation/requestSchemas")
 const validate = (schemaName) => validateRequest(requestSchemas[schemaName])
 
@@ -80,7 +84,7 @@ const {
     requireEditOwnership,
 } = require("./auth")
 
-root.get("/matches", getMatches)
+root.get("/matches", validate("getMatches"), getMatches)
 
 root.post(
     "/matches",
@@ -92,9 +96,15 @@ root.post(
     postMatch
 )
 
-root.get("/edits", getEdits)
+root.get("/edits", isAuth, validate("getEdits"), getEdits)
 
-root.post("/edits", isAuth, postEditsUpload.array("image", 10), postEdits)
+root.post(
+    "/edits",
+    isAuth,
+    editUploadRateLimit,
+    postEditsUpload.array("image", 10),
+    postEdits
+)
 
 root.delete(
     "/edits/:id",
@@ -106,25 +116,41 @@ root.delete(
 
 users.get("/me", isAuth, getCurrentUser)
 
-users.get("/", getUsers)
+users.get("/", validate("getUsers"), getUsers)
 
-users.post("/login", validate("login"), postLogin)
+users.post("/login", loginRateLimit, validate("login"), postLogin)
 
 users.post("/logout", isAuth, validate("logout"), postLogout)
 
-tournaments.get("/", getTournaments)
+tournaments.get("/", validate("getTournaments"), getTournaments)
 
-tournaments.get("/images", getTournamentImages)
+tournaments.get("/images", validate("getTournamentImages"), getTournamentImages)
 
 tournaments.post("/", isAuth, validate("createTournament"), postTournaments)
 
-tournaments.get("/:tournament", getTournamentById)
+tournaments.get(
+    "/:tournament",
+    validate("getTournamentResource"),
+    getTournamentById
+)
 
-tournaments.get("/:tournament/summary", getTournamentSummaryByTournamentId)
+tournaments.get(
+    "/:tournament/summary",
+    validate("getTournamentResource"),
+    getTournamentSummaryByTournamentId
+)
 
-tournaments.get("/:tournament/calculator", getCalculatorByTournamentId)
+tournaments.get(
+    "/:tournament/calculator",
+    validate("getCalculator"),
+    getCalculatorByTournamentId
+)
 
-tournaments.get("/:tournament/fixture", getFixtureByTournamentId)
+tournaments.get(
+    "/:tournament/fixture",
+    validate("getFixture"),
+    getFixtureByTournamentId
+)
 
 tournaments.post(
     "/:tournament/fixture",
@@ -136,7 +162,11 @@ tournaments.post(
 
 tournaments.get("/:tournament/players", getPlayersByTournamentId)
 
-tournaments.get("/:tournament/players/info", getPlayerInfoByTournamentId)
+tournaments.get(
+    "/:tournament/players/info",
+    validate("getPlayerInfo"),
+    getPlayerInfoByTournamentId
+)
 
 tournaments.post(
     "/:tournament/playin",
@@ -162,7 +192,11 @@ tournaments.put(
     putCompleteTournamentById
 )
 
-tournaments.get("/:tournament/playin/matches", getPlayinMatchesByTournamentId)
+tournaments.get(
+    "/:tournament/playin/matches",
+    validate("getPlayin"),
+    getPlayinMatchesByTournamentId
+)
 
 tournaments.post(
     "/:tournament/playoff",
@@ -180,7 +214,11 @@ tournaments.post(
     postPlayoffUpdateByTournamentId
 )
 
-tournaments.get("/:tournament/playoff/matches", getPlayoffMatchesByTournamentId)
+tournaments.get(
+    "/:tournament/playoff/matches",
+    validate("getPlayoff"),
+    getPlayoffMatchesByTournamentId
+)
 
 tournaments.get("/:tournament/teams", getTeamsByTournamentId)
 
@@ -223,7 +261,11 @@ tournaments.post(
 )
 
 // GET: retrieve recap for a specific date (?date=YYYY-MM-DD) or latest if omitted
-tournaments.get("/:tournament/daily-recap", getDailyRecapByTournamentId)
+tournaments.get(
+    "/:tournament/daily-recap",
+    validate("getDailyRecap"),
+    getDailyRecapByTournamentId
+)
 
 tournaments.put(
     "/:tournament/matches/delete-game/:match",
@@ -234,14 +276,22 @@ tournaments.put(
     putRemoveMatchByTournamentId
 )
 
-tournaments.get("/:tournament/standings/table", getStandingsTableByTournamentId)
+tournaments.get(
+    "/:tournament/standings/table",
+    validate("getStandingsTable"),
+    getStandingsTableByTournamentId
+)
 
 tournaments.get(
     "/:tournament/standings/player-info",
     getStandingsPlayerInfoByTournamentId
 )
 
-tournaments.get("/:tournament/playoffs/table", getPlayoffsTableByTournamentId)
+tournaments.get(
+    "/:tournament/playoffs/table",
+    validate("getTournamentResource"),
+    getPlayoffsTableByTournamentId
+)
 
 tournaments.get(
     "/:tournament/playoffs/player-info",
@@ -250,6 +300,7 @@ tournaments.get(
 
 tournaments.get(
     "/:tournament/playoffs/preview",
+    validate("getTournamentResource"),
     getPlayoffsPreviewByTournamentId
 )
 
@@ -265,11 +316,19 @@ tournaments.get(
 
 // STATISTICS
 
-statistics.get("/", getStatistics)
+statistics.get("/", validate("getStatistics"), getStatistics)
 
-statistics.get("/all-time/face-to-face", getAllTimeFaceToFace)
+statistics.get(
+    "/all-time/face-to-face",
+    validate("getAllTimeStatistics"),
+    getAllTimeFaceToFace
+)
 
-statistics.get("/all-time/teams", getAllTimeTeams)
+statistics.get(
+    "/all-time/teams",
+    validate("getAllTimeStatistics"),
+    getAllTimeTeams
+)
 
 // SUMMARY
 summary.get("/matches", getMatchesSummaryByDate)

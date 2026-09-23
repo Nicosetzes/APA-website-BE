@@ -115,3 +115,186 @@ test("validation rejects malformed IDs, missing fields and unknown fields", asyn
         )
     )
 })
+
+test("edits pagination applies defaults, converts values and rejects invalid pages", async () => {
+    const defaultRequest = { query: {} }
+    const convertedRequest = { query: { page: "2" } }
+    const invalidRequest = { query: { page: "0", unexpected: "value" } }
+
+    const defaultError = await runValidation(schemas.getEdits, defaultRequest)
+    const convertedError = await runValidation(
+        schemas.getEdits,
+        convertedRequest
+    )
+    const invalidError = await runValidation(schemas.getEdits, invalidRequest)
+
+    assert.equal(defaultError, undefined)
+    assert.equal(defaultRequest.query.page, 1)
+    assert.equal(convertedError, undefined)
+    assert.equal(convertedRequest.query.page, 2)
+    assert.equal(invalidError.code, "VALIDATION_ERROR")
+})
+
+test("daily recap GET accepts latest or a real date and rejects invalid input", async () => {
+    const latestRequest = {
+        params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
+        query: {},
+        body: {},
+    }
+    const datedRequest = {
+        params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
+        query: { date: "2026-09-22" },
+        body: {},
+    }
+    const invalidRequest = {
+        params: { tournament: "invalid" },
+        query: { date: "2026-02-31" },
+        body: {},
+    }
+
+    assert.equal(
+        await runValidation(schemas.getDailyRecap, latestRequest),
+        undefined
+    )
+    assert.equal(
+        await runValidation(schemas.getDailyRecap, datedRequest),
+        undefined
+    )
+    assert.equal(datedRequest.query.date, "2026-09-22")
+
+    const invalidError = await runValidation(
+        schemas.getDailyRecap,
+        invalidRequest
+    )
+    assert.equal(invalidError.code, "VALIDATION_ERROR")
+    assert.equal(invalidError.details.length, 2)
+})
+
+test("fixture GET parses active FE filters and rejects malformed players/page", async () => {
+    const validRequest = {
+        params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
+        query: {
+            page: "2",
+            team: "10",
+            group: "a",
+            players: '["player-1","player-2"]',
+        },
+        body: {},
+    }
+    const invalidRequest = {
+        params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
+        query: { page: "-1", players: '["1","2","3"]' },
+        body: {},
+    }
+    const malformedRequest = {
+        params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
+        query: { players: "not-json" },
+        body: {},
+    }
+
+    assert.equal(
+        await runValidation(schemas.getFixture, validRequest),
+        undefined
+    )
+    assert.equal(validRequest.query.page, 2)
+    assert.equal(validRequest.query.group, "A")
+    assert.deepEqual(validRequest.query.players, ["player-1", "player-2"])
+
+    assert.equal(
+        (await runValidation(schemas.getFixture, invalidRequest)).code,
+        "VALIDATION_ERROR"
+    )
+    assert.equal(
+        (await runValidation(schemas.getFixture, malformedRequest)).code,
+        "VALIDATION_ERROR"
+    )
+})
+
+test("play-in GET validates tournament and rejects extra query fields", async () => {
+    const validRequest = {
+        params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
+        query: {},
+        body: {},
+    }
+    const invalidRequest = {
+        params: { tournament: "invalid" },
+        query: { unexpected: "value" },
+        body: {},
+    }
+
+    assert.equal(
+        await runValidation(schemas.getPlayin, validRequest),
+        undefined
+    )
+    assert.equal(
+        (await runValidation(schemas.getPlayin, invalidRequest)).code,
+        "VALIDATION_ERROR"
+    )
+})
+
+test("playoff GET validates tournament and rejects extra input", async () => {
+    const validRequest = {
+        params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
+        query: {},
+        body: {},
+    }
+    const invalidRequest = {
+        params: { tournament: "invalid" },
+        query: { unexpected: "value" },
+        body: {},
+    }
+
+    assert.equal(
+        await runValidation(schemas.getPlayoff, validRequest),
+        undefined
+    )
+    assert.equal(
+        (await runValidation(schemas.getPlayoff, invalidRequest)).code,
+        "VALIDATION_ERROR"
+    )
+})
+
+test("tournament listing validates status and converts legacy boolean", async () => {
+    const validRequest = {
+        query: { status: "active", legacy: "false" },
+        body: {},
+    }
+    const invalidRequest = {
+        query: { status: "unknown", extra: "value" },
+        body: {},
+    }
+
+    assert.equal(
+        await runValidation(schemas.getTournaments, validRequest),
+        undefined
+    )
+    assert.equal(validRequest.query.legacy, false)
+    assert.equal(validRequest.query.status, "active")
+    assert.equal(
+        (await runValidation(schemas.getTournaments, invalidRequest)).code,
+        "VALIDATION_ERROR"
+    )
+})
+
+test("tournament resource schema validates detail and summary inputs", async () => {
+    const validRequest = {
+        params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
+        query: {},
+        body: {},
+    }
+    const invalidRequest = {
+        params: { tournament: "invalid" },
+        query: { unexpected: "value" },
+        body: {},
+    }
+
+    assert.equal(
+        await runValidation(schemas.getTournamentResource, validRequest),
+        undefined
+    )
+    assert.equal(
+        (await runValidation(schemas.getTournamentResource, invalidRequest))
+            .code,
+        "VALIDATION_ERROR"
+    )
+})

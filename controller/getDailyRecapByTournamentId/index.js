@@ -1,26 +1,30 @@
 const getDailyRecapByTournamentId = require("./../../service/getDailyRecapByTournamentId")
+const { HttpError } = require("../../middleware/httpErrors")
 
-const controllerGetDailyRecapByTournamentId = async (req, res) => {
-    try {
+const createGetDailyRecapByTournamentId = (dependencies = {}) => {
+    const getDailyRecap =
+        dependencies.getDailyRecapByTournamentId || getDailyRecapByTournamentId
+
+    return async (req, res) => {
         const { tournament } = req.params
         const { date } = req.query
+        const recap = await getDailyRecap(tournament, date)
 
-        // Validate format only if a date was provided; otherwise default to latest
-        if (date) {
-            const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/
-            if (!isoDateRegex.test(date)) {
-                return res
-                    .status(400)
-                    .send("Invalid date format. Use YYYY-MM-DD")
-            }
+        if (!recap) {
+            throw new HttpError(
+                404,
+                "DAILY_RECAP_NOT_FOUND",
+                "No se encontró el resumen solicitado"
+            )
         }
 
-        const recap = await getDailyRecapByTournamentId(tournament, date)
-        if (!recap) return res.status(404).send("Daily recap not found")
         return res.status(200).json(recap)
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
     }
 }
 
+const controllerGetDailyRecapByTournamentId =
+    createGetDailyRecapByTournamentId()
+
 module.exports = controllerGetDailyRecapByTournamentId
+module.exports.createGetDailyRecapByTournamentId =
+    createGetDailyRecapByTournamentId

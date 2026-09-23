@@ -1,15 +1,35 @@
-const { retrievePlayoffMatchesByTournamentId } = require("./../../service")
+const {
+    retrievePlayoffMatchesByTournamentId,
+    retrieveTournamentById,
+} = require("./../../service")
+const { HttpError } = require("../../middleware/httpErrors")
 
-const getPlayoffMatchesByTournamentId = async (req, res) => {
-    try {
+const createGetPlayoffMatchesByTournamentId = (dependencies = {}) => {
+    const retrieveTournament =
+        dependencies.retrieveTournamentById || retrieveTournamentById
+    const retrieveMatches =
+        dependencies.retrievePlayoffMatchesByTournamentId ||
+        retrievePlayoffMatchesByTournamentId
+
+    return async (req, res) => {
         const { tournament } = req.params
+        const tournamentData = await retrieveTournament(tournament)
 
-        const matches = await retrievePlayoffMatchesByTournamentId(tournament)
+        if (!tournamentData) {
+            throw new HttpError(
+                404,
+                "TOURNAMENT_NOT_FOUND",
+                "No se encontró el torneo"
+            )
+        }
 
-        res.status(200).json({ matches })
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
+        const matches = await retrieveMatches(tournament)
+        return res.status(200).json({ matches })
     }
 }
 
+const getPlayoffMatchesByTournamentId = createGetPlayoffMatchesByTournamentId()
+
 module.exports = getPlayoffMatchesByTournamentId
+module.exports.createGetPlayoffMatchesByTournamentId =
+    createGetPlayoffMatchesByTournamentId

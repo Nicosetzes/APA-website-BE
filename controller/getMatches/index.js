@@ -1,9 +1,11 @@
 const { retrieveMatches } = require("./../../service")
 
-const getMatches = async (req, res) => {
-    try {
+const createGetMatches = (dependencies = {}) => {
+    const retrieve = dependencies.retrieveMatches || retrieveMatches
+
+    return async (req, res) => {
         const {
-            page = 0,
+            page,
             teamName,
             player1,
             player2,
@@ -17,8 +19,8 @@ const getMatches = async (req, res) => {
             played,
         } = req.query
 
-        const matchesData = await retrieveMatches({
-            page: Number(page),
+        const matchesData = await retrieve({
+            page,
             teamName,
             player1,
             player2,
@@ -32,11 +34,11 @@ const getMatches = async (req, res) => {
             played,
         })
 
-        res.json(matchesData)
-    } catch (err) {
-        console.error("Error fetching matches:", err)
-        return res.status(500).send("Something went wrong! " + err.message)
+        return res.status(200).json(matchesData)
     }
 }
 
+const getMatches = createGetMatches()
+
 module.exports = getMatches
+module.exports.createGetMatches = createGetMatches

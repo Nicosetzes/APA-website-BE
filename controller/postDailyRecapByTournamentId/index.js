@@ -1,31 +1,37 @@
 const upsertDailyRecapByTournamentId = require("./../../service/upsertDailyRecapByTournamentId")
+const { HttpError } = require("../../middleware/httpErrors")
 
-const postDailyRecapByTournamentId = async (req, res) => {
-    try {
+const createPostDailyRecapByTournamentId = (dependencies = {}) => {
+    const upsertDailyRecap =
+        dependencies.upsertDailyRecapByTournamentId ||
+        upsertDailyRecapByTournamentId
+
+    return async (req, res) => {
         const { tournament } = req.params
-        const { date, content } = req.body || {}
-
-        if (!date || !content) {
-            return res
-                .status(400)
-                .send("Missing required fields: date, content")
-        }
-
-        // Basic date validation: expect YYYY-MM-DD
-        const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/
-        if (!isoDateRegex.test(date)) {
-            return res.status(400).send("Invalid date format. Use YYYY-MM-DD")
-        }
-
-        const updated = await upsertDailyRecapByTournamentId(
+        const { date, content } = req.body
+        const updatedTournament = await upsertDailyRecap(
             tournament,
             date,
             content
         )
-        return res.status(200).json({ ok: true, tournament: updated })
-    } catch (err) {
-        return res.status(500).send("Something went wrong!" + err)
+
+        if (!updatedTournament) {
+            throw new HttpError(
+                404,
+                "TOURNAMENT_NOT_FOUND",
+                "No se encontró el torneo"
+            )
+        }
+
+        return res.status(200).json({
+            ok: true,
+            tournament: updatedTournament,
+        })
     }
 }
 
+const postDailyRecapByTournamentId = createPostDailyRecapByTournamentId()
+
 module.exports = postDailyRecapByTournamentId
+module.exports.createPostDailyRecapByTournamentId =
+    createPostDailyRecapByTournamentId
