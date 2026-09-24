@@ -11,44 +11,52 @@ const {
     TEST_DATABASE_NAME_PATTERN,
 } = require("../config/databaseSafety")
 
-// Contraseñas deliberadamente públicas: sólo existen en la base de pruebas.
-//
-// El dominio usa un TLD real a propósito. El schema de login valida el email
-// con Joi, que verifica el TLD contra la lista de la IANA, así que `.local` y
-// `.test` son rechazados aunque el modelo de users los acepte.
 const TEST_USERS = [
     {
-        email: "superadmin@apa-dev.dev",
-        password: "apa-dev-superadmin",
-        nickname: "DevSuperadmin",
+        email: "admin@admin.com",
+        password: "admin123",
+        nickname: "Nico - DEV",
         role: "superadmin",
     },
     {
-        email: "jugador1@apa-dev.dev",
-        password: "apa-dev-jugador1",
-        nickname: "DevJugadorUno",
+        email: "user1@user.com",
+        password: "user123",
+        nickname: "Pedro - DEV",
         role: "user",
     },
     {
-        email: "jugador2@apa-dev.dev",
-        password: "apa-dev-jugador2",
-        nickname: "DevJugadorDos",
+        email: "user2@user.com",
+        password: "user123",
+        nickname: "Pablo - DEV",
         role: "user",
     },
     {
-        email: "jugador3@apa-dev.dev",
-        password: "apa-dev-jugador3",
-        nickname: "DevJugadorTres",
+        email: "user3@user.com",
+        password: "user123",
+        nickname: "Juan - DEV",
+        role: "user",
+    },
+    {
+        email: "user4@user.com",
+        password: "user123",
+        nickname: "Flor - DEV",
+        role: "user",
+    },
+    {
+        email: "user5@user.com",
+        password: "user123",
+        nickname: "Cami - DEV",
         role: "user",
     },
 ]
 
-// Equipos reales del catálogo de football-database, para que los logos del FE
-// resuelvan igual que en producción.
 const TEST_TEAMS = [
-    { id: "435", name: "Racing Club" },
+    { id: "435", name: "River Plate" },
+    { id: "436", name: "Racing Club" },
     { id: "451", name: "Boca Juniors" },
-    { id: "460", name: "Independiente" },
+    { id: "453", name: "Independiente" },
+    { id: "460", name: "San Lorenzo" },
+    { id: "440", name: "Belgrano Cordoba" },
 ]
 
 module.exports = {
