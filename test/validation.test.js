@@ -132,18 +132,28 @@ test("fixture GET parses active FE filters and rejects malformed players/page", 
             page: "2",
             team: "10",
             group: "a",
-            players: '["player-1","player-2"]',
+            players: ["player-1", "player-2"],
         },
+        body: {},
+    }
+    const singlePlayerRequest = {
+        params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
+        query: { players: "player-1" },
         body: {},
     }
     const invalidRequest = {
         params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
-        query: { page: "-1", players: '["1","2","3"]' },
+        query: { page: "0", players: ["1", "2"] },
         body: {},
     }
-    const malformedRequest = {
+    const tooManyPlayersRequest = {
         params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
-        query: { players: "not-json" },
+        query: { players: ["1", "2", "3"] },
+        body: {},
+    }
+    const duplicatedPlayersRequest = {
+        params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
+        query: { players: ["1", "1"] },
         body: {},
     }
 
@@ -156,11 +166,61 @@ test("fixture GET parses active FE filters and rejects malformed players/page", 
     assert.deepEqual(validRequest.query.players, ["player-1", "player-2"])
 
     assert.equal(
+        await runValidation(schemas.getFixture, singlePlayerRequest),
+        undefined
+    )
+    assert.deepEqual(singlePlayerRequest.query.players, ["player-1"])
+
+    assert.equal(
         (await runValidation(schemas.getFixture, invalidRequest)).code,
         "VALIDATION_ERROR"
     )
     assert.equal(
-        (await runValidation(schemas.getFixture, malformedRequest)).code,
+        (await runValidation(schemas.getFixture, tooManyPlayersRequest)).code,
+        "VALIDATION_ERROR"
+    )
+    assert.equal(
+        (await runValidation(schemas.getFixture, duplicatedPlayersRequest))
+            .code,
+        "VALIDATION_ERROR"
+    )
+})
+
+test("serialized JSON arrays still work while the deployed FE catches up", async () => {
+    const legacyFixtureRequest = {
+        params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
+        query: { players: '["player-1","player-2"]' },
+        body: {},
+    }
+    const legacyCalculatorRequest = {
+        params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
+        query: { teams: '["team-1","team-2"]' },
+        body: {},
+    }
+    const legacyTooManyPlayersRequest = {
+        params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
+        query: { players: '["1","2","3"]' },
+        body: {},
+    }
+
+    assert.equal(
+        await runValidation(schemas.getFixture, legacyFixtureRequest),
+        undefined
+    )
+    assert.deepEqual(legacyFixtureRequest.query.players, [
+        "player-1",
+        "player-2",
+    ])
+
+    assert.equal(
+        await runValidation(schemas.getCalculator, legacyCalculatorRequest),
+        undefined
+    )
+    assert.deepEqual(legacyCalculatorRequest.query.teams, ["team-1", "team-2"])
+
+    assert.equal(
+        (await runValidation(schemas.getFixture, legacyTooManyPlayersRequest))
+            .code,
         "VALIDATION_ERROR"
     )
 })

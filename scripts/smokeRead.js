@@ -127,7 +127,7 @@ const run = async () => {
         await get("tournaments status=active", "/api/tournaments?status=active")
         await get("tournament images", "/api/tournaments/images")
 
-        await get("matches page 0", "/api/matches")
+        await get("matches primera página", "/api/matches?page=1")
         await get(
             "matches filtrados",
             "/api/matches?page=1&type=regular&played=true"
@@ -137,6 +137,8 @@ const run = async () => {
             "/api/matches?dateFrom=2020-01-01&dateTo=2030-01-01"
         )
         await get("matches query inválida", "/api/matches?unexpected=1", 400)
+        // La paginación es base 1: page=0 tiene que fallar, no devolver la primera página.
+        await get("matches page=0 rechazado", "/api/matches?page=0", 400)
 
         await get("statistics global", "/api/statistics")
         await get("statistics all-time teams", "/api/statistics/all-time/teams")
@@ -235,9 +237,35 @@ const run = async () => {
                 )
             }
 
+            const fixturePlayers = (detail?.players || [])
+                .map(({ id: playerId }) => playerId)
+                .filter(Boolean)
+                .slice(0, 2)
+
+            if (fixturePlayers.length) {
+                const repeatedPlayers = fixturePlayers
+                    .map((player) => `players=${encodeURIComponent(player)}`)
+                    .join("&")
+
+                await get(
+                    `fixture filtrado por jugadores [${format}]`,
+                    `/api/tournaments/${id}/fixture?${repeatedPlayers}`
+                )
+            }
+
             if (teams.length) {
+                const repeatedTeams = teams
+                    .map((team) => `teams=${encodeURIComponent(team)}`)
+                    .join("&")
+
                 await get(
                     `calculator [${format}]`,
+                    `/api/tournaments/${id}/calculator?${repeatedTeams}`
+                )
+
+                // Formato deprecado que todavía mandan los bundles viejos.
+                await get(
+                    `calculator JSON legacy [${format}]`,
                     `/api/tournaments/${id}/calculator?teams=${encodeURIComponent(
                         JSON.stringify(teams)
                     )}`

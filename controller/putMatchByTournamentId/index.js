@@ -7,13 +7,12 @@ const {
 } = require("./../../service")
 const { HttpError } = require("../../middleware/httpErrors")
 const withTransaction = require("../../utils/withTransaction")
-
-const FORMAT_TO_START_SIZE = {
-    playoff: 32,
-    world_cup_2026: 32,
-    world_cup: 16,
-    league_playin_playoff: 16,
-}
+const logger = require("../../utils/logger")
+const {
+    getPlayoffStartSize,
+    hasTabulatedFinalPlayoffId,
+    isFinalPlayoffMatch,
+} = require("../../config/playoffFormats")
 
 const calculateOutcome = ({
     playerP1,
@@ -84,6 +83,7 @@ const createPutMatchByTournamentId = (dependencies = {}) => {
     const updatePlayoff =
         dependencies.generatePlayoffUpdate || generatePlayoffUpdate
     const runInTransaction = dependencies.withTransaction || withTransaction
+    const log = dependencies.logger || logger
 
     return async (req, res) => {
         const { tournament, match } = req.params
@@ -99,7 +99,6 @@ const createPutMatchByTournamentId = (dependencies = {}) => {
             scoreP2: scoreP2AsString,
             penaltyScoreP2: penaltyScoreP2AsString,
             valid,
-            isThisTheFinal,
         } = req.body
 
         const scoreP1 = Number(scoreP1AsString)
@@ -138,18 +137,6 @@ const createPutMatchByTournamentId = (dependencies = {}) => {
                 )
             }
 
-            if (isThisTheFinal) {
-                const champion = {
-                    team: outcome.teamThatWon,
-                    player: outcome.playerThatWon,
-                }
-                const finalist = {
-                    team: outcome.teamThatLost,
-                    player: outcome.playerThatLost,
-                }
-                await updateTournament(tournament, champion, finalist, options)
-            }
-
             if (
                 updatedMatch.type === "playoff" &&
                 updatedMatch.tournament?.id
@@ -167,9 +154,49 @@ const createPutMatchByTournamentId = (dependencies = {}) => {
                     )
                 }
 
+                // La derivación falla cerrada: si no reconoce la final, el
+                // torneo queda abierto. Los dos casos en los que eso puede ser
+                // un dato anómalo y no una ronda intermedia quedan logueados,
+                // porque desde HTTP la respuesta sigue siendo 200.
+                if (
+                    !Number.isInteger(Number(updatedMatch.playoff_id)) ||
+                    !hasTabulatedFinalPlayoffId(tournamentData.format)
+                ) {
+                    log.warn("playoff_final_not_derivable", {
+                        requestId: req.requestId || null,
+                        tournamentId: tournamentData.id,
+                        format: tournamentData.format ?? null,
+                        playoffId: updatedMatch.playoff_id ?? null,
+                    })
+                }
+
+                // La final se deriva del formato y del `playoff_id` guardado,
+                // no de lo que declare el cliente.
+                if (
+                    isFinalPlayoffMatch({
+                        format: tournamentData.format,
+                        type: updatedMatch.type,
+                        playoffId: updatedMatch.playoff_id,
+                    })
+                ) {
+                    const champion = {
+                        team: outcome.teamThatWon,
+                        player: outcome.playerThatWon,
+                    }
+                    const finalist = {
+                        team: outcome.teamThatLost,
+                        player: outcome.playerThatLost,
+                    }
+                    await updateTournament(
+                        tournament,
+                        champion,
+                        finalist,
+                        options
+                    )
+                }
+
                 if (tournamentData.format !== "champions_league") {
-                    const startSize =
-                        FORMAT_TO_START_SIZE[tournamentData.format] ?? 16
+                    const startSize = getPlayoffStartSize(tournamentData.format)
                     const playoffMatches = await getPlayoffMatches(
                         updatedMatch.tournament.id,
                         options

@@ -77,7 +77,6 @@ const updateMatchBody = Joi.object({
     scoreP2: score.required(),
     penaltyScoreP2: score.optional(),
     valid: Joi.boolean().optional(),
-    isThisTheFinal: Joi.boolean().optional(),
 })
     .unknown(false)
     .custom((value, helpers) => {
@@ -123,43 +122,45 @@ const isValidCalendarDate = (value, helpers) => {
 
 const fixturePlayerIds = Joi.array().items(externalId).min(1).max(2).unique()
 
-const jsonFixturePlayerIds = Joi.any().custom((raw, helpers) => {
-    if (typeof raw !== "string" || raw.length > 500) {
-        return helpers.error("any.invalid")
-    }
-
-    try {
-        const parsed = JSON.parse(raw)
-        const { value, error } = fixturePlayerIds.validate(parsed, {
-            abortEarly: false,
-            convert: true,
-        })
-
-        return error ? helpers.error("any.invalid") : value
-    } catch (error) {
-        return helpers.error("any.invalid")
-    }
-})
-
 const calculatorTeamIds = Joi.array().items(externalId).min(1).max(40).unique()
 
-const jsonCalculatorTeamIds = Joi.any().custom((raw, helpers) => {
-    if (typeof raw !== "string" || raw.length > 1000) {
-        return helpers.error("any.invalid")
-    }
+// Contrato actual: params repetidos (`?teams=a&teams=b`), que Express ya parsea
+// como array; un solo valor llega como string y `single()` lo envuelve.
+//
+// Cualquier valor que empiece con "[" se interpreta como el formato deprecado:
+// los bundles viejos del FE mandan el array serializado en JSON. Se sigue
+// aceptando durante la transición, pero si el JSON está mal formado o viola los
+// límites responde 400 en lugar de degradar a "un id raro", así que no se pierde
+// validación. El costo es que un ID que empiece con "[" queda rechazado; ningún
+// ID real lo hace, y la restricción desaparece cuando se retire la rama.
+const looksLikeSerializedArray = (raw) =>
+    typeof raw === "string" && raw.trimStart().startsWith("[")
 
-    try {
-        const parsed = JSON.parse(raw)
-        const { value, error } = calculatorTeamIds.validate(parsed, {
+const idListQuery = (itemsSchema, maxRawLength) =>
+    Joi.any().custom((raw, helpers) => {
+        let candidate = raw
+
+        if (looksLikeSerializedArray(raw)) {
+            if (raw.length > maxRawLength) return helpers.error("any.invalid")
+
+            try {
+                candidate = JSON.parse(raw)
+            } catch (error) {
+                return helpers.error("any.invalid")
+            }
+        }
+
+        const { value, error } = itemsSchema.single().validate(candidate, {
             abortEarly: false,
             convert: true,
         })
 
         return error ? helpers.error("any.invalid") : value
-    } catch (error) {
-        return helpers.error("any.invalid")
-    }
-})
+    })
+
+const fixturePlayersQuery = idListQuery(fixturePlayerIds, 500)
+
+const calculatorTeamsQuery = idListQuery(calculatorTeamIds, 1000)
 
 const calendarDate = Joi.string()
     .pattern(/^\d{4}-\d{2}-\d{2}$/)
@@ -175,7 +176,8 @@ const optionalIdFilter = Joi.alternatives().try(
 module.exports = {
     getMatches: {
         query: Joi.object({
-            page: Joi.number().integer().min(0).max(10000).default(0),
+            // Paginación en base 1 en toda la API, igual que /api/edits.
+            page: Joi.number().integer().min(1).max(10000).default(1),
             teamName: Joi.string().trim().min(1).max(100).allow("").optional(),
             player1: optionalIdFilter.optional(),
             player2: optionalIdFilter.optional(),
@@ -223,7 +225,7 @@ module.exports = {
     getCalculator: {
         params: tournamentParams,
         query: Joi.object({
-            teams: jsonCalculatorTeamIds.required(),
+            teams: calculatorTeamsQuery.required(),
         }).unknown(false),
         body: emptyObject,
     },
@@ -281,10 +283,10 @@ module.exports = {
     getFixture: {
         params: tournamentParams,
         query: Joi.object({
-            page: Joi.number().integer().min(0).max(10000).default(0),
+            page: Joi.number().integer().min(1).max(10000).default(1),
             team: Joi.string().trim().min(1).max(100).optional(),
             group: group.optional(),
-            players: jsonFixturePlayerIds.optional(),
+            players: fixturePlayersQuery.optional(),
         }).unknown(false),
         body: emptyObject,
     },

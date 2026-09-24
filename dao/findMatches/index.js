@@ -3,7 +3,7 @@ const matchesModel = require("./../models/matches.js")
 const findMatches = async (filters) => {
     const limit = 20
     const {
-        page = 0,
+        page = 1,
         teamName,
         player1,
         player2,
@@ -110,12 +110,13 @@ const findMatches = async (filters) => {
     }
 
     const finalFilter = { $and: queryConditions }
+    const currentPage = Math.max(1, Number(page) || 1)
 
     const [matches, amountOfTotalMatches] = await Promise.all([
         matchesModel
             .find(finalFilter)
             .limit(limit)
-            .skip(page * limit)
+            .skip((currentPage - 1) * limit)
             .sort({ updatedAt: -1, _id: -1 }),
         matchesModel.countDocuments(finalFilter),
     ])
@@ -124,7 +125,7 @@ const findMatches = async (filters) => {
         matches,
         totalMatches: amountOfTotalMatches,
         totalPages: Math.ceil(amountOfTotalMatches / limit),
-        currentPage: Number(page),
+        currentPage,
     }
 }
 

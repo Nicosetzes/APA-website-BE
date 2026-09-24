@@ -115,7 +115,7 @@ test("matches listing validation applies page and goalDiffOp defaults", async ()
     const error = await runValidation(schemas.getMatches, request)
 
     assert.equal(error, undefined)
-    assert.equal(request.query.page, 0)
+    assert.equal(request.query.page, 1)
     assert.equal(request.query.goalDiffOp, "gte")
 })
 
@@ -156,6 +156,8 @@ test("matches listing validation keeps historical all/empty filters", async () =
 
 test("matches listing validation rejects invalid filters with canonical error", async () => {
     const invalidRequests = [
+        // La paginación es base 1: page 0 dejó de ser válida.
+        { query: { page: 0 }, body: {} },
         { query: { page: -1 }, body: {} },
         { query: { page: 99999 }, body: {} },
         { query: { type: "friendly" }, body: {} },

@@ -11,7 +11,14 @@
  *
  * Los pasos de edits no corren por defecto: suben a Cloudinary, que es una
  * cuenta compartida con producción. Pedilos explícitamente y asegurate de tener
- * CLOUDINARY_EDITS_FOLDER apuntando a otra carpeta en ese entorno.
+ * CLOUDINARY_EDITS_FOLDER apuntando a otra carpeta en ese entorno:
+ *
+ *   $env:SMOKE_WRITE_STEPS="login,uploadEdit,readEdits,deleteEdit,confirmEditDeleted"
+ *
+ * Además de pedirlos, `uploadEdit` mira la carpeta real del `public_id` que
+ * devuelve el deployment: si subió a la carpeta por defecto de producción borra
+ * el asset y falla. Y si la cadena se corta con un edit ya subido, el runner
+ * intenta borrarlo antes de terminar.
  */
 
 const {
@@ -39,7 +46,32 @@ const DEFAULT_STEPS = [
     "completeAgainConflict",
     "createPlayoffTournament",
     "readPlayoffBracket",
+    "createPlayinTournament",
+    "generatePlayinGroupA",
+    "generatePlayinGroupB",
+    "readPlayinFirstRound",
+    "playPlayinFirstRound",
+    "playinUpdateSecondRound",
+    "playinUpdateAlreadyGenerated",
+    "playPlayinSecondRound",
+    "playoffUpdateNotReady",
+    "generatePlayoffFromPlayin",
+    "playoffUpdateWithoutResults",
+    "playPlayinPlayoffFirstPair",
+    "readPlayinPlayoffProgression",
+    "playoffUpdateIdempotent",
 ]
+
+// Diez equipos por grupo: el play-in cruza las posiciones 7 a 10 de cada zona.
+const PLAYIN_GROUP_SIZE = 10
+
+// PNG 1x1 mínimo, suficiente para el filtro de MIME y el upload real.
+const TINY_PNG_BASE64 =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+
+// Carpeta por defecto de Cloudinary: si el deployment sube ahí, está mezclando
+// los edits del smoke con los de producción.
+const PRODUCTION_EDITS_FOLDER = "edits"
 
 const state = {
     token: null,
@@ -47,6 +79,8 @@ const state = {
     tournamentId: null,
     match: null,
     playoffTournamentId: null,
+    playinTournamentId: null,
+    playinMatches: [],
     editId: null,
 }
 
@@ -92,6 +126,61 @@ const matchResultBody = (match, scoreP1, scoreP2) => ({
     teamP2: { id: match.teamP2.id, name: match.teamP2.name },
     scoreP2,
 })
+
+// Los usuarios sembrados alcanzan para cualquier torneo del smoke. Se resuelven
+// una sola vez para que los pasos de play-in puedan correr aislados.
+const resolveSeededPlayers = async () => {
+    if (state.players.length) return state.players
+
+    const { body: users } = await request("GET", "/api/users")
+    const seeded = TEST_USERS.filter((u) => u.role === "user").map((user) => {
+        const match = (users || []).find((u) => u.name === user.nickname)
+        return match ? { id: match.id, name: match.name } : null
+    })
+
+    if (seeded.some((player) => !player)) return null
+
+    state.players = seeded
+    return state.players
+}
+
+const buildGroupTeams = (group) =>
+    Array.from({ length: PLAYIN_GROUP_SIZE }, (_, index) => ({
+        team: {
+            id: `smoke-playin-${group.toLowerCase()}-${index + 1}`,
+            name: `Equipo ${group}${index + 1}`,
+        },
+        player: state.players[index % state.players.length],
+        group,
+    }))
+
+const readPlayinMatches = async () => {
+    const { status, body } = await request(
+        "GET",
+        `/api/tournaments/${state.playinTournamentId}/playin/matches`
+    )
+
+    return { status, matches: body?.matches || [] }
+}
+
+// Carga 2-0 en cada llave: sin empate no hace falta definir penales.
+const playKnockoutMatches = async (tournamentId, matches) => {
+    const statuses = []
+
+    for (const match of matches) {
+        const { status } = await request(
+            "PUT",
+            `/api/tournaments/${tournamentId}/matches/update-game/${match._id}`,
+            { token: state.token, body: matchResultBody(match, 2, 0) }
+        )
+        statuses.push(status)
+    }
+
+    return statuses
+}
+
+const deleteEditById = (id) =>
+    request("DELETE", `/api/edits/${id}`, { token: state.token })
 
 const steps = {
     login: async () => {
@@ -402,6 +491,496 @@ const steps = {
 
         return ok
     },
+
+    createPlayinTournament: async () => {
+        const players = await resolveSeededPlayers()
+
+        if (!players) {
+            return record(
+                "POST /api/tournaments (league_playin_playoff)",
+                [200],
+                0,
+                "faltan usuarios sembrados: corré npm run seed:test"
+            )
+        }
+
+        const teams = [...buildGroupTeams("A"), ...buildGroupTeams("B")]
+
+        const { status, body } = await request("POST", "/api/tournaments", {
+            token: state.token,
+            body: {
+                format: "league_playin_playoff",
+                name: `Smoke playin ${new Date().toISOString().slice(0, 19)}`,
+                players,
+                teams,
+            },
+        })
+
+        state.playinTournamentId = body?._id || body?.id || null
+        const groups = body?.groups || []
+
+        const ok = record(
+            "POST /api/tournaments (league_playin_playoff)",
+            [200, 201],
+            status,
+            state.playinTournamentId
+                ? `id=${state.playinTournamentId} zonas=${
+                      groups.join("") || "?"
+                  } equipos=${body?.teams?.length}`
+                : errorCode(body)
+        )
+
+        // El backend deriva las zonas de teams[].group: sin A y B no hay play-in.
+        if (state.playinTournamentId && groups.join("") !== "AB") {
+            results[results.length - 1].ok = false
+            results[results.length - 1].detail += " <- esperaba zonas A y B"
+            return false
+        }
+
+        return ok
+    },
+
+    generatePlayinGroupA: async () => {
+        const { status, body } = await request(
+            "POST",
+            `/api/tournaments/${state.playinTournamentId}/playin`,
+            { token: state.token, body: { group: "A" } }
+        )
+
+        return record(
+            "POST playin zona A",
+            [200],
+            status,
+            Array.isArray(body)
+                ? `${body.length} partidos creados`
+                : errorCode(body)
+        )
+    },
+
+    generatePlayinGroupB: async () => {
+        const { status, body } = await request(
+            "POST",
+            `/api/tournaments/${state.playinTournamentId}/playin`,
+            { token: state.token, body: { group: "B" } }
+        )
+
+        return record(
+            "POST playin zona B",
+            [200],
+            status,
+            Array.isArray(body)
+                ? `${body.length} partidos creados`
+                : errorCode(body)
+        )
+    },
+
+    readPlayinFirstRound: async () => {
+        const { status, matches } = await readPlayinMatches()
+        const firstRound = matches
+            .filter((match) => [1, 2, 3, 4].includes(Number(match.playoff_id)))
+            .sort((left, right) => left.playoff_id - right.playoff_id)
+
+        state.playinMatches = firstRound
+
+        const seeds = firstRound
+            .map((match) => `${match.seedP1}v${match.seedP2}`)
+            .join(" ")
+
+        const ok = record(
+            "GET playin/matches primera ronda",
+            [200],
+            status,
+            firstRound.length === 4
+                ? `4 llaves: ${seeds}`
+                : `esperaba 4 llaves y hay ${firstRound.length}`
+        )
+
+        if (status === 200 && firstRound.length !== 4) {
+            results[results.length - 1].ok = false
+            return false
+        }
+
+        return ok
+    },
+
+    playPlayinFirstRound: async () => {
+        const statuses = await playKnockoutMatches(
+            state.playinTournamentId,
+            state.playinMatches
+        )
+        const loaded = statuses.filter((status) => status === 200).length
+
+        const ok = record(
+            "PUT resultados play-in ronda 1",
+            [200],
+            statuses.every((status) => status === 200) ? 200 : statuses[0] || 0,
+            `${loaded}/${statuses.length} llaves cargadas 2-0`
+        )
+
+        if (loaded !== statuses.length) {
+            results[results.length - 1].ok = false
+            return false
+        }
+
+        return ok
+    },
+
+    playinUpdateSecondRound: async () => {
+        const { status, body } = await request(
+            "POST",
+            `/api/tournaments/${state.playinTournamentId}/playin/update`,
+            { token: state.token, body: { round: 2 } }
+        )
+
+        const created = Array.isArray(body) ? body : []
+        const ids = created
+            .map((match) => Number(match.playoff_id))
+            .sort((left, right) => left - right)
+
+        const ok = record(
+            "POST playin/update ronda 2",
+            [200],
+            status,
+            created.length
+                ? `generó ${created.length} llaves (${ids.join(",")})`
+                : errorCode(body)
+        )
+
+        if (status === 200 && ids.join(",") !== "5,6") {
+            results[results.length - 1].ok = false
+            results[results.length - 1].detail +=
+                " <- esperaba las llaves 5 y 6"
+            return false
+        }
+
+        return ok
+    },
+
+    playinUpdateAlreadyGenerated: async () => {
+        const { status, body } = await request(
+            "POST",
+            `/api/tournaments/${state.playinTournamentId}/playin/update`,
+            { token: state.token, body: { round: 2 } }
+        )
+
+        return record(
+            "POST playin/update de nuevo",
+            [409],
+            status,
+            errorCode(body)
+        )
+    },
+
+    playPlayinSecondRound: async () => {
+        const { matches } = await readPlayinMatches()
+        const secondRound = matches
+            .filter((match) => [5, 6].includes(Number(match.playoff_id)))
+            .sort((left, right) => left.playoff_id - right.playoff_id)
+
+        if (secondRound.length !== 2) {
+            return record(
+                "PUT resultados play-in ronda 2",
+                [200],
+                0,
+                `esperaba 2 llaves y hay ${secondRound.length}`
+            )
+        }
+
+        const statuses = await playKnockoutMatches(
+            state.playinTournamentId,
+            secondRound
+        )
+        const loaded = statuses.filter((status) => status === 200).length
+
+        const ok = record(
+            "PUT resultados play-in ronda 2",
+            [200],
+            statuses.every((status) => status === 200) ? 200 : statuses[0] || 0,
+            `${loaded}/2 llaves cargadas 2-0`
+        )
+
+        if (loaded !== 2) {
+            results[results.length - 1].ok = false
+            return false
+        }
+
+        return ok
+    },
+
+    playoffUpdateNotReady: async () => {
+        // Todavía no existe bracket: el update manual tiene que rechazarlo.
+        const { status, body } = await request(
+            "POST",
+            `/api/tournaments/${state.playinTournamentId}/playoff/update`,
+            { token: state.token, body: {} }
+        )
+
+        return record(
+            "POST playoff/update sin bracket",
+            [409],
+            status,
+            errorCode(body)
+        )
+    },
+
+    generatePlayoffFromPlayin: async () => {
+        const { status, body } = await request(
+            "POST",
+            `/api/tournaments/${state.playinTournamentId}/playoff`,
+            { token: state.token, body: {} }
+        )
+
+        const created = Array.isArray(body) ? body : []
+
+        const ok = record(
+            "POST playoff con play-in resuelto",
+            [200],
+            status,
+            created.length
+                ? `${created.length} llaves de playoff`
+                : errorCode(body)
+        )
+
+        if (status === 200 && created.length !== 8) {
+            results[results.length - 1].ok = false
+            results[results.length - 1].detail += " <- esperaba 8 llaves"
+            return false
+        }
+
+        return ok
+    },
+
+    playoffUpdateWithoutResults: async () => {
+        const { status, body } = await request(
+            "POST",
+            `/api/tournaments/${state.playinTournamentId}/playoff/update`,
+            { token: state.token, body: {} }
+        )
+
+        const matches = body?.matches || []
+
+        const ok = record(
+            "POST playoff/update sin resultados",
+            [200],
+            status,
+            `${matches.length} partidos nuevos`
+        )
+
+        if (status === 200 && matches.length !== 0) {
+            results[results.length - 1].ok = false
+            results[results.length - 1].detail +=
+                " <- no debería generar nada todavía"
+            return false
+        }
+
+        return ok
+    },
+
+    playPlayinPlayoffFirstPair: async () => {
+        const { status, body } = await request(
+            "GET",
+            `/api/tournaments/${state.playinTournamentId}/playoff/matches`
+        )
+        const pair = (body?.matches || [])
+            .filter((match) => [1, 2].includes(Number(match.playoff_id)))
+            .sort((left, right) => left.playoff_id - right.playoff_id)
+
+        if (status !== 200 || pair.length !== 2) {
+            return record(
+                "PUT resultados playoff llaves 1 y 2",
+                [200],
+                status,
+                `esperaba 2 llaves y hay ${pair.length}`
+            )
+        }
+
+        const statuses = await playKnockoutMatches(
+            state.playinTournamentId,
+            pair
+        )
+        const loaded = statuses.filter((code) => code === 200).length
+
+        const ok = record(
+            "PUT resultados playoff llaves 1 y 2",
+            [200],
+            statuses.every((code) => code === 200) ? 200 : statuses[0] || 0,
+            `${loaded}/2 llaves cargadas 2-0`
+        )
+
+        if (loaded !== 2) {
+            results[results.length - 1].ok = false
+            return false
+        }
+
+        return ok
+    },
+
+    readPlayinPlayoffProgression: async () => {
+        // Cargar un resultado de playoff ya avanza el bracket dentro de la
+        // misma transacción: acá se verifica ese efecto, no el update manual.
+        const { status, body } = await request(
+            "GET",
+            `/api/tournaments/${state.playinTournamentId}/playoff/matches`
+        )
+        const next = (body?.matches || []).find(
+            (match) => Number(match.playoff_id) === 9
+        )
+        const filled = Boolean(next?.teamP1?.id && next?.teamP2?.id)
+
+        const ok = record(
+            "GET playoff/matches tras los resultados",
+            [200],
+            status,
+            filled
+                ? `llave 9 con ${next.teamP1.name} y ${next.teamP2.name}`
+                : "la llave 9 no quedó completa"
+        )
+
+        if (status === 200 && !filled) {
+            results[results.length - 1].ok = false
+            return false
+        }
+
+        return ok
+    },
+
+    playoffUpdateIdempotent: async () => {
+        const { status, body } = await request(
+            "POST",
+            `/api/tournaments/${state.playinTournamentId}/playoff/update`,
+            { token: state.token, body: {} }
+        )
+
+        const matches = body?.matches || []
+
+        const ok = record(
+            "POST playoff/update idempotente",
+            [200],
+            status,
+            `${matches.length} partidos nuevos`
+        )
+
+        if (status === 200 && matches.length !== 0) {
+            results[results.length - 1].ok = false
+            results[results.length - 1].detail +=
+                " <- el avance automático ya había creado la llave"
+            return false
+        }
+
+        return ok
+    },
+
+    uploadEdit: async () => {
+        const form = new globalThis.FormData()
+        form.append(
+            "image",
+            new globalThis.Blob([Buffer.from(TINY_PNG_BASE64, "base64")], {
+                type: "image/png",
+            }),
+            "smoke-edit.png"
+        )
+
+        const { status, body } = await request("POST", "/api/edits", {
+            token: state.token,
+            body: form,
+            raw: true,
+        })
+
+        const edit = body?.data?.[0] || null
+        state.editId = edit?._id || edit?.id || null
+        const publicId = edit?.public_id || ""
+        const folder = publicId.includes("/") ? publicId.split("/")[0] : ""
+
+        const ok = record(
+            "POST /api/edits",
+            [200],
+            status,
+            state.editId
+                ? `id=${state.editId} carpeta=${folder || "(raíz)"}`
+                : errorCode(body)
+        )
+
+        // Cloudinary es una cuenta compartida: si el deployment no tiene
+        // CLOUDINARY_EDITS_FOLDER propio, limpio y corto acá.
+        if (state.editId && folder === PRODUCTION_EDITS_FOLDER) {
+            const cleanup = await deleteEditById(state.editId)
+            state.editId = cleanup.status === 200 ? null : state.editId
+            results[results.length - 1].ok = false
+            results[
+                results.length - 1
+            ].detail += ` <- subió a la carpeta de producción; ${
+                cleanup.status === 200 ? "borrado" : "NO se pudo borrar"
+            }`
+            return false
+        }
+
+        if (status === 200 && !state.editId) {
+            results[results.length - 1].ok = false
+            return false
+        }
+
+        return ok
+    },
+
+    readEdits: async () => {
+        const { status, body } = await request("GET", "/api/edits?page=1", {
+            token: state.token,
+        })
+
+        const found = (body?.data || []).some(
+            (edit) => String(edit?._id) === String(state.editId)
+        )
+
+        const ok = record(
+            "GET /api/edits",
+            [200],
+            status,
+            found
+                ? `el edit aparece entre ${body?.pagination?.totalEdits} registros`
+                : "el edit subido no aparece en la primera página"
+        )
+
+        if (status === 200 && !found) {
+            results[results.length - 1].ok = false
+            return false
+        }
+
+        return ok
+    },
+
+    deleteEdit: async () => {
+        const { status, body } = await deleteEditById(state.editId)
+
+        const ok = record(
+            "DELETE /api/edits/:id",
+            [200],
+            status,
+            body?.success ? `borrado ${body?.deletedId}` : errorCode(body)
+        )
+
+        if (status === 200) state.editId = null
+
+        return ok
+    },
+
+    confirmEditDeleted: async () => {
+        const { status, body } = await request("GET", "/api/edits?page=1", {
+            token: state.token,
+        })
+
+        const stillThere = (body?.data || []).some(
+            (edit) => String(edit?._id) === String(state.editId)
+        )
+
+        return record(
+            "GET /api/edits sin el edit borrado",
+            [200],
+            status,
+            stillThere
+                ? "el edit sigue apareciendo"
+                : `quedan ${body?.pagination?.totalEdits} registros`
+        )
+    },
 }
 
 const run = async () => {
@@ -445,6 +1024,18 @@ const run = async () => {
             console.error(`\nse corta la cadena en "${name}"`)
             break
         }
+    }
+
+    // Si quedó un edit subido, se borra igual: el asset vive en una cuenta de
+    // Cloudinary compartida con producción.
+    if (state.editId) {
+        const cleanup = await deleteEditById(state.editId)
+        console.error(
+            cleanup.status === 200
+                ? `limpieza: se borró el edit ${state.editId}`
+                : `limpieza fallida: borrá a mano el edit ${state.editId}`
+        )
+        if (cleanup.status !== 200) process.exitCode = 1
     }
 
     console.log("=".repeat(104))

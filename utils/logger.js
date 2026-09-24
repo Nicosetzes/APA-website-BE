@@ -19,4 +19,5 @@ const write = (level, event, fields = {}) => {
 module.exports = {
     error: (event, fields) => write("error", event, fields),
     info: (event, fields) => write("info", event, fields),
+    warn: (event, fields) => write("warn", event, fields),
 }

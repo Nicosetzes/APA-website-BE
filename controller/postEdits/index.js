@@ -1,5 +1,6 @@
-const { CloudinaryStorage } = require("multer-storage-cloudinary")
 const multer = require("multer")
+
+const CloudinaryEditStorage = require("../../cloudinary/editStorage")
 
 const editsModel = require("./../../dao/models/edits")
 const cloudinary = require("../../cloudinary")
@@ -13,12 +14,9 @@ const { HttpError } = require("../../middleware/httpErrors")
 const logger = require("../../utils/logger")
 const withTransaction = require("../../utils/withTransaction")
 
-const storage = new CloudinaryStorage({
+const storage = new CloudinaryEditStorage({
     cloudinary,
-    params: {
-        folder: getEditUploadFolder(),
-        allowed_formats: ["jpg", "jpeg", "png", "webp"],
-    },
+    folder: getEditUploadFolder(),
 })
 
 const editFileFilter = (req, file, callback) => {

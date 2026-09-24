@@ -5,14 +5,10 @@ const {
 } = require("./../../service")
 const { HttpError } = require("../../middleware/httpErrors")
 const withTransaction = require("../../utils/withTransaction")
-
-const FORMAT_TO_START_SIZE = {
-    playoff: 32,
-    world_cup_2026: 32,
-    world_cup: 16,
-    league_playin_playoff: 16,
-    super_cup: 16,
-}
+const {
+    getPlayoffStartSize,
+    hasTabulatedPlayoffStartSize,
+} = require("../../config/playoffFormats")
 
 const validatePlayoffState = (matches, startSize) => {
     const ids = new Set()
@@ -66,14 +62,18 @@ const createPostPlayoffUpdateByTournamentId = (dependencies = {}) => {
                 )
             }
 
-            const startSize = FORMAT_TO_START_SIZE[tournamentData.format]
-            if (!startSize) {
+            // Sólo los formatos tabulados admiten el update automático: el
+            // fallback de 16 sirve para leer un bracket histórico, no para
+            // generarle rondas nuevas.
+            if (!hasTabulatedPlayoffStartSize(tournamentData.format)) {
                 throw new HttpError(
                     422,
                     "PLAYOFF_UPDATE_UNSUPPORTED",
                     "El formato del torneo no admite actualización automática del playoff"
                 )
             }
+
+            const startSize = getPlayoffStartSize(tournamentData.format)
 
             const matches = await retrieveMatches(tournament, options)
             if (matches.length === 0) {

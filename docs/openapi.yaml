@@ -140,11 +140,12 @@ paths:
             parameters:
                 - in: query
                   name: page
+                  description: Número de página en base 1
                   schema:
                       type: integer
-                      minimum: 0
+                      minimum: 1
                       maximum: 10000
-                      default: 0
+                      default: 1
                 - in: query
                   name: teamName
                   description: Coincidencia parcial sobre el nombre de cualquiera de los equipos
@@ -223,6 +224,10 @@ paths:
                                         type: integer
                                     currentPage:
                                         type: integer
+                                        minimum: 1
+                                        description: >-
+                                            Base 1, igual que el parámetro
+                                            `page`: la primera página devuelve 1.
                 "400":
                     $ref: "#/components/responses/BadRequest"
                 "500":
@@ -472,11 +477,12 @@ paths:
                 - $ref: "#/components/parameters/TournamentId"
                 - in: query
                   name: page
+                  description: Número de página en base 1
                   schema:
                       type: integer
-                      minimum: 0
+                      minimum: 1
                       maximum: 10000
-                      default: 0
+                      default: 1
                 - in: query
                   name: team
                   schema:
@@ -490,10 +496,23 @@ paths:
                       pattern: "^[A-L]$"
                 - in: query
                   name: players
-                  description: Array JSON con uno o dos IDs únicos de jugadores
+                  description: >-
+                      Uno o dos IDs únicos de jugadores, como parámetro repetido
+                      (`?players=a&players=b`). Todavía se acepta el array
+                      serializado en JSON que mandaban los clientes viejos: un
+                      valor que empieza con `[` se interpreta como ese formato
+                      deprecado, así que un ID no puede empezar con `[`.
+                  explode: true
+                  style: form
                   schema:
-                      type: string
-                      maxLength: 500
+                      type: array
+                      minItems: 1
+                      maxItems: 2
+                      uniqueItems: true
+                      items:
+                          type: string
+                          minLength: 1
+                          maxLength: 100
             responses:
                 "200":
                     description: Fixture y metadatos de paginación
@@ -502,6 +521,13 @@ paths:
                             schema:
                                 type: object
                                 additionalProperties: true
+                                properties:
+                                    currentPage:
+                                        type: integer
+                                        minimum: 1
+                                        description: >-
+                                            Base 1, igual que el parámetro
+                                            `page`: la primera página devuelve 1.
                 "400":
                     $ref: "#/components/responses/BadRequest"
                 "500":
@@ -660,10 +686,23 @@ paths:
                 - in: query
                   name: teams
                   required: true
-                  description: Array JSON de 1 a 40 IDs de equipo, sin repetidos
+                  description: >-
+                      De 1 a 40 IDs de equipo sin repetidos, como parámetro
+                      repetido (`?teams=a&teams=b`). Todavía se acepta el array
+                      serializado en JSON que mandaban los clientes viejos: un
+                      valor que empieza con `[` se interpreta como ese formato
+                      deprecado, así que un ID no puede empezar con `[`.
+                  explode: true
+                  style: form
                   schema:
-                      type: string
-                      maxLength: 1000
+                      type: array
+                      minItems: 1
+                      maxItems: 40
+                      uniqueItems: true
+                      items:
+                          type: string
+                          minLength: 1
+                          maxLength: 100
             responses:
                 "200":
                     description: Datos para la calculadora
@@ -1466,6 +1505,12 @@ components:
                     type: boolean
                 isThisTheFinal:
                     type: boolean
+                    deprecated: true
+                    description: >-
+                        Ignorado. El backend deriva si el partido es la final a
+                        partir del formato del torneo y del `playoff_id`
+                        persistido. Se sigue aceptando para compatibilidad con
+                        clientes viejos y se retirará del contrato.
         ErrorDetail:
             type: object
             required: [source, path, code]

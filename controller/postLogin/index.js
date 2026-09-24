@@ -44,6 +44,7 @@ const createPostLogin = (dependencies = {}) => {
             },
             process.env.TOKEN_SECRET,
             {
+                algorithm: "HS256",
                 expiresIn: "24h",
             }
         )

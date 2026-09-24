@@ -169,8 +169,19 @@ test("images validation rejects any query or body", async () => {
     assert.equal(error.code, "VALIDATION_ERROR")
 })
 
-test("calculator validation parses bounded JSON team ids", async () => {
+test("calculator validation parses bounded repeated team ids", async () => {
     const request = {
+        params: { tournament: TOURNAMENT_ID },
+        query: { teams: ["10", "20"] },
+        body: {},
+    }
+    const singleTeamRequest = {
+        params: { tournament: TOURNAMENT_ID },
+        query: { teams: "10" },
+        body: {},
+    }
+    // Deprecado pero todavía aceptado: el array serializado en JSON.
+    const legacyRequest = {
         params: { tournament: TOURNAMENT_ID },
         query: { teams: '["10","20"]' },
         body: {},
@@ -179,12 +190,41 @@ test("calculator validation parses bounded JSON team ids", async () => {
     assert.equal(await runValidation(schemas.getCalculator, request), undefined)
     assert.deepEqual(request.query.teams, ["10", "20"])
 
+    assert.equal(
+        await runValidation(schemas.getCalculator, singleTeamRequest),
+        undefined
+    )
+    assert.deepEqual(singleTeamRequest.query.teams, ["10"])
+
+    assert.equal(
+        await runValidation(schemas.getCalculator, legacyRequest),
+        undefined
+    )
+    assert.deepEqual(legacyRequest.query.teams, ["10", "20"])
+
     const invalidRequests = [
         // Antes cada uno de estos casos terminaba en un 500.
         { params: { tournament: TOURNAMENT_ID }, query: {}, body: {} },
         {
             params: { tournament: TOURNAMENT_ID },
-            query: { teams: "null" },
+            query: { teams: [] },
+            body: {},
+        },
+        {
+            params: { tournament: TOURNAMENT_ID },
+            query: { teams: ["10", "10"] },
+            body: {},
+        },
+        {
+            params: { tournament: TOURNAMENT_ID },
+            query: {
+                teams: Array.from({ length: 41 }, (_, index) => String(index)),
+            },
+            body: {},
+        },
+        {
+            params: { tournament: TOURNAMENT_ID },
+            query: { teams: ["x".repeat(101)] },
             body: {},
         },
         {

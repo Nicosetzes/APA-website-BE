@@ -46,7 +46,9 @@ const isAuth = async (req, res, next) => {
     let tokenData
 
     try {
-        tokenData = jwt.verify(token, process.env.TOKEN_SECRET)
+        tokenData = jwt.verify(token, process.env.TOKEN_SECRET, {
+            algorithms: ["HS256"],
+        })
     } catch (error) {
         return invalidSession(
             res,

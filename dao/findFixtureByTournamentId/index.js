@@ -4,9 +4,9 @@ const matchesModel = require("./../models/matches.js")
 const findFixtureByTournamentId = async (id, page, players, team, group) => {
     const limit = 9 // Results per page
 
-    // Normalize inputs
-    const rawPage = Number.isFinite(Number(page)) ? Number(page) : 0
-    const currentPage = Math.max(0, rawPage)
+    // Normalize inputs. `page` es base 1 en toda la API.
+    const rawPage = Number.isFinite(Number(page)) ? Number(page) : 1
+    const currentPage = Math.max(1, rawPage)
     const playersArr = Array.isArray(players) ? players : undefined
 
     // Base match filter
@@ -56,7 +56,7 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
                 $facet: {
                     data: [
                         { $sort: { played: 1, group: 1, updatedAt: -1 } },
-                        { $skip: currentPage * limit },
+                        { $skip: (currentPage - 1) * limit },
                         { $limit: limit },
                     ],
                     totals: [

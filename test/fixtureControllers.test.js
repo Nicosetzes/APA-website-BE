@@ -67,7 +67,7 @@ test("GET fixture propagates persistence failures", async () => {
 
     await assert.rejects(
         controller(
-            { params: { tournament: "tournament" }, query: { page: 0 } },
+            { params: { tournament: "tournament" }, query: { page: 1 } },
             createResponse()
         ),
         expectedError

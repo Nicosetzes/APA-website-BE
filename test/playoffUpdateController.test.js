@@ -53,7 +53,14 @@ test("playoff update returns canonical tournament not-found", async () => {
 })
 
 test("playoff update rejects unsupported formats", async () => {
-    for (const format of ["league", "champions_league"]) {
+    // `club_world_cup` es legacy: el fallback de 16 sirve para leerlo, no para
+    // generarle rondas nuevas.
+    for (const format of [
+        "league",
+        "champions_league",
+        "club_world_cup",
+        undefined,
+    ]) {
         const controller = createController({
             retrieveTournamentById: async () => ({
                 id: "tournament",
