@@ -313,3 +313,56 @@ test("tournament resource schema validates detail and summary inputs", async () 
         "VALIDATION_ERROR"
     )
 })
+
+test("tournament creation accepts a null group and rejects an invalid letter", async () => {
+    const team = (group) => ({
+        team: { id: 435, name: "River Plate" },
+        player: { id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Nico" },
+        ...(group === undefined ? {} : { group }),
+    })
+    const body = (teams) => ({
+        params: {},
+        query: {},
+        body: {
+            format: "league",
+            name: "Liga única",
+            players: [{ id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Nico" }],
+            teams,
+        },
+    })
+
+    // El FE manda `group: null` cuando el formato no tiene grupos.
+    const nullGroupRequest = body([team(null)])
+    const absentGroupRequest = body([team(undefined)])
+    const letterRequest = body([team("a")])
+    const invalidLetterRequest = body([team("Z")])
+    const invalidTypeRequest = body([team(1)])
+
+    assert.equal(
+        await runValidation(schemas.createTournament, nullGroupRequest),
+        undefined
+    )
+    assert.equal(nullGroupRequest.body.teams[0].group, null)
+
+    assert.equal(
+        await runValidation(schemas.createTournament, absentGroupRequest),
+        undefined
+    )
+
+    assert.equal(
+        await runValidation(schemas.createTournament, letterRequest),
+        undefined
+    )
+    assert.equal(letterRequest.body.teams[0].group, "A")
+
+    assert.equal(
+        (await runValidation(schemas.createTournament, invalidLetterRequest))
+            .code,
+        "VALIDATION_ERROR"
+    )
+    assert.equal(
+        (await runValidation(schemas.createTournament, invalidTypeRequest))
+            .code,
+        "VALIDATION_ERROR"
+    )
+})

@@ -12,6 +12,15 @@ const GROUP_FORMATS = new Set([
     "world_cup_2026",
 ])
 
+const withoutEmptyGroups = (teams) =>
+    teams.map((team) => {
+        if (team?.group !== null && team?.group !== undefined) return team
+
+        const { group, ...teamWithoutGroup } = team
+
+        return teamWithoutGroup
+    })
+
 const createPostTournaments = (dependencies = {}) => {
     const createTournament =
         dependencies.originateTournament || originateTournament
@@ -21,7 +30,8 @@ const createPostTournaments = (dependencies = {}) => {
     const runInTransaction = dependencies.withTransaction || withTransaction
 
     return async (req, res) => {
-        const { cloudinary_id, format, name, players, teams } = req.body
+        const { cloudinary_id, format, name, players } = req.body
+        const teams = withoutEmptyGroups(req.body.teams)
         const tournament = {
             cloudinary_id: cloudinary_id ?? null,
             format,
@@ -64,3 +74,4 @@ const postTournaments = createPostTournaments()
 
 module.exports = postTournaments
 module.exports.createPostTournaments = createPostTournaments
+module.exports.withoutEmptyGroups = withoutEmptyGroups

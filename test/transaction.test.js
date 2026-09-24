@@ -180,3 +180,86 @@ test("non-playoff tournament creation does not open a transaction", async () => 
     assert.equal(transactionCalls, 0)
     assert.equal(response.statusCode, 200)
 })
+
+test("a group-less format is persisted without the group key", async () => {
+    let persistedTeams
+    const controller = createPostTournaments({
+        originateTournament: async (payload) => {
+            persistedTeams = payload.teams
+            return { _id: "tournament" }
+        },
+        originatePlayoffByTournamentId: async () => {},
+        withTransaction: async (work) => work({ id: "session" }),
+    })
+
+    // El FE manda `group: null` para todos los equipos de una liga.
+    await controller(
+        {
+            body: {
+                format: "league",
+                name: "League",
+                players: [{ id: "player", name: "Player" }],
+                teams: [
+                    {
+                        team: { id: 435, name: "River Plate" },
+                        player: { id: "player", name: "Player" },
+                        group: null,
+                    },
+                    {
+                        team: { id: 451, name: "Boca Juniors" },
+                        player: { id: "other", name: "Other" },
+                    },
+                ],
+            },
+        },
+        createResponse()
+    )
+
+    assert.deepEqual(persistedTeams, [
+        {
+            team: { id: 435, name: "River Plate" },
+            player: { id: "player", name: "Player" },
+        },
+        {
+            team: { id: 451, name: "Boca Juniors" },
+            player: { id: "other", name: "Other" },
+        },
+    ])
+    for (const team of persistedTeams) {
+        assert.equal(Object.hasOwn(team, "group"), false)
+    }
+})
+
+test("a group format keeps its letters and derives the zones", async () => {
+    let persisted
+    const controller = createPostTournaments({
+        originateTournament: async (payload) => {
+            persisted = payload
+            return { _id: "tournament" }
+        },
+        originatePlayoffByTournamentId: async () => {},
+        withTransaction: async (work) => work({ id: "session" }),
+    })
+
+    await controller(
+        {
+            body: {
+                format: "league_playin_playoff",
+                name: "Superliga",
+                players: [{ id: "player", name: "Player" }],
+                teams: [
+                    { team: { id: 1, name: "Uno" }, group: "B" },
+                    { team: { id: 2, name: "Dos" }, group: "A" },
+                    { team: { id: 3, name: "Tres" }, group: "A" },
+                ],
+            },
+        },
+        createResponse()
+    )
+
+    assert.deepEqual(persisted.groups, ["A", "B"])
+    assert.deepEqual(
+        persisted.teams.map(({ group }) => group),
+        ["B", "A", "A"]
+    )
+})

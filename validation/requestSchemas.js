@@ -57,7 +57,7 @@ const tournamentBody = Joi.object({
             Joi.object({
                 team: entityReference.required(),
                 player: entityReference.required(),
-                group: group.optional(),
+                group: group.optional().allow(null),
                 playoff_id: Joi.number().integer().min(1).optional(),
             }).unknown(true)
         )
