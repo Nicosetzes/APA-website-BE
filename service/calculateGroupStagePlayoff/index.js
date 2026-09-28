@@ -137,10 +137,20 @@ const calculateGroupStagePlayoff = (teams, regularMatches, format) => {
         playerP1: match.t1?.player,
         teamP1: match.t1?.team,
         seedP1: match.s1,
+        resultsP1: match.t1 && {
+            wins: match.t1.wins,
+            draws: match.t1.draws,
+            losses: match.t1.losses,
+        },
 
         playerP2: match.t2?.player,
         teamP2: match.t2?.team,
         seedP2: match.s2,
+        resultsP2: match.t2 && {
+            wins: match.t2.wins,
+            draws: match.t2.draws,
+            losses: match.t2.losses,
+        },
 
         outcome: null,
 
