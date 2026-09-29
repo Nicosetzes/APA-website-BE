@@ -3,7 +3,9 @@ const {
     modifyTournamentOutcome,
     retrieveTournamentById,
     retrievePlayoffMatchesByTournamentId,
+    retrievePlayinMatchesByTournamentId,
     generatePlayoffUpdate,
+    generatePlayinUpdate,
 } = require("./../../service")
 const { HttpError } = require("../../middleware/httpErrors")
 const withTransaction = require("../../utils/withTransaction")
@@ -82,6 +84,11 @@ const createPutMatchByTournamentId = (dependencies = {}) => {
         retrievePlayoffMatchesByTournamentId
     const updatePlayoff =
         dependencies.generatePlayoffUpdate || generatePlayoffUpdate
+    const getPlayinMatches =
+        dependencies.retrievePlayinMatchesByTournamentId ||
+        retrievePlayinMatchesByTournamentId
+    const updatePlayin =
+        dependencies.generatePlayinUpdate || generatePlayinUpdate
     const runInTransaction = dependencies.withTransaction || withTransaction
     const log = dependencies.logger || logger
 
@@ -212,6 +219,22 @@ const createPutMatchByTournamentId = (dependencies = {}) => {
                         options
                     )
                 }
+            }
+
+            if (updatedMatch.type === "playin" && updatedMatch.tournament?.id) {
+                const playinMatches = await getPlayinMatches(
+                    updatedMatch.tournament.id,
+                    options
+                )
+
+                await updatePlayin(
+                    {
+                        id: updatedMatch.tournament.id,
+                        name: updatedMatch.tournament.name,
+                    },
+                    playinMatches,
+                    options
+                )
             }
 
             return updatedMatch

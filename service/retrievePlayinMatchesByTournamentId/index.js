@@ -1,7 +1,7 @@
 const { findPlayinMatchesByTournamentId } = require("./../../dao")
 
-const retrievePlayinMatchesByTournamentId = async (id) => {
-    return await findPlayinMatchesByTournamentId(id)
+const retrievePlayinMatchesByTournamentId = async (id, options = {}) => {
+    return findPlayinMatchesByTournamentId(id, options)
 }
 
 module.exports = retrievePlayinMatchesByTournamentId

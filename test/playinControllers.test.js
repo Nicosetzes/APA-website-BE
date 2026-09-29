@@ -7,9 +7,6 @@ const {
 const {
     createPostPlayinByTournamentId,
 } = require("../controller/postPlayinByTournamentId")
-const {
-    createPostPlayinUpdateByTournamentId,
-} = require("../controller/postPlayinUpdateByTournamentId")
 
 const createResponse = () => ({
     statusCode: null,
@@ -30,15 +27,6 @@ const createTeams = (group = "A") =>
         team: { id: `team-${index + 1}`, name: `Team ${index + 1}` },
         player: { id: `player-${index + 1}`, name: `Player ${index + 1}` },
     }))
-
-const outcome = (prefix) => ({
-    playerThatWon: { id: `${prefix}-winner`, name: "Winner" },
-    teamThatWon: { id: `${prefix}-winner-team`, name: "Winner Team" },
-    seedFromTeamThatWon: `${prefix}-winner-seed`,
-    playerThatLost: { id: `${prefix}-loser`, name: "Loser" },
-    teamThatLost: { id: `${prefix}-loser-team`, name: "Loser Team" },
-    seedFromTeamThatLost: `${prefix}-loser-seed`,
-})
 
 test("GET play-in preserves an empty successful response", async () => {
     const controller = createGetPlayinMatchesByTournamentId({
@@ -147,93 +135,4 @@ test("POST play-in rejects duplicate generation and invalid participants", async
     assert.equal(duplicateError.status, 409)
     assert.equal(invalidError.code, "PLAYIN_PARTICIPANTS_INVALID")
     assert.equal(invalidError.status, 422)
-})
-
-test("play-in update uses playoff IDs rather than array positions", async () => {
-    let created
-    const matches = [
-        { playoff_id: 4, played: true, group: "B", outcome: outcome("4") },
-        { playoff_id: 2, played: true, group: "A", outcome: outcome("2") },
-        { playoff_id: 3, played: true, group: "B", outcome: outcome("3") },
-        { playoff_id: 1, played: true, group: "A", outcome: outcome("1") },
-    ]
-    const controller = createPostPlayinUpdateByTournamentId({
-        retrieveTournamentById: async () => ({
-            id: "tournament",
-            name: "Tournament",
-            format: "league_playin_playoff",
-        }),
-        retrievePlayinMatchesByTournamentId: async () => matches,
-        originatePlayinByTournamentId: async (newMatches) => {
-            created = newMatches
-            return newMatches
-        },
-    })
-    const response = createResponse()
-
-    await controller(
-        { params: { tournament: "tournament" }, body: { round: 2 } },
-        response
-    )
-
-    assert.deepEqual(
-        created.map(({ playoff_id }) => playoff_id),
-        [5, 6]
-    )
-    assert.equal(created[0].playerP1.id, "1-loser")
-    assert.equal(created[0].playerP2.id, "2-winner")
-    assert.equal(response.body, created)
-})
-
-test("play-in update reports not-ready and already-generated states as 409", async () => {
-    const tournament = {
-        id: "tournament",
-        name: "Tournament",
-        format: "league_playin_playoff",
-    }
-    const createController = (matches) =>
-        createPostPlayinUpdateByTournamentId({
-            retrieveTournamentById: async () => tournament,
-            retrievePlayinMatchesByTournamentId: async () => matches,
-            originatePlayinByTournamentId: async () => [],
-        })
-    const request = {
-        params: { tournament: "tournament" },
-        body: { round: 2 },
-    }
-
-    const notReady = await createController([])(
-        request,
-        createResponse()
-    ).catch((error) => error)
-    const alreadyGenerated = await createController([
-        { playoff_id: 5 },
-        { playoff_id: 6 },
-    ])(request, createResponse()).catch((error) => error)
-
-    assert.equal(notReady.code, "PLAYIN_ROUND_NOT_READY")
-    assert.equal(alreadyGenerated.code, "PLAYIN_ROUND_ALREADY_GENERATED")
-})
-
-test("play-in update rejects played sources without complete outcomes", async () => {
-    const controller = createPostPlayinUpdateByTournamentId({
-        retrieveTournamentById: async () => ({
-            id: "tournament",
-            name: "Tournament",
-            format: "league_playin_playoff",
-        }),
-        retrievePlayinMatchesByTournamentId: async () => [
-            { playoff_id: 1, played: true, outcome: {} },
-            { playoff_id: 2, played: true, outcome: {} },
-        ],
-        originatePlayinByTournamentId: async () => [],
-    })
-
-    const error = await controller(
-        { params: { tournament: "tournament" }, body: { round: 2 } },
-        createResponse()
-    ).catch((caughtError) => caughtError)
-
-    assert.equal(error.status, 422)
-    assert.equal(error.code, "PLAYIN_DATA_INVALID")
 })

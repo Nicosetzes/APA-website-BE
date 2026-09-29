@@ -1,4 +1,5 @@
 const { HttpError } = require("./httpErrors")
+const { MATCH_RULE_MESSAGES } = require("../validation/errorMessages")
 
 const invalidResult = (message) =>
     new HttpError(400, "INVALID_MATCH_RESULT", message)
@@ -54,18 +55,24 @@ const validateMatchResult = (req, res, next) => {
     body.seedP2 = persistedMatch.seedP2
 
     if (body.scoreP1 === body.scoreP2) {
-        const hasBothPenaltyScores =
-            body.penaltyScoreP1 !== undefined &&
-            body.penaltyScoreP2 !== undefined
+        const hasPenaltyP1 = body.penaltyScoreP1 !== undefined
+        const hasPenaltyP2 = body.penaltyScoreP2 !== undefined
 
-        if (
-            !hasBothPenaltyScores ||
-            body.penaltyScoreP1 === body.penaltyScoreP2
-        ) {
+        if (!hasPenaltyP1 && !hasPenaltyP2) {
             return next(
-                invalidResult(
-                    "Un empate eliminatorio requiere un ganador por penales"
-                )
+                invalidResult(MATCH_RULE_MESSAGES["match.drawNeedsPenalties"])
+            )
+        }
+
+        if (hasPenaltyP1 !== hasPenaltyP2) {
+            return next(
+                invalidResult(MATCH_RULE_MESSAGES["match.penaltiesIncomplete"])
+            )
+        }
+
+        if (body.penaltyScoreP1 === body.penaltyScoreP2) {
+            return next(
+                invalidResult(MATCH_RULE_MESSAGES["match.penaltiesTied"])
             )
         }
     }

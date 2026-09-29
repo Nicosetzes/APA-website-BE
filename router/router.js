@@ -29,10 +29,8 @@ const {
     getCalculatorByTournamentId,
     getPlayerInfoByTournamentId,
     postPlayinByTournamentId,
-    postPlayinUpdateByTournamentId,
     getPlayinMatchesByTournamentId,
     postPlayoffByTournamentId,
-    postPlayoffUpdateByTournamentId,
     getPlayoffMatchesByTournamentId,
     getFixtureByTournamentId,
     postFixtureByTournamentId,
@@ -145,14 +143,6 @@ tournaments.post(
     postPlayinByTournamentId
 )
 
-tournaments.post(
-    "/:tournament/playin/update",
-    isAuth,
-    validate("playinUpdate"),
-    requireTournamentAccess(),
-    postPlayinUpdateByTournamentId
-)
-
 tournaments.put(
     "/:tournament/complete",
     isAuth,
@@ -173,14 +163,6 @@ tournaments.post(
     validate("createPlayoff"),
     requireTournamentAccess(),
     postPlayoffByTournamentId
-)
-
-tournaments.post(
-    "/:tournament/playoff/update",
-    isAuth,
-    validate("updatePlayoff"),
-    requireTournamentAccess(),
-    postPlayoffUpdateByTournamentId
 )
 
 tournaments.get(

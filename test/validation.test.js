@@ -3,6 +3,7 @@ const test = require("node:test")
 
 const validateRequest = require("../middleware/validateRequest")
 const schemas = require("../validation/requestSchemas")
+const { MATCH_RULE_MESSAGES } = require("../validation/errorMessages")
 
 const runValidation = (schema, request) =>
     new Promise((resolve) => {
@@ -78,6 +79,133 @@ test("knockout draws require two distinct penalty scores", async () => {
     assert.equal(missingPenalties.code, "VALIDATION_ERROR")
     assert.equal(tiedPenalties.code, "VALIDATION_ERROR")
     assert.equal(validPenalties, undefined)
+})
+
+const knockoutRequest = (body = {}) => ({
+    params: {
+        tournament: "aaaaaaaaaaaaaaaaaaaaaaaa",
+        match: "bbbbbbbbbbbbbbbbbbbbbbbb",
+    },
+    query: {},
+    body: {
+        playerP1: { id: "1", name: "Nico" },
+        teamP1: { id: "10", name: "Team A" },
+        seedP1: "1",
+        scoreP1: 1,
+        playerP2: { id: "2", name: "Santi" },
+        teamP2: { id: "20", name: "Team B" },
+        seedP2: "2",
+        scoreP2: 1,
+        ...body,
+    },
+})
+
+test("each broken match rule explains itself instead of a generic message", async () => {
+    const cases = [
+        [{}, "match.drawNeedsPenalties"],
+        [
+            { penaltyScoreP1: "", penaltyScoreP2: "" },
+            "match.drawNeedsPenalties",
+        ],
+        [{ penaltyScoreP1: 4, penaltyScoreP2: 4 }, "match.penaltiesTied"],
+        [{ penaltyScoreP1: 4 }, "match.penaltiesIncomplete"],
+        [
+            {
+                seedP1: undefined,
+                seedP2: undefined,
+                penaltyScoreP1: 4,
+                penaltyScoreP2: 3,
+            },
+            "match.penaltiesNotAllowed",
+        ],
+        [{ seedP2: undefined, scoreP1: 2 }, "match.seedsIncomplete"],
+    ]
+
+    for (const [body, code] of cases) {
+        const error = await runValidation(
+            schemas.updateMatch,
+            knockoutRequest(body)
+        )
+
+        assert.equal(error.code, "VALIDATION_ERROR", code)
+        assert.equal(error.message, MATCH_RULE_MESSAGES[code])
+        assert.deepEqual(
+            error.details.map(({ code: detailCode }) => detailCode),
+            [code]
+        )
+        assert.equal(error.details[0].message, MATCH_RULE_MESSAGES[code])
+    }
+})
+
+test("an emptied penalty input counts as not loaded", async () => {
+    const request = knockoutRequest({
+        scoreP1: 2,
+        penaltyScoreP1: "",
+        penaltyScoreP2: "",
+    })
+
+    assert.equal(await runValidation(schemas.updateMatch, request), undefined)
+    assert.equal(request.body.penaltyScoreP1, undefined)
+    assert.equal(request.body.penaltyScoreP2, undefined)
+})
+
+test("field errors name the field in Spanish and never echo the value", async () => {
+    const scoreError = await runValidation(
+        schemas.updateMatch,
+        knockoutRequest({ scoreP1: 30, scoreP2: "secret-value" })
+    )
+    const loginError = await runValidation(schemas.login, {
+        body: { email: "secret-value" },
+    })
+    const pageError = await runValidation(schemas.getEdits, {
+        query: { page: "0" },
+    })
+    const statusError = await runValidation(schemas.getTournaments, {
+        query: { status: "secret-value" },
+        body: {},
+    })
+
+    assert.deepEqual(
+        scoreError.details.map(({ path, message }) => [path, message]),
+        [
+            ["scoreP1", "Los goles del equipo 1 no pueden ser mayores a 24"],
+            ["scoreP2", "Los goles del equipo 2 deben ser un número"],
+        ]
+    )
+    assert.equal(
+        scoreError.message,
+        "Los goles del equipo 1 no pueden ser mayores a 24; Los goles del equipo 2 deben ser un número"
+    )
+    assert.equal(
+        loginError.message,
+        "El email no tiene un formato válido; Falta la contraseña"
+    )
+    assert.equal(pageError.message, "La página no puede ser menor a 1")
+    assert.equal(
+        statusError.message,
+        'El estado debe ser uno de estos valores: "active", "finalized"'
+    )
+
+    for (const error of [scoreError, loginError, statusError]) {
+        assert.equal(JSON.stringify(error).includes("secret-value"), false)
+    }
+})
+
+test("unknown fields are named and long summaries are capped", async () => {
+    const error = await runValidation(schemas.updateMatch, {
+        params: { tournament: "invalid", match: "invalid" },
+        query: {},
+        body: { unexpected: "value" },
+    })
+
+    assert.ok(
+        error.details.some(
+            ({ message }) =>
+                message === 'El campo "unexpected" no está permitido'
+        )
+    )
+    assert.match(error.message, /^El torneo no tiene un formato válido; /)
+    assert.match(error.message, /\(y \d+ más\)$/)
 })
 
 test("validation rejects malformed IDs, missing fields and unknown fields", async () => {

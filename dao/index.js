@@ -19,6 +19,7 @@ const findUserByUserName = require("./findUserByUserName")
 const sortMatchesFromTournamentById = require("./sortMatchesFromTournamentById")
 const updateMatchResult = require("./updateMatchResult")
 const updateMatchResultToRemoveIt = require("./updateMatchResultToRemoveIt")
+const updatePlayinMatchTeams = require("./updatePlayinMatchTeams")
 const updatePlayoffMatchTeams = require("./updatePlayoffMatchTeams")
 const updateTournamentOutcome = require("./updateTournamentOutcome")
 
@@ -44,6 +45,7 @@ module.exports = {
     sortMatchesFromTournamentById,
     updateMatchResult,
     updateMatchResultToRemoveIt,
+    updatePlayinMatchTeams,
     updatePlayoffMatchTeams,
     updateTournamentOutcome,
 }

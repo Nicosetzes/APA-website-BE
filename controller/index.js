@@ -20,9 +20,7 @@ const getCurrentUser = require("./getCurrentUser")
 const postFixtureByTournamentId = require("./postFixtureByTournamentId")
 const postLogin = require("./postLogin")
 const postPlayinByTournamentId = require("./postPlayinByTournamentId")
-const postPlayinUpdateByTournamentId = require("./postPlayinUpdateByTournamentId")
 const postPlayoffByTournamentId = require("./postPlayoffByTournamentId")
-const postPlayoffUpdateByTournamentId = require("./postPlayoffUpdateByTournamentId")
 const postTournaments = require("./postTournaments")
 const putMatchByTournamentId = require("./putMatchByTournamentId")
 const putRemoveMatchByTournamentId = require("./putRemoveMatchByTournamentId")
@@ -52,9 +50,7 @@ module.exports = {
     postFixtureByTournamentId,
     postLogin,
     postPlayinByTournamentId,
-    postPlayinUpdateByTournamentId,
     postPlayoffByTournamentId,
-    postPlayoffUpdateByTournamentId,
     postTournaments,
     putMatchByTournamentId,
     putRemoveMatchByTournamentId,

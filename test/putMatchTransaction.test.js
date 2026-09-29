@@ -298,8 +298,9 @@ test("champions_league closes on its own final and never regenerates the bracket
     assert.deepEqual(earlierRound.playoffCalls, [])
 })
 
-test("a play-in match never closes the tournament", async () => {
+test("a play-in match never closes the tournament nor touches the playoff", async () => {
     const outcomeCalls = []
+    const playoffCalls = []
     const controller = createPutMatchByTournamentId({
         modifyMatchResult: async () => ({
             _id: "match",
@@ -314,13 +315,137 @@ test("a play-in match never closes the tournament", async () => {
             throw new Error("tournament should not be read for a play-in match")
         },
         retrievePlayoffMatchesByTournamentId: async () => [],
-        generatePlayoffUpdate: async () => {},
+        generatePlayoffUpdate: async () => {
+            playoffCalls.push(true)
+        },
+        retrievePlayinMatchesByTournamentId: async () => [],
+        generatePlayinUpdate: async () => ({ created: [], updated: [] }),
         withTransaction: async (work) => work({ id: "session" }),
     })
 
     await controller(createRequest({ isThisTheFinal: true }), createResponse())
 
     assert.deepEqual(outcomeCalls, [])
+    assert.deepEqual(playoffCalls, [])
+})
+
+test("a play-in result advances the play-in inside the same transaction", async () => {
+    const session = { id: "session" }
+    const updatedMatch = {
+        _id: "match",
+        type: "playin",
+        playoff_id: 1,
+        tournament: { id: "tournament", name: "Tournament" },
+    }
+    const playinMatches = [updatedMatch]
+    const calls = []
+    let committed = false
+
+    const controller = createPutMatchByTournamentId({
+        modifyMatchResult: async (...args) => {
+            calls.push(["match", args.at(-1)])
+            return updatedMatch
+        },
+        modifyTournamentOutcome: async () => {},
+        retrievePlayoffMatchesByTournamentId: async () => [],
+        generatePlayoffUpdate: async () => {},
+        retrievePlayinMatchesByTournamentId: async (id, options) => {
+            calls.push(["matches", options, id])
+            return playinMatches
+        },
+        generatePlayinUpdate: async (tournament, matches, options) => {
+            calls.push(["playin", options, tournament, matches])
+            return { created: [], updated: [] }
+        },
+        withTransaction: async (work) => {
+            const result = await work(session)
+            committed = true
+            return result
+        },
+    })
+    const response = createResponse()
+    const originalSend = response.send
+    response.send = function send(body) {
+        assert.equal(committed, true)
+        return originalSend.call(this, body)
+    }
+
+    await controller(createRequest(), response)
+
+    assert.deepEqual(
+        calls.map(([name, options]) => [name, options.session]),
+        [
+            ["match", session],
+            ["matches", session],
+            ["playin", session],
+        ]
+    )
+    assert.equal(calls[1][2], "tournament")
+    assert.deepEqual(calls[2][2], { id: "tournament", name: "Tournament" })
+    assert.equal(calls[2][3], playinMatches)
+    assert.equal(response.statusCode, 200)
+    assert.equal(response.body, updatedMatch)
+})
+
+test("a late play-in failure rejects before sending a response", async () => {
+    const expectedError = new Error("play-in update failed")
+    let aborted = false
+    const controller = createPutMatchByTournamentId({
+        modifyMatchResult: async () => ({
+            type: "playin",
+            playoff_id: 2,
+            tournament: { id: "tournament", name: "Tournament" },
+        }),
+        retrievePlayinMatchesByTournamentId: async () => [],
+        generatePlayinUpdate: async () => {
+            throw expectedError
+        },
+        withTransaction: async (work) => {
+            try {
+                return await work({ id: "session" })
+            } catch (error) {
+                aborted = true
+                throw error
+            }
+        },
+    })
+    const response = createResponse()
+
+    await assert.rejects(controller(createRequest(), response), expectedError)
+
+    assert.equal(aborted, true)
+    assert.equal(response.statusCode, null)
+})
+
+test("regular matches never trigger bracket progression", async () => {
+    const calls = []
+    const controller = createPutMatchByTournamentId({
+        modifyMatchResult: async () => ({
+            type: "regular",
+            tournament: { id: "tournament", name: "Tournament" },
+        }),
+        retrievePlayoffMatchesByTournamentId: async () => {
+            calls.push("playoff")
+            return []
+        },
+        retrievePlayinMatchesByTournamentId: async () => {
+            calls.push("playin")
+            return []
+        },
+        withTransaction: async (work) => work({ id: "session" }),
+    })
+
+    await controller(
+        createRequest({
+            seedP1: undefined,
+            seedP2: undefined,
+            penaltyScoreP1: undefined,
+            penaltyScoreP2: undefined,
+        }),
+        createResponse()
+    )
+
+    assert.deepEqual(calls, [])
 })
 
 test("an undecidable final leaves a warning instead of failing silently", async () => {

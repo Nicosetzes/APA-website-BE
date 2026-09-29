@@ -1,4 +1,5 @@
 const calculateGroupStagePlayoff = require("./calculateGroupStagePlayoff")
+const generatePlayinUpdate = require("./generatePlayinUpdate")
 const generatePlayoffUpdate = require("./generatePlayoffUpdate")
 const modifyMatchResult = require("./modifyMatchResult")
 const modifyMatchResultToRemoveIt = require("./modifyMatchResultToRemoveIt")
@@ -29,6 +30,7 @@ const retrieveUserByUserName = require("./retrieveUserByUserName")
 
 module.exports = {
     calculateGroupStagePlayoff,
+    generatePlayinUpdate,
     generatePlayoffUpdate,
     modifyMatchResult,
     modifyMatchResultToRemoveIt,

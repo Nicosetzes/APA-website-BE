@@ -1,4 +1,5 @@
 const Joi = require("joi")
+const { MATCH_RULE_MESSAGES } = require("./errorMessages")
 
 const emptyObject = Joi.object({}).unknown(false)
 
@@ -17,6 +18,7 @@ const entityReference = Joi.object({
 }).unknown(true)
 
 const score = Joi.number().integer().min(0).max(24)
+const penaltyScore = score.empty("")
 
 const seed = Joi.alternatives().try(
     Joi.string().trim().min(1).max(10),
@@ -70,35 +72,41 @@ const updateMatchBody = Joi.object({
     teamP1: entityReference.required(),
     seedP1: seed.optional(),
     scoreP1: score.required(),
-    penaltyScoreP1: score.optional(),
+    penaltyScoreP1: penaltyScore.optional(),
     playerP2: entityReference.required(),
     teamP2: entityReference.required(),
     seedP2: seed.optional(),
     scoreP2: score.required(),
-    penaltyScoreP2: score.optional(),
+    penaltyScoreP2: penaltyScore.optional(),
     valid: Joi.boolean().optional(),
 })
     .unknown(false)
+    .messages(MATCH_RULE_MESSAGES)
     .custom((value, helpers) => {
         const hasSeedP1 = value.seedP1 !== undefined
         const hasSeedP2 = value.seedP2 !== undefined
         const hasPenaltyP1 = value.penaltyScoreP1 !== undefined
         const hasPenaltyP2 = value.penaltyScoreP2 !== undefined
 
-        if (hasSeedP1 !== hasSeedP2 || hasPenaltyP1 !== hasPenaltyP2) {
-            return helpers.error("any.invalid")
+        if (hasSeedP1 !== hasSeedP2) {
+            return helpers.error("match.seedsIncomplete")
         }
 
         if (!hasSeedP1 && (hasPenaltyP1 || hasPenaltyP2)) {
-            return helpers.error("any.invalid")
+            return helpers.error("match.penaltiesNotAllowed")
+        }
+
+        if (hasPenaltyP1 !== hasPenaltyP2) {
+            return helpers.error("match.penaltiesIncomplete")
         }
 
         if (hasSeedP1 && value.scoreP1 === value.scoreP2) {
-            if (
-                !hasPenaltyP1 ||
-                value.penaltyScoreP1 === value.penaltyScoreP2
-            ) {
-                return helpers.error("any.invalid")
+            if (!hasPenaltyP1) {
+                return helpers.error("match.drawNeedsPenalties")
+            }
+
+            if (value.penaltyScoreP1 === value.penaltyScoreP2) {
+                return helpers.error("match.penaltiesTied")
             }
         }
 
@@ -309,13 +317,6 @@ module.exports = {
         }).unknown(false),
         query: emptyObject,
     },
-    playinUpdate: {
-        params: tournamentParams,
-        body: Joi.object({
-            round: Joi.number().integer().valid(2).required(),
-        }).unknown(false),
-        query: emptyObject,
-    },
     completeTournament: {
         params: tournamentParams,
         body: emptyObject,
@@ -329,13 +330,6 @@ module.exports = {
     createPlayoff: {
         params: tournamentParams,
         body: emptyObject,
-        query: emptyObject,
-    },
-    updatePlayoff: {
-        params: tournamentParams,
-        body: Joi.object({
-            round: Joi.number().integer().min(2).max(5).optional(),
-        }).unknown(false),
         query: emptyObject,
     },
     updateMatch: {

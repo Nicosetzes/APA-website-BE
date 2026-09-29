@@ -51,15 +51,11 @@ const DEFAULT_STEPS = [
     "generatePlayinGroupB",
     "readPlayinFirstRound",
     "playPlayinFirstRound",
-    "playinUpdateSecondRound",
-    "playinUpdateAlreadyGenerated",
+    "readPlayinSecondRound",
     "playPlayinSecondRound",
-    "playoffUpdateNotReady",
     "generatePlayoffFromPlayin",
-    "playoffUpdateWithoutResults",
     "playPlayinPlayoffFirstPair",
     "readPlayinPlayoffProgression",
-    "playoffUpdateIdempotent",
 ]
 
 // Diez equipos por grupo: el play-in cruza las posiciones 7 a 10 de cada zona.
@@ -625,50 +621,38 @@ const steps = {
         return ok
     },
 
-    playinUpdateSecondRound: async () => {
-        const { status, body } = await request(
-            "POST",
-            `/api/tournaments/${state.playinTournamentId}/playin/update`,
-            { token: state.token, body: { round: 2 } }
+    readPlayinSecondRound: async () => {
+        const { status, matches } = await readPlayinMatches()
+        const secondRound = matches
+            .filter((match) => [5, 6].includes(Number(match.playoff_id)))
+            .sort((left, right) => left.playoff_id - right.playoff_id)
+        const complete = secondRound.every(
+            (match) => match.teamP1?.id && match.teamP2?.id
         )
-
-        const created = Array.isArray(body) ? body : []
-        const ids = created
-            .map((match) => Number(match.playoff_id))
-            .sort((left, right) => left - right)
+        const seeds = secondRound
+            .map((match) => `${match.seedP1}v${match.seedP2}`)
+            .join(" ")
 
         const ok = record(
-            "POST playin/update ronda 2",
+            "GET playin/matches segunda ronda automática",
             [200],
             status,
-            created.length
-                ? `generó ${created.length} llaves (${ids.join(",")})`
-                : errorCode(body)
+            secondRound.length === 2
+                ? `2 llaves: ${seeds}`
+                : `esperaba 2 llaves y hay ${secondRound.length}`
         )
 
-        if (status === 200 && ids.join(",") !== "5,6") {
+        if (
+            status === 200 &&
+            (secondRound.length !== 2 || !complete || seeds !== "8v9 8v9")
+        ) {
             results[results.length - 1].ok = false
             results[results.length - 1].detail +=
-                " <- esperaba las llaves 5 y 6"
+                " <- esperaba 8v9 en las llaves 5 y 6"
             return false
         }
 
         return ok
-    },
-
-    playinUpdateAlreadyGenerated: async () => {
-        const { status, body } = await request(
-            "POST",
-            `/api/tournaments/${state.playinTournamentId}/playin/update`,
-            { token: state.token, body: { round: 2 } }
-        )
-
-        return record(
-            "POST playin/update de nuevo",
-            [409],
-            status,
-            errorCode(body)
-        )
     },
 
     playPlayinSecondRound: async () => {
@@ -707,22 +691,6 @@ const steps = {
         return ok
     },
 
-    playoffUpdateNotReady: async () => {
-        // Todavía no existe bracket: el update manual tiene que rechazarlo.
-        const { status, body } = await request(
-            "POST",
-            `/api/tournaments/${state.playinTournamentId}/playoff/update`,
-            { token: state.token, body: {} }
-        )
-
-        return record(
-            "POST playoff/update sin bracket",
-            [409],
-            status,
-            errorCode(body)
-        )
-    },
-
     generatePlayoffFromPlayin: async () => {
         const { status, body } = await request(
             "POST",
@@ -744,32 +712,6 @@ const steps = {
         if (status === 200 && created.length !== 8) {
             results[results.length - 1].ok = false
             results[results.length - 1].detail += " <- esperaba 8 llaves"
-            return false
-        }
-
-        return ok
-    },
-
-    playoffUpdateWithoutResults: async () => {
-        const { status, body } = await request(
-            "POST",
-            `/api/tournaments/${state.playinTournamentId}/playoff/update`,
-            { token: state.token, body: {} }
-        )
-
-        const matches = body?.matches || []
-
-        const ok = record(
-            "POST playoff/update sin resultados",
-            [200],
-            status,
-            `${matches.length} partidos nuevos`
-        )
-
-        if (status === 200 && matches.length !== 0) {
-            results[results.length - 1].ok = false
-            results[results.length - 1].detail +=
-                " <- no debería generar nada todavía"
             return false
         }
 
@@ -816,8 +758,6 @@ const steps = {
     },
 
     readPlayinPlayoffProgression: async () => {
-        // Cargar un resultado de playoff ya avanza el bracket dentro de la
-        // misma transacción: acá se verifica ese efecto, no el update manual.
         const { status, body } = await request(
             "GET",
             `/api/tournaments/${state.playinTournamentId}/playoff/matches`
@@ -838,32 +778,6 @@ const steps = {
 
         if (status === 200 && !filled) {
             results[results.length - 1].ok = false
-            return false
-        }
-
-        return ok
-    },
-
-    playoffUpdateIdempotent: async () => {
-        const { status, body } = await request(
-            "POST",
-            `/api/tournaments/${state.playinTournamentId}/playoff/update`,
-            { token: state.token, body: {} }
-        )
-
-        const matches = body?.matches || []
-
-        const ok = record(
-            "POST playoff/update idempotente",
-            [200],
-            status,
-            `${matches.length} partidos nuevos`
-        )
-
-        if (status === 200 && matches.length !== 0) {
-            results[results.length - 1].ok = false
-            results[results.length - 1].detail +=
-                " <- el avance automático ya había creado la llave"
             return false
         }
 

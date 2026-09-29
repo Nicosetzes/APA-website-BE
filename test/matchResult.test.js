@@ -2,6 +2,7 @@ const assert = require("node:assert/strict")
 const test = require("node:test")
 
 const validateMatchResult = require("../middleware/validateMatchResult")
+const { MATCH_RULE_MESSAGES } = require("../validation/errorMessages")
 
 const runValidation = (match, body) => {
     let error
@@ -62,7 +63,27 @@ test("knockout draws require a distinct penalty winner", () => {
         penaltyScoreP2: 4,
     })
 
+    const halfPenalties = runValidation(match, {
+        scoreP1: 1,
+        scoreP2: 1,
+        penaltyScoreP1: 5,
+    })
+
     assert.equal(missingPenalties.error.code, "INVALID_MATCH_RESULT")
     assert.equal(tiedPenalties.error.code, "INVALID_MATCH_RESULT")
+    assert.equal(halfPenalties.error.code, "INVALID_MATCH_RESULT")
     assert.equal(validPenalties.allowed, true)
+
+    assert.equal(
+        missingPenalties.error.message,
+        MATCH_RULE_MESSAGES["match.drawNeedsPenalties"]
+    )
+    assert.equal(
+        tiedPenalties.error.message,
+        MATCH_RULE_MESSAGES["match.penaltiesTied"]
+    )
+    assert.equal(
+        halfPenalties.error.message,
+        MATCH_RULE_MESSAGES["match.penaltiesIncomplete"]
+    )
 })

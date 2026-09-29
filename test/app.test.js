@@ -181,7 +181,10 @@ test("malformed JSON is rejected without leaking parser details", async () => {
 
         assert.equal(response.status, 400)
         assert.equal(body.error.code, "INVALID_REQUEST")
-        assert.equal(body.error.message, "La solicitud no es válida")
+        assert.equal(
+            body.error.message,
+            "El cuerpo de la solicitud no es un JSON válido"
+        )
         assert.equal(body.error.requestId, response.headers.get("x-request-id"))
     })
 })

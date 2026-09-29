@@ -1,6 +1,5 @@
-// Geometría del bracket por formato. Única fuente de verdad: la consumen la
-// carga de resultados (`putMatchByTournamentId`) y el update manual del playoff
-// (`postPlayoffUpdateByTournamentId`), que antes tenían tablas propias.
+// Geometría del bracket por formato. Única fuente de verdad: la consume la
+// carga de resultados (`putMatchByTournamentId`), que avanza el bracket.
 //
 // El fallback de 16 preserva el comportamiento histórico de los formatos que no
 // están en la tabla, como el legacy `club_world_cup`.
@@ -24,9 +23,7 @@ const FINAL_PLAYOFF_ID_BY_FORMAT = {
 const getPlayoffStartSize = (format) =>
     PLAYOFF_START_SIZE_BY_FORMAT[format] ?? DEFAULT_PLAYOFF_START_SIZE
 
-// El update manual del playoff necesita distinguir "formato tabulado" de
-// "formato que cae al fallback": generarle rondas a un formato desconocido con
-// una geometría inventada es peor que rechazar el pedido.
+// Distingue "formato tabulado" de "formato que cae al fallback".
 const hasTabulatedPlayoffStartSize = (format) =>
     typeof format === "string" &&
     Object.hasOwn(PLAYOFF_START_SIZE_BY_FORMAT, format)

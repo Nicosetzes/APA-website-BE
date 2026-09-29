@@ -829,6 +829,7 @@ paths:
         put:
             tags: [Matches]
             summary: Carga o modifica el resultado de un partido
+            description: En partidos de playoff y play-in avanza el cuadro en la misma transacción, creando o completando los partidos siguientes. En play-in, el perdedor de 1 (3) juega con el ganador de 2 (4) en el partido 5 (6).
             security:
                 - bearerAuth: []
             parameters:
@@ -1017,56 +1018,6 @@ paths:
                         application/json:
                             schema:
                                 $ref: "#/components/schemas/ErrorResponse"
-    /api/tournaments/{tournament}/playoff/update:
-        post:
-            tags: [Matches]
-            summary: Crea o completa destinos elegibles del bracket
-            description: No exige completar la fase de grupos. El campo round se conserva por compatibilidad; el servidor evalúa todo el bracket disponible.
-            security:
-                - bearerAuth: []
-            parameters:
-                - $ref: "#/components/parameters/TournamentId"
-            requestBody:
-                required: false
-                content:
-                    application/json:
-                        schema:
-                            type: object
-                            additionalProperties: false
-                            properties:
-                                round:
-                                    type: integer
-                                    minimum: 2
-                                    maximum: 5
-            responses:
-                "200":
-                    description: Objeto con matches creados/actualizados y mensaje; array vacío es un no-op válido
-                "400":
-                    $ref: "#/components/responses/BadRequest"
-                "401":
-                    $ref: "#/components/responses/InvalidSession"
-                "403":
-                    $ref: "#/components/responses/Forbidden"
-                "404":
-                    $ref: "#/components/responses/NotFound"
-                "409":
-                    description: El bracket inicial todavía no existe
-                    content:
-                        application/json:
-                            schema:
-                                $ref: "#/components/schemas/ErrorResponse"
-                "422":
-                    description: Formato no soportado o estado del bracket inválido
-                    content:
-                        application/json:
-                            schema:
-                                $ref: "#/components/schemas/ErrorResponse"
-                "500":
-                    description: Error transaccional o interno
-                    content:
-                        application/json:
-                            schema:
-                                $ref: "#/components/schemas/ErrorResponse"
     /api/tournaments/{tournament}/playin/matches:
         get:
             tags: [Matches]
@@ -1125,49 +1076,6 @@ paths:
                                 $ref: "#/components/schemas/ErrorResponse"
                 "422":
                     description: Formato, participantes o datos persistidos inválidos
-                    content:
-                        application/json:
-                            schema:
-                                $ref: "#/components/schemas/ErrorResponse"
-    /api/tournaments/{tournament}/playin/update:
-        post:
-            tags: [Matches]
-            summary: Genera los partidos faltantes de la segunda ronda de play-in
-            security:
-                - bearerAuth: []
-            parameters:
-                - $ref: "#/components/parameters/TournamentId"
-            requestBody:
-                required: true
-                content:
-                    application/json:
-                        schema:
-                            type: object
-                            required: [round]
-                            additionalProperties: false
-                            properties:
-                                round:
-                                    type: integer
-                                    enum: [2]
-            responses:
-                "200":
-                    description: Array de uno o dos partidos creados
-                "400":
-                    $ref: "#/components/responses/BadRequest"
-                "401":
-                    $ref: "#/components/responses/InvalidSession"
-                "403":
-                    $ref: "#/components/responses/Forbidden"
-                "404":
-                    $ref: "#/components/responses/NotFound"
-                "409":
-                    description: Primera ronda incompleta, segunda ronda existente o estado duplicado
-                    content:
-                        application/json:
-                            schema:
-                                $ref: "#/components/schemas/ErrorResponse"
-                "422":
-                    description: Formato u outcomes persistidos inválidos
                     content:
                         application/json:
                             schema:
@@ -1522,6 +1430,10 @@ components:
                     type: string
                 code:
                     type: string
+                    description: Tipo de error de Joi o regla de negocio (`match.*`)
+                message:
+                    type: string
+                    description: Explicación en castellano para mostrar al usuario; nunca incluye el valor recibido
         ErrorResponse:
             type: object
             required: [error]

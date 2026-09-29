@@ -67,6 +67,8 @@ const errorHandler = (error, req, res, next) => {
     }
 
     const isPayloadTooLarge = errorStatus === 413
+    // `express.json` marca así un body que no se pudo parsear.
+    const isMalformedJson = error.type === "entity.parse.failed"
     const isClientError = status >= 400 && status < 500
     const code = isKnownError
         ? error.code
@@ -81,6 +83,8 @@ const errorHandler = (error, req, res, next) => {
         : multerError?.message ||
           (isPayloadTooLarge
               ? "La solicitud excede el tamaño permitido"
+              : isMalformedJson
+              ? "El cuerpo de la solicitud no es un JSON válido"
               : isClientError
               ? "La solicitud no es válida"
               : "Ocurrió un error interno")

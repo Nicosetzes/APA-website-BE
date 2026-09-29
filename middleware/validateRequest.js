@@ -1,4 +1,8 @@
 const { HttpError } = require("./httpErrors")
+const {
+    describeValidationError,
+    summarizeValidationErrors,
+} = require("../validation/errorMessages")
 
 const requestSources = ["params", "query", "body"]
 
@@ -7,6 +11,7 @@ const toSafeDetails = (source, error) =>
         source,
         path: detail.path.map(String).join("."),
         code: detail.type,
+        message: describeValidationError(detail),
     }))
 
 const validateRequest = (schema) => {
@@ -39,7 +44,9 @@ const validateRequest = (schema) => {
                 new HttpError(
                     400,
                     "VALIDATION_ERROR",
-                    "La solicitud no es válida",
+                    summarizeValidationErrors(
+                        details.map(({ message }) => message)
+                    ),
                     details
                 )
             )
