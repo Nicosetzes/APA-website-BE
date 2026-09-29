@@ -1,5 +1,6 @@
 const Joi = require("joi")
 const { MATCH_RULE_MESSAGES } = require("./errorMessages")
+const { PLAYOFF_ROUNDS } = require("../config/playoffFormats")
 
 const emptyObject = Joi.object({}).unknown(false)
 
@@ -181,32 +182,66 @@ const optionalIdFilter = Joi.alternatives().try(
     Joi.string().valid("all", "")
 )
 
+// Criterio de comparación numérica compartido por los filtros de goles.
+const comparisonOp = Joi.string().valid("gte", "lte", "eq").default("gte")
+
+// Goles de un jugador en un partido: mismo rango que `score`, y "" como "sin
+// filtro" porque el FE mantiene el campo vacío en la URL.
+const goalsFilterValue = score.allow("").optional()
+
+// Suma de los goles de ambos lados.
+const totalGoalsFilterValue = Joi.number()
+    .integer()
+    .min(0)
+    .max(48)
+    .allow("")
+    .optional()
+
+const teamNameFilter = Joi.string().trim().min(1).max(100).allow("").optional()
+
 module.exports = {
     getMatches: {
         query: Joi.object({
             // Paginación en base 1 en toda la API, igual que /api/edits.
             page: Joi.number().integer().min(1).max(10000).default(1),
-            teamName: Joi.string().trim().min(1).max(100).allow("").optional(),
+            teamName: teamNameFilter,
             player1: optionalIdFilter.optional(),
             player2: optionalIdFilter.optional(),
             tournamentId: optionalIdFilter.optional(),
             type: Joi.string()
                 .valid("all", "regular", "knockout", "playin", "playoff")
                 .optional(),
+            // Sólo tiene efecto con type=playoff (lo resuelve el DAO).
+            playoffRound: Joi.string()
+                .valid("all", "", ...PLAYOFF_ROUNDS)
+                .optional(),
             outcome: Joi.string()
                 .valid("all", "win", "draw", "loss", "penalties")
                 .optional(),
-            goalDiffOp: Joi.string().valid("gte", "lte", "eq").default("gte"),
+            goalDiffOp: comparisonOp,
             goalDiffVal: Joi.number()
                 .integer()
                 .min(0)
                 .max(99)
                 .allow("")
                 .optional(),
+            totalGoalsOp: comparisonOp,
+            totalGoalsVal: totalGoalsFilterValue,
+            player1GoalsOp: comparisonOp,
+            player1GoalsVal: goalsFilterValue,
+            player1ConcededOp: comparisonOp,
+            player1ConcededVal: goalsFilterValue,
+            player1Team: teamNameFilter,
+            opponentTeam: teamNameFilter,
             dateFrom: calendarDate.optional(),
             dateTo: calendarDate.optional(),
             played: Joi.boolean().optional(),
         }).unknown(false),
+        body: emptyObject,
+    },
+    getMatchTeams: {
+        params: emptyObject,
+        query: emptyObject,
         body: emptyObject,
     },
     getStatistics: {

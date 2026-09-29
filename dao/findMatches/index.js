@@ -1,4 +1,113 @@
+const { escapeRegExp } = require("es-toolkit")
 const matchesModel = require("./../models/matches.js")
+const tournamentsModel = require("./../models/tournaments.js")
+const { getPlayoffRoundIdRange } = require("../../config/playoffFormats")
+
+const MONGO_COMPARISON_OPS = { gte: "$gte", lte: "$lte", eq: "$eq" }
+
+const MATCH_NOTHING = { _id: { $exists: false } }
+
+const isActiveFilter = (value) => Boolean(value) && value !== "all"
+
+const hasNumericValue = (value) =>
+    value !== undefined && value !== null && value !== ""
+
+const toMongoOp = (op) => MONGO_COMPARISON_OPS[op] || "$gte"
+
+const toComparison = (op, value) => ({ [toMongoOp(op)]: Number(value) })
+
+const HAS_NUMERIC_SCORES = {
+    scoreP1: { $type: "number" },
+    scoreP2: { $type: "number" },
+}
+
+const scoreExpressionCondition = (expression, op, value) => ({
+    ...HAS_NUMERIC_SCORES,
+    $expr: { [toMongoOp(op)]: [expression, Number(value)] },
+})
+
+const GOAL_DIFFERENCE_EXPRESSION = {
+    $abs: { $subtract: ["$scoreP1", "$scoreP2"] },
+}
+
+const TOTAL_GOALS_EXPRESSION = { $add: ["$scoreP1", "$scoreP2"] }
+
+const nameContains = (text) => ({
+    $regex: escapeRegExp(text),
+    $options: "i",
+})
+
+const SIDES = [
+    { player: "playerP1.id", own: "P1", opponent: "P2" },
+    { player: "playerP2.id", own: "P2", opponent: "P1" },
+]
+
+const bySideOf = (playerId, buildSideCondition) => ({
+    $or: SIDES.map((side) => ({
+        [side.player]: playerId,
+        ...buildSideCondition(side),
+    })),
+})
+
+const playerGoalsCondition = (playerId, op, value) =>
+    bySideOf(playerId, ({ own }) => ({
+        [`score${own}`]: toComparison(op, value),
+    }))
+
+const playerConcededCondition = (playerId, op, value) =>
+    bySideOf(playerId, ({ opponent }) => ({
+        [`score${opponent}`]: toComparison(op, value),
+    }))
+
+const playerTeamCondition = (playerId, teamText) =>
+    bySideOf(playerId, ({ own }) => ({
+        [`team${own}.name`]: nameContains(teamText),
+    }))
+
+const opponentTeamCondition = (playerId, teamText) =>
+    bySideOf(playerId, ({ opponent }) => ({
+        [`team${opponent}.name`]: nameContains(teamText),
+    }))
+
+const idsInRange = ([from, to]) => {
+    const ids = []
+    for (let id = from; id <= to; id++) ids.push(id)
+    return ids
+}
+
+// La ronda depende de la geometría del bracket, que sale del formato del
+// torneo. Se agrupan los torneos por rango de `playoff_id` y se arma una rama
+// por grupo. Las referencias a torneos inexistentes quedan afuera porque no
+// hay formato del cual derivar la ronda.
+const playoffRoundCondition = async (round) => {
+    const tournaments = await tournamentsModel.find({}, { format: 1 }).lean()
+    const branchesByRange = new Map()
+
+    tournaments.forEach((tournament) => {
+        const range = getPlayoffRoundIdRange(tournament.format, round)
+        if (!range) return
+
+        const key = range.join("-")
+        if (!branchesByRange.has(key)) {
+            branchesByRange.set(key, { range, tournamentIds: [] })
+        }
+        branchesByRange.get(key).tournamentIds.push(String(tournament._id))
+    })
+
+    if (branchesByRange.size === 0) return MATCH_NOTHING
+
+    return {
+        type: "playoff",
+        $or: [...branchesByRange.values()].map(({ range, tournamentIds }) => {
+            const ids = idsInRange(range)
+            return {
+                "tournament.id": { $in: tournamentIds },
+                // Tolera playoff_id legacy guardados como texto.
+                playoff_id: { $in: [...ids, ...ids.map(String)] },
+            }
+        }),
+    }
+}
 
 const findMatches = async (filters) => {
     const limit = 20
@@ -9,13 +118,25 @@ const findMatches = async (filters) => {
         player2,
         tournamentId,
         type,
+        playoffRound,
         outcome,
         goalDiffOp = "gte",
         goalDiffVal,
+        totalGoalsOp = "gte",
+        totalGoalsVal,
+        player1GoalsOp = "gte",
+        player1GoalsVal,
+        player1ConcededOp = "gte",
+        player1ConcededVal,
+        player1Team,
+        opponentTeam,
         dateFrom,
         dateTo,
         played,
     } = filters
+
+    const hasPlayer1 = isActiveFilter(player1)
+    const hasPlayer2 = hasPlayer1 && isActiveFilter(player2)
 
     const queryConditions = [{ valid: { $ne: false } }]
 
@@ -30,8 +151,8 @@ const findMatches = async (filters) => {
     if (teamName) {
         queryConditions.push({
             $or: [
-                { "teamP1.name": { $regex: teamName, $options: "i" } },
-                { "teamP2.name": { $regex: teamName, $options: "i" } },
+                { "teamP1.name": nameContains(teamName) },
+                { "teamP2.name": nameContains(teamName) },
             ],
         })
     }
@@ -48,8 +169,12 @@ const findMatches = async (filters) => {
         else queryConditions.push({ type: type })
     }
 
-    if (player1 && player1 !== "all") {
-        if (player2 && player2 !== "all") {
+    if (type === "playoff" && isActiveFilter(playoffRound)) {
+        queryConditions.push(await playoffRoundCondition(playoffRound))
+    }
+
+    if (hasPlayer1) {
+        if (hasPlayer2) {
             queryConditions.push({
                 $or: [
                     { "playerP1.id": player1, "playerP2.id": player2 },
@@ -63,7 +188,7 @@ const findMatches = async (filters) => {
         }
     }
 
-    if (player1 && player1 !== "all" && outcome && outcome !== "all") {
+    if (hasPlayer1 && outcome && outcome !== "all") {
         if (outcome === "draw") {
             queryConditions.push({ "outcome.draw": true })
         } else if (outcome === "penalties") {
@@ -81,14 +206,48 @@ const findMatches = async (filters) => {
         }
     }
 
-    if (goalDiffVal !== undefined && goalDiffVal !== "") {
-        const diffValue = Number(goalDiffVal)
-        const mongoOp =
-            goalDiffOp === "lte" ? "$lte" : goalDiffOp === "eq" ? "$eq" : "$gte"
+    if (hasNumericValue(goalDiffVal)) {
+        queryConditions.push(
+            scoreExpressionCondition(
+                GOAL_DIFFERENCE_EXPRESSION,
+                goalDiffOp,
+                goalDiffVal
+            )
+        )
+    }
 
-        queryConditions.push({
-            "outcome.scoringDifference": { [mongoOp]: diffValue },
-        })
+    if (hasNumericValue(totalGoalsVal)) {
+        queryConditions.push(
+            scoreExpressionCondition(
+                TOTAL_GOALS_EXPRESSION,
+                totalGoalsOp,
+                totalGoalsVal
+            )
+        )
+    }
+
+    if (hasPlayer1 && hasNumericValue(player1GoalsVal)) {
+        queryConditions.push(
+            playerGoalsCondition(player1, player1GoalsOp, player1GoalsVal)
+        )
+    }
+
+    if (hasPlayer1 && hasNumericValue(player1ConcededVal)) {
+        queryConditions.push(
+            playerConcededCondition(
+                player1,
+                player1ConcededOp,
+                player1ConcededVal
+            )
+        )
+    }
+
+    if (hasPlayer1 && player1Team) {
+        queryConditions.push(playerTeamCondition(player1, player1Team))
+    }
+
+    if (hasPlayer1 && opponentTeam) {
+        queryConditions.push(opponentTeamCondition(player1, opponentTeam))
     }
 
     if (dateFrom || dateTo) {

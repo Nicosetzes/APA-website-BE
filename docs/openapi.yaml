@@ -173,6 +173,20 @@ paths:
                       type: string
                       enum: [all, regular, knockout, playin, playoff]
                 - in: query
+                  name: playoffRound
+                  description: Ronda de playoff, derivada del formato del torneo y del playoff_id; requiere type=playoff para tener efecto
+                  schema:
+                      type: string
+                      enum:
+                          [
+                              all,
+                              round_of_32,
+                              round_of_16,
+                              quarterfinal,
+                              semifinal,
+                              final,
+                          ]
+                - in: query
                   name: outcome
                   description: Resultado desde la perspectiva de player1
                   schema:
@@ -186,10 +200,62 @@ paths:
                       default: gte
                 - in: query
                   name: goalDiffVal
+                  description: Diferencia absoluta entre scoreP1 y scoreP2 (los empates cuentan como 0)
                   schema:
                       type: integer
                       minimum: 0
                       maximum: 99
+                - in: query
+                  name: totalGoalsOp
+                  schema:
+                      type: string
+                      enum: [gte, lte, eq]
+                      default: gte
+                - in: query
+                  name: totalGoalsVal
+                  description: Suma de scoreP1 y scoreP2
+                  schema:
+                      type: integer
+                      minimum: 0
+                      maximum: 48
+                - in: query
+                  name: player1GoalsOp
+                  schema:
+                      type: string
+                      enum: [gte, lte, eq]
+                      default: gte
+                - in: query
+                  name: player1GoalsVal
+                  description: Goles de player1 en el partido; requiere player1 para tener efecto
+                  schema:
+                      type: integer
+                      minimum: 0
+                      maximum: 24
+                - in: query
+                  name: player1ConcededOp
+                  schema:
+                      type: string
+                      enum: [gte, lte, eq]
+                      default: gte
+                - in: query
+                  name: player1ConcededVal
+                  description: Goles recibidos por player1, contra cualquier rival; requiere player1 para tener efecto
+                  schema:
+                      type: integer
+                      minimum: 0
+                      maximum: 24
+                - in: query
+                  name: player1Team
+                  description: Coincidencia parcial sobre el equipo que usó player1; requiere player1 para tener efecto
+                  schema:
+                      type: string
+                      maxLength: 100
+                - in: query
+                  name: opponentTeam
+                  description: Coincidencia parcial sobre el equipo que enfrentó player1; requiere player1 para tener efecto
+                  schema:
+                      type: string
+                      maxLength: 100
                 - in: query
                   name: dateFrom
                   schema:
@@ -228,6 +294,40 @@ paths:
                                         description: >-
                                             Base 1, igual que el parámetro
                                             `page`: la primera página devuelve 1.
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/matches/teams:
+        get:
+            tags: [Matches]
+            summary: Equipos usados en partidos, para sugerir en los buscadores
+            description: >-
+                Equipos de teamP1 y teamP2 en partidos válidos y jugados, uno
+                por nombre y ordenados alfabéticamente. El id permite mostrar
+                el escudo.
+            responses:
+                "200":
+                    description: Lista de equipos
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    type: object
+                                    required: [id, name]
+                                    properties:
+                                        id:
+                                            nullable: true
+                                            oneOf:
+                                                - type: string
+                                                - type: integer
+                                        name:
+                                            type: string
                 "400":
                     $ref: "#/components/responses/BadRequest"
                 "500":

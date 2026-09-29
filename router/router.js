@@ -18,6 +18,7 @@ const controllers = Object.fromEntries(
 
 const {
     getMatches,
+    getMatchTeams,
     getUsers,
     getCurrentUser,
     postLogin,
@@ -67,6 +68,8 @@ const {
 } = require("./auth")
 
 root.get("/matches", validate("getMatches"), getMatches)
+
+root.get("/matches/teams", validate("getMatchTeams"), getMatchTeams)
 
 root.get("/edits", isAuth, validate("getEdits"), getEdits)
 

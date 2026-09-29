@@ -3,6 +3,7 @@ const getAllTimeTeams = require("./getAllTimeTeams")
 const getCalculatorByTournamentId = require("./getCalculatorByTournamentId")
 const getFixtureByTournamentId = require("./getFixtureByTournamentId")
 const getMatches = require("./getMatches")
+const getMatchTeams = require("./getMatchTeams")
 const putCompleteTournamentById = require("./putCompleteTournamentById")
 const getPlayerInfoByTournamentId = require("./getPlayerInfoByTournamentId")
 const getPlayinMatchesByTournamentId = require("./getPlayinMatchesByTournamentId")
@@ -34,6 +35,7 @@ module.exports = {
     getCalculatorByTournamentId,
     getFixtureByTournamentId,
     getMatches,
+    getMatchTeams,
     getPlayerInfoByTournamentId,
     getPlayinMatchesByTournamentId,
     getPlayoffMatchesByTournamentId,

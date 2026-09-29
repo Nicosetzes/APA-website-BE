@@ -8,6 +8,7 @@ const findAllNotPlayedMatchesByTournamentId = require("./findAllNotPlayedMatches
 const findAllPlayedMatchesByTournamentId = require("./findAllPlayedMatchesByTournamentId")
 const findAllUsers = require("./findAllUsers")
 const findMatches = require("./findMatches")
+const findMatchTeams = require("./findMatchTeams")
 const findFixtureByTournamentId = require("./findFixtureByTournamentId")
 const findPlayerMatchesByTournamentId = require("./findPlayerMatchesByTournamentId")
 const findPlayinMatchesByTournamentId = require("./findPlayinMatchesByTournamentId")
@@ -35,6 +36,7 @@ module.exports = {
     findAllPlayedMatchesByTournamentId,
     findAllUsers,
     findMatches,
+    findMatchTeams,
     findFixtureByTournamentId,
     findPlayerMatchesByTournamentId,
     findPlayinMatchesByTournamentId,
