@@ -2,6 +2,7 @@ const createFixtureByTournamentId = require("./createFixtureByTournamentId")
 const createPlayinByTournamentId = require("./createPlayinByTournamentId")
 const createPlayoffByTournamentId = require("./createPlayoffByTournamentId")
 const createTournament = require("./createTournament")
+const existsMatchByTournamentId = require("./existsMatchByTournamentId")
 const findAllMatches = require("./findAllMatches")
 const findAllNotPlayedMatchesByTournamentId = require("./findAllNotPlayedMatchesByTournamentId")
 const findAllPlayedMatchesByTournamentId = require("./findAllPlayedMatchesByTournamentId")
@@ -28,6 +29,7 @@ module.exports = {
     createPlayinByTournamentId,
     createPlayoffByTournamentId,
     createTournament,
+    existsMatchByTournamentId,
     findAllMatches,
     findAllNotPlayedMatchesByTournamentId,
     findAllPlayedMatchesByTournamentId,

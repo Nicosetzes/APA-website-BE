@@ -850,6 +850,8 @@ paths:
                     $ref: "#/components/responses/Forbidden"
                 "404":
                     $ref: "#/components/responses/NotFound"
+                "409":
+                    $ref: "#/components/responses/RegularPhaseClosed"
     /api/tournaments/{tournament}/matches/delete-game/{match}:
         put:
             tags: [Matches]
@@ -875,6 +877,8 @@ paths:
                     $ref: "#/components/responses/Forbidden"
                 "404":
                     $ref: "#/components/responses/NotFound"
+                "409":
+                    $ref: "#/components/responses/RegularPhaseClosed"
     /api/tournaments/{tournament}/playoffs/preview:
         get:
             tags: [Tournaments]
@@ -1237,6 +1241,12 @@ components:
                         $ref: "#/components/schemas/ErrorResponse"
         NotFound:
             description: Recurso inexistente
+            content:
+                application/json:
+                    schema:
+                        $ref: "#/components/schemas/ErrorResponse"
+        RegularPhaseClosed:
+            description: REGULAR_PHASE_CLOSED. El partido es de fase regular y la eliminatoria ya fue generada (el play-in de su zona en league_playin_playoff, el playoff en el resto de los formatos)
             content:
                 application/json:
                     schema:

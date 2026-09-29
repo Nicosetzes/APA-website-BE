@@ -1,5 +1,6 @@
 const { HttpError } = require("./httpErrors")
 const { MATCH_RULE_MESSAGES } = require("../validation/errorMessages")
+const { isKnockoutMatch } = require("../utils/matchPhase")
 
 const invalidResult = (message) =>
     new HttpError(400, "INVALID_MATCH_RESULT", message)
@@ -10,10 +11,7 @@ const validateMatchResult = (req, res, next) => {
     const hasPersistedSeeds =
         persistedMatch.seedP1 !== undefined &&
         persistedMatch.seedP2 !== undefined
-    const isKnockout =
-        persistedMatch.type === "playoff" ||
-        persistedMatch.type === "playin" ||
-        hasPersistedSeeds
+    const isKnockout = isKnockoutMatch(persistedMatch)
     const bodyHasSeeds = body.seedP1 !== undefined || body.seedP2 !== undefined
     const bodyHasPenalties =
         body.penaltyScoreP1 !== undefined || body.penaltyScoreP2 !== undefined
