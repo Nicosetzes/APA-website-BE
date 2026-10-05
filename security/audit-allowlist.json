@@ -1,4 +1,4 @@
 {
-    "comentario": "Vulnerabilidades high/critical aceptadas temporalmente. CI falla ante cualquier hallazgo que no esté acá, así que esta lista es la deuda de seguridad explícita. Cada entrada necesita motivo y plan.",
+    "comentario": "Vulnerabilidades high/critical de producción aceptadas temporalmente. CI falla ante cualquier hallazgo en dependencies que no esté acá (devDependencies sólo se informan), así que esta lista es la deuda de seguridad explícita. Cada entrada necesita motivo y plan.",
     "aceptadas": []
 }
