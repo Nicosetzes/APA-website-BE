@@ -211,6 +211,20 @@ const run = async () => {
                 `playoff matches [${format}]`,
                 `/api/tournaments/${id}/playoff/matches`
             )
+            if (format === "playoff") {
+                for (const round of [
+                    "round_of_32",
+                    "round_of_16",
+                    "quarterfinal",
+                    "semifinal",
+                    "final",
+                ]) {
+                    await get(
+                        `filtro ${round} [${format}]`,
+                        `/api/matches?type=playoff&playoffRound=${round}&tournamentId=${id}`
+                    )
+                }
+            }
             await get(
                 `playoffs table [${format}]`,
                 `/api/tournaments/${id}/playoffs/table`

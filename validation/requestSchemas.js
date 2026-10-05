@@ -1,6 +1,7 @@
 const Joi = require("joi")
 const { MATCH_RULE_MESSAGES } = require("./errorMessages")
 const { PLAYOFF_ROUNDS } = require("../config/playoffFormats")
+const { assertDirectPlayoffGeometry } = require("../service/playoffSeries")
 
 const emptyObject = Joi.object({}).unknown(false)
 
@@ -53,6 +54,11 @@ const tournamentBody = Joi.object({
             "world_cup_2026"
         )
         .required(),
+    playoffMode: Joi.when("format", {
+        is: "playoff",
+        then: Joi.string().valid("single", "two_legged").default("single"),
+        otherwise: Joi.forbidden(),
+    }),
     name: Joi.string().trim().min(1).max(100).required(),
     players: Joi.array().items(entityReference).min(1).required(),
     teams: Joi.array()
@@ -66,7 +72,22 @@ const tournamentBody = Joi.object({
         )
         .min(1)
         .required(),
-}).unknown(false)
+})
+    .unknown(false)
+    .custom((value, helpers) => {
+        if (value.format !== "playoff") return value
+        try {
+            assertDirectPlayoffGeometry(value.teams, value.players)
+            return value
+        } catch (error) {
+            return helpers.error("tournament.invalidPlayoffGeometry", {
+                message: error.message,
+            })
+        }
+    })
+    .messages({
+        "tournament.invalidPlayoffGeometry": "{#message}",
+    })
 
 const updateMatchBody = Joi.object({
     playerP1: entityReference.required(),
@@ -79,6 +100,11 @@ const updateMatchBody = Joi.object({
     seedP2: seed.optional(),
     scoreP2: score.required(),
     penaltyScoreP2: penaltyScore.optional(),
+    expectedSeriesRevision: Joi.number()
+        .integer()
+        .min(0)
+        .max(Number.MAX_SAFE_INTEGER)
+        .optional(),
     valid: Joi.boolean().optional(),
 })
     .unknown(false)
@@ -93,22 +119,8 @@ const updateMatchBody = Joi.object({
             return helpers.error("match.seedsIncomplete")
         }
 
-        if (!hasSeedP1 && (hasPenaltyP1 || hasPenaltyP2)) {
-            return helpers.error("match.penaltiesNotAllowed")
-        }
-
         if (hasPenaltyP1 !== hasPenaltyP2) {
             return helpers.error("match.penaltiesIncomplete")
-        }
-
-        if (hasSeedP1 && value.scoreP1 === value.scoreP2) {
-            if (!hasPenaltyP1) {
-                return helpers.error("match.drawNeedsPenalties")
-            }
-
-            if (value.penaltyScoreP1 === value.penaltyScoreP2) {
-                return helpers.error("match.penaltiesTied")
-            }
         }
 
         return value
@@ -374,7 +386,13 @@ module.exports = {
     },
     removeMatch: {
         params: matchParams,
-        body: emptyObject,
+        body: Joi.object({
+            expectedSeriesRevision: Joi.number()
+                .integer()
+                .min(0)
+                .max(Number.MAX_SAFE_INTEGER)
+                .optional(),
+        }).unknown(false),
         query: emptyObject,
     },
 }

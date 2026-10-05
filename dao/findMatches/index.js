@@ -270,13 +270,17 @@ const findMatches = async (filters) => {
 
     const finalFilter = { $and: queryConditions }
     const currentPage = Math.max(1, Number(page) || 1)
+    const matchSort =
+        type === "playoff" && tournamentId && tournamentId !== "all"
+            ? { playoff_id: 1, leg: 1, _id: 1 }
+            : { updatedAt: -1, _id: -1 }
 
     const [matches, amountOfTotalMatches] = await Promise.all([
         matchesModel
             .find(finalFilter)
             .limit(limit)
             .skip((currentPage - 1) * limit)
-            .sort({ updatedAt: -1, _id: -1 }),
+            .sort(matchSort),
         matchesModel.countDocuments(finalFilter),
     ])
 

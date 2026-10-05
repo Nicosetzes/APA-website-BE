@@ -12,6 +12,8 @@
         "check:db": "node scripts/checkDbConnection.js",
         "seed:test": "node scripts/seedTestData.js",
         "smoke:write": "node scripts/smokeWrite.js",
+        "playoff:index:dry-run": "node scripts/managePlayoffLegIndex.js",
+        "playoff:index:apply": "node scripts/managePlayoffLegIndex.js --apply",
         "audit:deps": "node scripts/auditDependencies.js",
         "scan:secrets": "node scripts/scanSecrets.js",
         "validate:openapi": "node scripts/validateOpenapi.js",

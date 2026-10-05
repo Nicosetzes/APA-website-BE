@@ -505,6 +505,36 @@ test("the final round range agrees with the final playoff_id of every format", (
     }
 })
 
+test("public playoff history stays chronological while tournament history uses bracket order", async (t) => {
+    const findMatches = require("../dao/findMatches")
+    const originalFind = matchesModel.find
+    const originalCountDocuments = matchesModel.countDocuments
+    const sorts = []
+    t.after(() => {
+        matchesModel.find = originalFind
+        matchesModel.countDocuments = originalCountDocuments
+    })
+    matchesModel.find = () => ({
+        limit: () => ({
+            skip: () => ({
+                sort: async (sort) => {
+                    sorts.push(sort)
+                    return []
+                },
+            }),
+        }),
+    })
+    matchesModel.countDocuments = async () => 0
+
+    await findMatches({ type: "playoff" })
+    await findMatches({ type: "playoff", tournamentId: "tournament" })
+
+    assert.deepEqual(sorts, [
+        { updatedAt: -1, _id: -1 },
+        { playoff_id: 1, leg: 1, _id: 1 },
+    ])
+})
+
 test("match teams returns unique, trimmed and sorted teams with their logo id", async () => {
     const { createGetMatchTeams } = require("../controller/getMatchTeams")
     const controller = createGetMatchTeams({

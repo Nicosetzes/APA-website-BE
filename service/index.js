@@ -28,6 +28,9 @@ const retrieveTournamentById = require("./retrieveTournamentById")
 const retrieveTournamentPlayersByTournamentId = require("./retrieveTournamentPlayersByTournamentId")
 const retrieveTournaments = require("./retrieveTournaments")
 const retrieveUserByUserName = require("./retrieveUserByUserName")
+const processPlayoffSeriesResult = require("./processPlayoffSeriesResult")
+const removePlayoffSeriesResult = require("./removePlayoffSeriesResult")
+const playoffSeries = require("./playoffSeries")
 
 module.exports = {
     calculateGroupStagePlayoff,
@@ -60,4 +63,8 @@ module.exports = {
     retrieveTournamentPlayersByTournamentId,
     retrieveTournaments,
     retrieveUserByUserName,
+    processPlayoffSeriesResult,
+    removePlayoffSeriesResult,
+    playoffSeries,
+    ...playoffSeries,
 }

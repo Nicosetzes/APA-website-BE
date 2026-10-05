@@ -46,6 +46,9 @@ const DEFAULT_STEPS = [
     "completeAgainConflict",
     "createPlayoffTournament",
     "readPlayoffBracket",
+    "playTwoLeggedTie",
+    "resolveTwoLeggedTiebreak",
+    "rejectStaleSeriesRevision",
     "createPlayinTournament",
     "generatePlayinGroupA",
     "generatePlayinGroupB",
@@ -75,6 +78,8 @@ const state = {
     tournamentId: null,
     match: null,
     playoffTournamentId: null,
+    playoffMatches: [],
+    staleSeriesRevision: null,
     playinTournamentId: null,
     playinMatches: [],
     editId: null,
@@ -114,13 +119,14 @@ const record = (label, expected, actual, detail) => {
 const errorCode = (body) =>
     body?.error?.code || JSON.stringify(body).slice(0, 90)
 
-const matchResultBody = (match, scoreP1, scoreP2) => ({
+const matchResultBody = (match, scoreP1, scoreP2, extra = {}) => ({
     playerP1: { id: match.playerP1.id, name: match.playerP1.name },
     teamP1: { id: match.teamP1.id, name: match.teamP1.name },
     scoreP1,
     playerP2: { id: match.playerP2.id, name: match.playerP2.name },
     teamP2: { id: match.teamP2.id, name: match.teamP2.name },
     scoreP2,
+    ...extra,
 })
 
 // Los usuarios sembrados alcanzan para cualquier torneo del smoke. Se resuelven
@@ -443,6 +449,7 @@ const steps = {
             token: state.token,
             body: {
                 format: "playoff",
+                playoffMode: "two_legged",
                 name: `Smoke playoff ${new Date().toISOString().slice(0, 19)}`,
                 players: state.players,
                 teams,
@@ -472,6 +479,7 @@ const steps = {
         )
 
         const matches = body?.matches || []
+        state.playoffMatches = matches
         const ok = record(
             "GET playoff/matches del bracket creado",
             [200],
@@ -479,13 +487,132 @@ const steps = {
             `${matches.length} partidos generados`
         )
 
-        if (status === 200 && matches.length === 0) {
+        if (status === 200 && matches.length !== 32) {
             results[results.length - 1].ok = false
-            results[results.length - 1].detail += " <- esperaba un bracket"
+            results[results.length - 1].detail +=
+                " <- esperaba 32 partidos (16 idas y 16 vueltas)"
+            return false
+        }
+
+        if (
+            status === 200 &&
+            matches.some(
+                (match) =>
+                    ![1, 2].includes(match.leg) ||
+                    !match.series ||
+                    !match.mutation
+            )
+        ) {
+            results[results.length - 1].ok = false
+            results[results.length - 1].detail +=
+                " <- metadata de serie incompleta"
             return false
         }
 
         return ok
+    },
+
+    playTwoLeggedTie: async () => {
+        const first = state.playoffMatches.find(
+            (match) => match.playoff_id === 1 && match.leg === 1
+        )
+        const second = state.playoffMatches.find(
+            (match) => match.playoff_id === 1 && match.leg === 2
+        )
+        if (!first || !second)
+            return record("PUT ida/vuelta", [200], 0, "faltan legs 1/2")
+
+        const firstResult = await request(
+            "PUT",
+            `/api/tournaments/${state.playoffTournamentId}/matches/update-game/${first._id}`,
+            {
+                token: state.token,
+                body: matchResultBody(first, 1, 0, {
+                    expectedSeriesRevision: first.series.revision,
+                }),
+            }
+        )
+        const refreshed = await request(
+            "GET",
+            `/api/tournaments/${state.playoffTournamentId}/playoff/matches`
+        )
+        const refreshedSecond = refreshed.body?.matches?.find(
+            (match) => match.playoff_id === 1 && match.leg === 2
+        )
+        state.staleSeriesRevision = refreshedSecond?.series?.revision
+        const secondResult = await request(
+            "PUT",
+            `/api/tournaments/${state.playoffTournamentId}/matches/update-game/${refreshedSecond._id}`,
+            {
+                token: state.token,
+                body: matchResultBody(refreshedSecond, 1, 0, {
+                    expectedSeriesRevision: refreshedSecond.series.revision,
+                }),
+            }
+        )
+        const ok = firstResult.status === 200 && secondResult.status === 200
+        return record(
+            "PUT ida/vuelta con global empatado",
+            [200],
+            ok ? 200 : secondResult.status,
+            ok ? "global empatado" : errorCode(secondResult.body)
+        )
+    },
+
+    resolveTwoLeggedTiebreak: async () => {
+        const refreshed = await request(
+            "GET",
+            `/api/tournaments/${state.playoffTournamentId}/playoff/matches`
+        )
+        const tiebreak = refreshed.body?.matches?.find(
+            (match) => match.playoff_id === 1 && match.leg === 3
+        )
+        if (!tiebreak)
+            return record("PUT desempate", [200], 0, "no se creó leg 3")
+        const result = await request(
+            "PUT",
+            `/api/tournaments/${state.playoffTournamentId}/matches/update-game/${tiebreak._id}`,
+            {
+                token: state.token,
+                body: matchResultBody(tiebreak, 0, 0, {
+                    penaltyScoreP1: 5,
+                    penaltyScoreP2: 4,
+                    expectedSeriesRevision: tiebreak.series.revision,
+                }),
+            }
+        )
+        return record(
+            "PUT desempate por penales",
+            [200],
+            result.status,
+            result.status === 200 ? "serie resuelta" : errorCode(result.body)
+        )
+    },
+
+    rejectStaleSeriesRevision: async () => {
+        const refreshed = await request(
+            "GET",
+            `/api/tournaments/${state.playoffTournamentId}/playoff/matches`
+        )
+        const second = refreshed.body?.matches?.find(
+            (match) => match.playoff_id === 1 && match.leg === 2
+        )
+        const result = await request(
+            "PUT",
+            `/api/tournaments/${state.playoffTournamentId}/matches/update-game/${second._id}`,
+            {
+                token: state.token,
+                body: matchResultBody(second, 2, 0, {
+                    expectedSeriesRevision: state.staleSeriesRevision,
+                }),
+            }
+        )
+        return record(
+            "PUT revisión obsoleta",
+            [409],
+            result.status,
+            errorCode(result.body)
+        )
     },
 
     createPlayinTournament: async () => {

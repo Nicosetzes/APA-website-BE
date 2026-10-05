@@ -107,6 +107,12 @@ const tournamentsSchema = new mongoose.Schema(
                 message: "{VALUE} no es un formato de torneo válido",
             },
         },
+        playoffMode: {
+            type: String,
+            enum: ["single", "two_legged"],
+            immutable: true,
+            required: false,
+        },
         cloudinary_id: { type: String, require: false, max: 100 },
         groups: { type: Array, require: false, default: undefined, max: 8 },
         valid: { type: Boolean, require: false },

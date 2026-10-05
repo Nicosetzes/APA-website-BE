@@ -344,7 +344,12 @@ const groupDuplicatePlayoffSlots = (matches) => {
             return
         }
 
-        const key = `${String(match.tournament.id)}:${match.playoff_id}`
+        const legKey = Number.isInteger(match.leg)
+            ? `leg:${match.leg}`
+            : "legacy"
+        const key = `${String(match.tournament.id)}:${
+            match.playoff_id
+        }:${legKey}`
         const group = groups.get(key) || []
         group.push(match)
         groups.set(key, group)
@@ -642,13 +647,13 @@ const run = async () => {
         tournamentsModel
             .find({})
             .select(
-                "schemaVersion name players.id players.name teams.team.id teams.player.id outcome.champion outcome.finalist ongoing format valid legacy daily_recap createdAt updatedAt"
+                "schemaVersion name players.id players.name teams.team.id teams.player.id outcome.champion outcome.finalist ongoing format playoffMode valid legacy daily_recap createdAt updatedAt"
             )
             .lean(),
         matchesModel
             .find({})
             .select(
-                "schemaVersion type tournament.id played valid playerP1.id playerP2.id teamP1.id teamP2.id scoreP1 scoreP2 outcome.draw outcome.playerThatWon.id outcome.playerThatLost.id outcome.teamThatWon.id outcome.teamThatLost.id playoff_id playerP3 playerP4 createdAt updatedAt"
+                "schemaVersion type tournament.id played valid playerP1.id playerP2.id teamP1.id teamP2.id scoreP1 scoreP2 outcome.draw outcome.playerThatWon.id outcome.playerThatLost.id outcome.teamThatWon.id outcome.teamThatLost.id playoff_id leg seriesRevision playerP3 playerP4 createdAt updatedAt"
             )
             .lean(),
         editsModel

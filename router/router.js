@@ -53,6 +53,7 @@ const {
 const validateRequest = require("../middleware/validateRequest")
 const validateMatchResult = require("../middleware/validateMatchResult")
 const requireRegularPhaseOpen = require("../middleware/requireRegularPhaseOpen")
+const validateSeriesMutationRequest = require("../middleware/validateSeriesMutationRequest")
 const {
     editUploadRateLimit,
     loginRateLimit,
@@ -193,6 +194,7 @@ tournaments.put(
     requireTournamentAccess(),
     requireMatchInTournament,
     requireRegularPhaseOpen,
+    validateSeriesMutationRequest,
     putRemoveMatchByTournamentId
 )
 

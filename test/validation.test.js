@@ -36,7 +36,7 @@ test("update match validation converts scores and accepts current payload", asyn
     assert.equal(request.body.scoreP2, 1)
 })
 
-test("knockout draws require two distinct penalty scores", async () => {
+test("Joi leaves knockout result rules to contextual validation", async () => {
     const baseRequest = {
         params: {
             tournament: "aaaaaaaaaaaaaaaaaaaaaaaa",
@@ -67,18 +67,14 @@ test("knockout draws require two distinct penalty scores", async () => {
             penaltyScoreP2: 4,
         },
     })
-    const validPenalties = await runValidation(schemas.updateMatch, {
+    const incompletePenalties = await runValidation(schemas.updateMatch, {
         ...baseRequest,
-        body: {
-            ...baseRequest.body,
-            penaltyScoreP1: 5,
-            penaltyScoreP2: 4,
-        },
+        body: { ...baseRequest.body, penaltyScoreP1: 4 },
     })
 
-    assert.equal(missingPenalties.code, "VALIDATION_ERROR")
-    assert.equal(tiedPenalties.code, "VALIDATION_ERROR")
-    assert.equal(validPenalties, undefined)
+    assert.equal(missingPenalties, undefined)
+    assert.equal(tiedPenalties, undefined)
+    assert.equal(incompletePenalties.code, "VALIDATION_ERROR")
 })
 
 const knockoutRequest = (body = {}) => ({
@@ -100,24 +96,9 @@ const knockoutRequest = (body = {}) => ({
     },
 })
 
-test("each broken match rule explains itself instead of a generic message", async () => {
+test("structural match rules explain incomplete pairs", async () => {
     const cases = [
-        [{}, "match.drawNeedsPenalties"],
-        [
-            { penaltyScoreP1: "", penaltyScoreP2: "" },
-            "match.drawNeedsPenalties",
-        ],
-        [{ penaltyScoreP1: 4, penaltyScoreP2: 4 }, "match.penaltiesTied"],
         [{ penaltyScoreP1: 4 }, "match.penaltiesIncomplete"],
-        [
-            {
-                seedP1: undefined,
-                seedP2: undefined,
-                penaltyScoreP1: 4,
-                penaltyScoreP2: 3,
-            },
-            "match.penaltiesNotAllowed",
-        ],
         [{ seedP2: undefined, scoreP1: 2 }, "match.seedsIncomplete"],
     ]
 

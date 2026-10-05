@@ -127,6 +127,7 @@ test("playoff tournament creation shares one session and responds after commit",
             committed = true
             return result
         },
+        ensurePlayoffLegIndexReady: async () => true,
     })
     const response = createResponse()
     const originalJson = response.json
@@ -154,6 +155,41 @@ test("playoff tournament creation shares one session and responds after commit",
     assert.equal(response.body, createdTournament)
 })
 
+test("playoff creation checks index readiness before opening a transaction", async () => {
+    let transactionCalls = 0
+    let tournamentCalls = 0
+    const unavailable = new Error("index unavailable")
+    const controller = createPostTournaments({
+        originateTournament: async () => {
+            tournamentCalls += 1
+        },
+        originatePlayoffByTournamentId: async () => {},
+        withTransaction: async () => {
+            transactionCalls += 1
+        },
+        ensurePlayoffLegIndexReady: async () => {
+            throw unavailable
+        },
+    })
+
+    await assert.rejects(
+        controller(
+            {
+                body: {
+                    format: "playoff",
+                    name: "Playoff",
+                    players: [],
+                    teams: [],
+                },
+            },
+            createResponse()
+        ),
+        unavailable
+    )
+    assert.equal(transactionCalls, 0)
+    assert.equal(tournamentCalls, 0)
+})
+
 test("non-playoff tournament creation does not open a transaction", async () => {
     let transactionCalls = 0
     const controller = createPostTournaments({
@@ -161,6 +197,9 @@ test("non-playoff tournament creation does not open a transaction", async () => 
         originatePlayoffByTournamentId: async () => {},
         withTransaction: async () => {
             transactionCalls += 1
+        },
+        ensurePlayoffLegIndexReady: async () => {
+            throw new Error("unrelated creation must not check playoff index")
         },
     })
     const response = createResponse()

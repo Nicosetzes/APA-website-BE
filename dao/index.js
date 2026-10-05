@@ -24,6 +24,11 @@ const updateMatchResultToRemoveIt = require("./updateMatchResultToRemoveIt")
 const updatePlayinMatchTeams = require("./updatePlayinMatchTeams")
 const updatePlayoffMatchTeams = require("./updatePlayoffMatchTeams")
 const updateTournamentOutcome = require("./updateTournamentOutcome")
+const findPlayoffSeriesByTie = require("./findPlayoffSeriesByTie")
+const claimPlayoffSeriesRevision = require("./claimPlayoffSeriesRevision")
+const updatePlayoffSeriesMatchResult = require("./updatePlayoffSeriesMatchResult")
+const updatePlayoffSeriesSlots = require("./updatePlayoffSeriesSlots")
+const deletePendingPlayoffTiebreak = require("./deletePendingPlayoffTiebreak")
 
 module.exports = {
     createFixtureByTournamentId,
@@ -52,4 +57,9 @@ module.exports = {
     updatePlayinMatchTeams,
     updatePlayoffMatchTeams,
     updateTournamentOutcome,
+    findPlayoffSeriesByTie,
+    claimPlayoffSeriesRevision,
+    updatePlayoffSeriesMatchResult,
+    updatePlayoffSeriesSlots,
+    deletePendingPlayoffTiebreak,
 }

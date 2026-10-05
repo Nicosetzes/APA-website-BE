@@ -1,6 +1,11 @@
-const mongoose = require("mongoose")
+const configureMongoose = require("./config/mongoose")
+const mongoose = configureMongoose()
 
 const logger = require("./utils/logger")
+const {
+    createPlayoffLegIndexReadinessGate,
+    verifyPlayoffLegIndex,
+} = require("./service/playoffLegIndexReadiness")
 
 let connectionPromise
 
@@ -30,6 +35,10 @@ const getMongoUri = () => {
 const getDatabaseStatus = () => ({
     state: connectionStates[mongoose.connection.readyState] || "unknown",
     name: mongoose.connection.name || null,
+})
+
+const ensurePlayoffLegIndexReady = createPlayoffLegIndexReadinessGate({
+    verify: () => verifyPlayoffLegIndex(mongoose.connection),
 })
 
 const connectMongo = async () => {
@@ -70,5 +79,6 @@ const disconnectMongo = async () => {
 module.exports = {
     connectMongo,
     disconnectMongo,
+    ensurePlayoffLegIndexReady,
     getDatabaseStatus,
 }

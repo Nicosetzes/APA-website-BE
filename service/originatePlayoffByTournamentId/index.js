@@ -1,52 +1,53 @@
 const { createPlayoffByTournamentId } = require("./../../dao")
+const {
+    assertDirectPlayoffGeometry,
+    buildLegsForTie,
+} = require("../playoffSeries")
 
 const originatePlayoffByTournamentId = async (
     tournament,
     teams,
     options = {}
 ) => {
-    // Extract only id and name from tournament object
-    const tournamentRef = {
-        id: String(tournament._id || tournament.id),
-        name: tournament.name,
+    assertDirectPlayoffGeometry(teams, tournament.players)
+
+    const teamsByPlayoffId = new Map()
+    for (const { team, player, playoff_id: playoffId } of teams) {
+        if (!teamsByPlayoffId.has(playoffId))
+            teamsByPlayoffId.set(playoffId, [])
+        teamsByPlayoffId.get(playoffId).push({ team, player })
     }
 
-    // Group teams by playoff_id
-    const teamsByPlayoffId = {}
-
-    teams.forEach(({ team, player, playoff_id }) => {
-        if (!teamsByPlayoffId[playoff_id]) {
-            teamsByPlayoffId[playoff_id] = []
-        }
-        teamsByPlayoffId[playoff_id].push({ team, player })
-    })
-
-    // Create playoff matches (Round of 32)
     const playoffMatches = []
+    for (let playoffId = 1; playoffId <= 16; playoffId += 1) {
+        const [left, right] = teamsByPlayoffId.get(playoffId)
+        playoffMatches.push(
+            ...buildLegsForTie({
+                tournament,
+                playoffId,
+                unitA: {
+                    ...left,
+                    seed: `${playoffId}A`,
+                },
+                unitB: {
+                    ...right,
+                    seed: `${playoffId}B`,
+                },
+            })
+        )
+    }
 
-    // For each playoff_id, create a match between the two teams
-    Object.keys(teamsByPlayoffId)
-        .sort((a, b) => Number(a) - Number(b))
-        .forEach((playoff_id) => {
-            const teamsInMatch = teamsByPlayoffId[playoff_id]
+    const created = await createPlayoffByTournamentId(playoffMatches, {
+        ...options,
+        ordered: true,
+    })
+    if (created.length !== playoffMatches.length) {
+        const error = new Error("No se pudo crear el cuadro completo")
+        error.code = "PLAYOFF_CREATION_INCOMPLETE"
+        throw error
+    }
 
-            if (teamsInMatch.length === 2) {
-                playoffMatches.push({
-                    playerP1: teamsInMatch[0].player,
-                    teamP1: teamsInMatch[0].team,
-                    seedP1: `${playoff_id}A`,
-                    playerP2: teamsInMatch[1].player,
-                    teamP2: teamsInMatch[1].team,
-                    seedP2: `${playoff_id}B`,
-                    type: "playoff",
-                    tournament: tournamentRef,
-                    played: false,
-                    playoff_id: Number(playoff_id),
-                })
-            }
-        })
-
-    return await createPlayoffByTournamentId(playoffMatches, options)
+    return created
 }
 
 module.exports = originatePlayoffByTournamentId

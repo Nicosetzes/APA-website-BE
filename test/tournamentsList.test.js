@@ -79,7 +79,7 @@ test("legacy=false boolean keeps precedence over status in DAO", async (t) => {
     })
     assert.equal(
         receivedProjection,
-        "cloudinary_id name ongoing outcome updatedAt"
+        "cloudinary_id name ongoing outcome updatedAt format playoffMode"
     )
     assert.deepEqual(receivedSort, { createdAt: -1, id: -1 })
 })

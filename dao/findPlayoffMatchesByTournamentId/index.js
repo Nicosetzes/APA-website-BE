@@ -6,7 +6,7 @@ const findPlayoffMatchesByTournamentId = async (id, options = {}) => {
             "tournament.id": id,
             type: "playoff",
         })
-        .sort({ playoff_id: 1 })
+        .sort({ playoff_id: 1, leg: 1, _id: 1 })
 
     if (options.session) query.session(options.session)
 

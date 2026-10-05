@@ -118,7 +118,7 @@ const requireTournamentAccess = (
         try {
             const tournament = await tournamentsModel
                 .findById(tournamentId)
-                .select("name format players teams")
+                .select("name format playoffMode ongoing outcome players teams")
                 .lean()
 
             if (!tournament) {
@@ -174,7 +174,9 @@ const requireMatchInTournament = async (req, res, next) => {
     try {
         const match = await matchesModel
             .findById(matchId)
-            .select("tournament type group seedP1 seedP2")
+            .select(
+                "_id tournament type group playoff_id leg seriesRevision played playerP1 teamP1 seedP1 scoreP1 playerP2 teamP2 seedP2 scoreP2 outcome valid"
+            )
             .lean()
 
         if (

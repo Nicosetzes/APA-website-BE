@@ -1,5 +1,10 @@
 const mongoose = require("mongoose")
 const { schemaVersionPlugin } = require("./plugins/schemaVersion")
+const {
+    PLAYOFF_LEG_INDEX_FILTER,
+    PLAYOFF_LEG_INDEX_KEY,
+    PLAYOFF_LEG_INDEX_NAME,
+} = require("../../config/playoffLegIndex")
 
 const collection = "face-to-face"
 const MATCH_TYPES = ["regular", "playin", "playoff"]
@@ -75,6 +80,13 @@ const matchesSchema = new mongoose.Schema(
         played: { type: Boolean, required: isVersionedV1 },
         group: { type: String, require: false, max: 1 },
         playoff_id: { type: Number, require: false },
+        leg: {
+            type: Number,
+            enum: [1, 2, 3],
+            immutable: true,
+            required: false,
+        },
+        seriesRevision: { type: Number, min: 0, required: false },
         seedP1: { type: String, require: false, max: 2 },
         seedP2: { type: String, require: false, max: 2 },
         playerP3: { type: Object, require: true, max: 100 },
@@ -82,6 +94,17 @@ const matchesSchema = new mongoose.Schema(
     },
     { collection, timestamps: true }
 )
+
+matchesSchema.index(
+    { "tournament.id": 1, type: 1, playoff_id: 1, leg: 1, _id: 1 },
+    { name: "playoff_tournament_listing_v1" }
+)
+
+matchesSchema.index(PLAYOFF_LEG_INDEX_KEY, {
+    name: PLAYOFF_LEG_INDEX_NAME,
+    unique: true,
+    partialFilterExpression: PLAYOFF_LEG_INDEX_FILTER,
+})
 
 matchesSchema.plugin(schemaVersionPlugin)
 

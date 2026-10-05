@@ -522,6 +522,8 @@ paths:
                     $ref: "#/components/responses/BadRequest"
                 "401":
                     $ref: "#/components/responses/InvalidSession"
+                "503":
+                    $ref: "#/components/responses/PlayoffIndexUnavailable"
     /api/tournaments/{tournament}:
         get:
             tags: [Tournaments]
@@ -929,7 +931,10 @@ paths:
         put:
             tags: [Matches]
             summary: Carga o modifica el resultado de un partido
-            description: En partidos de playoff y play-in avanza el cuadro en la misma transacción, creando o completando los partidos siguientes. En play-in, el perdedor de 1 (3) juega con el ganador de 2 (4) en el partido 5 (6).
+            description: |
+                En partidos de playoff y play-in avanza el cuadro en la misma transacción. En series administradas,
+                una corrección se rechaza si existe una pierna posterior jugada o si la serie/final ya avanzó;
+                esta política fail-closed evita cascadas y requiere intervención administrativa para corregir una final cerrada.
             security:
                 - bearerAuth: []
             parameters:
@@ -943,15 +948,21 @@ paths:
                             $ref: "#/components/schemas/UpdateMatchRequest"
             responses:
                 "200":
-                    description: Partido actualizado
+                    description: Partido actualizado; las series administradas incluyen metadata derivada
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/PlayoffMatch"
                 "400":
-                    $ref: "#/components/responses/BadRequest"
+                    $ref: "#/components/responses/PlayoffResultBadRequest"
                 "403":
                     $ref: "#/components/responses/Forbidden"
                 "404":
                     $ref: "#/components/responses/NotFound"
                 "409":
-                    $ref: "#/components/responses/RegularPhaseClosed"
+                    $ref: "#/components/responses/PlayoffMutationConflict"
+                "503":
+                    $ref: "#/components/responses/PlayoffIndexUnavailable"
     /api/tournaments/{tournament}/matches/delete-game/{match}:
         put:
             tags: [Matches]
@@ -967,18 +978,29 @@ paths:
                     application/json:
                         schema:
                             type: object
+                            properties:
+                                expectedSeriesRevision:
+                                    type: integer
+                                    minimum: 0
+                                    description: Obligatorio para series administradas
                             additionalProperties: false
             responses:
                 "200":
-                    description: Resultado quitado
+                    description: Resultado quitado; las series administradas incluyen metadata derivada
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/PlayoffMatch"
                 "400":
-                    $ref: "#/components/responses/BadRequest"
+                    $ref: "#/components/responses/PlayoffResultBadRequest"
                 "403":
                     $ref: "#/components/responses/Forbidden"
                 "404":
                     $ref: "#/components/responses/NotFound"
                 "409":
-                    $ref: "#/components/responses/RegularPhaseClosed"
+                    $ref: "#/components/responses/PlayoffMutationConflict"
+                "503":
+                    $ref: "#/components/responses/PlayoffIndexUnavailable"
     /api/tournaments/{tournament}/playoffs/preview:
         get:
             tags: [Tournaments]
@@ -1063,11 +1085,22 @@ paths:
         get:
             tags: [Matches]
             summary: Lista los partidos de playoff; un array vacío es válido
+            description: Playoffs administrados agregan leg, series y mutation; legacy y Champions conservan su forma histórica.
             parameters:
                 - $ref: "#/components/parameters/TournamentId"
             responses:
                 "200":
-                    description: Objeto con array matches
+                    description: Objeto con una entrada por partido físico
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                required: [matches]
+                                properties:
+                                    matches:
+                                        type: array
+                                        items:
+                                            $ref: "#/components/schemas/PlayoffMatch"
                 "400":
                     $ref: "#/components/responses/BadRequest"
                 "404":
@@ -1345,6 +1378,33 @@ components:
                 application/json:
                     schema:
                         $ref: "#/components/schemas/ErrorResponse"
+        PlayoffResultBadRequest:
+            description: >-
+                VALIDATION_ERROR, INVALID_MATCH_RESULT, PENALTIES_NOT_ALLOWED,
+                PENALTIES_REQUIRED, PENALTIES_INCOMPLETE, PENALTIES_TIED,
+                PENALTIES_WITH_REGULATION_WINNER o EXPECTED_SERIES_REVISION_REQUIRED.
+            content:
+                application/json:
+                    schema:
+                        $ref: "#/components/schemas/ErrorResponse"
+        PlayoffMutationConflict:
+            description: >-
+                REGULAR_PHASE_CLOSED, PLAYOFF_LATER_LEG_PLAYED,
+                PLAYOFF_SERIES_ADVANCED, PLAYOFF_STATE_CONFLICT,
+                PLAYOFF_DUPLICATE_LEG, PLAYOFF_SLOT_CONFLICT,
+                PLAYOFF_COMPETITOR_CONFLICT, PLAYOFF_SERIES_NOT_READY o
+                PLAYOFF_CONFIGURATION_ERROR. PLAYOFF_SERIES_ADVANCED también
+                protege de forma fail-closed una final ya cerrada; no se ejecutan cascadas.
+            content:
+                application/json:
+                    schema:
+                        $ref: "#/components/schemas/ErrorResponse"
+        PlayoffIndexUnavailable:
+            description: PLAYOFF_INDEX_NOT_READY. La definición requerida del índice parcial único no está disponible; no se inicia la escritura administrada.
+            content:
+                application/json:
+                    schema:
+                        $ref: "#/components/schemas/ErrorResponse"
         RegularPhaseClosed:
             description: REGULAR_PHASE_CLOSED. El partido es de fase regular y la eliminatoria ya fue generada (el play-in de su zona en league_playin_playoff, el playoff en el resto de los formatos)
             content:
@@ -1431,6 +1491,10 @@ components:
                             world_cup,
                             world_cup_2026,
                         ]
+                playoffMode:
+                    type: string
+                    enum: [single, two_legged]
+                    description: Sólo se acepta para format playoff; si falta se persiste single
                 name:
                     type: string
                     minLength: 1
@@ -1468,6 +1532,10 @@ components:
                     type: string
                 format:
                     type: string
+                playoffMode:
+                    type: string
+                    enum: [single, two_legged]
+                    description: Ausente en torneos históricos; sólo aplica a playoff
                 schemaVersion:
                     type: integer
                     enum: [1]
@@ -1481,6 +1549,79 @@ components:
                     items:
                         type: object
                         additionalProperties: true
+            additionalProperties: true
+        PlayoffSeriesAggregate:
+            type: object
+            required: [teamId, score]
+            properties:
+                teamId:
+                    type: string
+                score:
+                    type: integer
+                    minimum: 0
+        PlayoffSeriesMetadata:
+            type: object
+            required: [key, revision, status, aggregate, winnerTeamId]
+            properties:
+                key:
+                    type: string
+                revision:
+                    type: integer
+                    minimum: 0
+                status:
+                    type: string
+                    enum:
+                        [
+                            awaiting_leg1,
+                            awaiting_leg2,
+                            awaiting_tiebreak,
+                            decided,
+                        ]
+                aggregate:
+                    type: array
+                    items:
+                        $ref: "#/components/schemas/PlayoffSeriesAggregate"
+                winnerTeamId:
+                    type: string
+                    nullable: true
+        PlayoffMutationMetadata:
+            type: object
+            required: [canEditResult, canDeleteResult, reason]
+            properties:
+                canEditResult:
+                    type: boolean
+                canDeleteResult:
+                    type: boolean
+                reason:
+                    type: string
+                    nullable: true
+                    enum:
+                        [later_leg_played, series_advanced, configuration_error]
+        PlayoffSeriesError:
+            type: object
+            required: [code, message]
+            properties:
+                code:
+                    type: string
+                    enum:
+                        [PLAYOFF_CONFIGURATION_ERROR, PLAYOFF_SERIES_NOT_READY]
+                message:
+                    type: string
+        PlayoffMatch:
+            type: object
+            properties:
+                leg:
+                    type: integer
+                    enum: [1, 2, 3]
+                seriesRevision:
+                    type: integer
+                    minimum: 0
+                series:
+                    $ref: "#/components/schemas/PlayoffSeriesMetadata"
+                mutation:
+                    $ref: "#/components/schemas/PlayoffMutationMetadata"
+                seriesError:
+                    $ref: "#/components/schemas/PlayoffSeriesError"
             additionalProperties: true
         UpdateMatchRequest:
             type: object
@@ -1519,6 +1660,10 @@ components:
                     type: integer
                     minimum: 0
                     maximum: 24
+                expectedSeriesRevision:
+                    type: integer
+                    minimum: 0
+                    description: Revisión optimista de una serie administrada
                 valid:
                     type: boolean
                 isThisTheFinal:

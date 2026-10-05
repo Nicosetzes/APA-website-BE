@@ -77,7 +77,11 @@ test("transactional reads attach session without changing query semantics", asyn
 
     assert.equal(tournamentQuery.receivedSession, session)
     assert.equal(matchesQuery.receivedSession, session)
-    assert.deepEqual(matchesQuery.receivedSort, { playoff_id: 1 })
+    assert.deepEqual(matchesQuery.receivedSort, {
+        playoff_id: 1,
+        leg: 1,
+        _id: 1,
+    })
 })
 
 test("playoff destination updates receive session", async (t) => {

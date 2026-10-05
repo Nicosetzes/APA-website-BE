@@ -7,7 +7,7 @@ const findTournaments = async (legacy, status) => {
         tournaments = await tournamentsModel
             .find(
                 { legacy: { $ne: true }, valid: { $ne: false } },
-                "cloudinary_id name ongoing outcome updatedAt"
+                "cloudinary_id name ongoing outcome updatedAt format playoffMode"
             )
             .sort({ createdAt: -1, id: -1 })
     } else if (status === "finalized") {

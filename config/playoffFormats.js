@@ -61,6 +61,13 @@ const PLAYOFF_ROUNDS = Object.keys(TEAMS_BY_PLAYOFF_ROUND)
 // cada llave ocupa dos `playoff_id` salvo la final. Mismos rangos que usa el FE
 // para dibujar el bracket.
 const PLAYOFF_ROUND_IDS_BY_FORMAT = {
+    playoff: {
+        round_of_32: [1, 16],
+        round_of_16: [17, 24],
+        quarterfinal: [25, 28],
+        semifinal: [29, 30],
+        final: [31, 31],
+    },
     champions_league: {
         round_of_16: [1, 16],
         quarterfinal: [17, 24],
@@ -94,6 +101,7 @@ module.exports = {
     DEFAULT_PLAYOFF_START_SIZE,
     FINAL_PLAYOFF_ID_BY_FORMAT,
     PLAYOFF_ROUNDS,
+    PLAYOFF_ROUND_IDS_BY_FORMAT,
     PLAYOFF_START_SIZE_BY_FORMAT,
     getFinalPlayoffId,
     getPlayoffRoundIdRange,

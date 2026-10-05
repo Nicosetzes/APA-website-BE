@@ -1,8 +1,9 @@
+const { ensurePlayoffLegIndexReady } = require("../../database")
+const withTransaction = require("../../utils/withTransaction")
 const {
     originateTournament,
     originatePlayoffByTournamentId,
 } = require("./../../service")
-const withTransaction = require("../../utils/withTransaction")
 
 const GROUP_FORMATS = new Set([
     "champions_league",
@@ -28,9 +29,13 @@ const createPostTournaments = (dependencies = {}) => {
         dependencies.originatePlayoffByTournamentId ||
         originatePlayoffByTournamentId
     const runInTransaction = dependencies.withTransaction || withTransaction
+    const ensureIndex =
+        dependencies.ensurePlayoffLegIndexReady || ensurePlayoffLegIndexReady
 
     return async (req, res) => {
         const { cloudinary_id, format, name, players } = req.body
+        const playoffMode =
+            format === "playoff" ? req.body.playoffMode || "single" : undefined
         const teams = withoutEmptyGroups(req.body.teams)
         const tournament = {
             cloudinary_id: cloudinary_id ?? null,
@@ -38,6 +43,7 @@ const createPostTournaments = (dependencies = {}) => {
             name,
             players,
             teams,
+            ...(playoffMode ? { playoffMode } : {}),
         }
 
         let newTournament
@@ -51,6 +57,7 @@ const createPostTournaments = (dependencies = {}) => {
 
             newTournament = await createTournament(tournament)
         } else if (format === "playoff") {
+            await ensureIndex()
             newTournament = await runInTransaction(async (session) => {
                 const createdTournament = await createTournament(tournament, {
                     session,

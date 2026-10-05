@@ -1,16 +1,38 @@
-const { modifyMatchResultToRemoveIt } = require("./../../service")
+const {
+    modifyMatchResultToRemoveIt,
+    removePlayoffSeriesResult,
+} = require("./../../service")
+const { classifySeriesMatch } = require("../../service/playoffSeries")
 const { HttpError } = require("../../middleware/httpErrors")
 
 const createPutRemoveMatchByTournamentId = (dependencies = {}) => {
-    const removeMatchResult =
+    const removeLegacyResult =
         dependencies.modifyMatchResultToRemoveIt || modifyMatchResultToRemoveIt
+    const removeSeriesResult =
+        dependencies.removePlayoffSeriesResult || removePlayoffSeriesResult
 
     return async (req, res) => {
-        const { match } = req.params
-
-        // `requireMatchInTournament` ya verificó pertenencia y existencia; este
-        // 404 cubre la carrera en la que el partido desaparece en el medio.
-        const matchWithoutResult = await removeMatchResult(match)
+        const { tournament, match } = req.params
+        const classification = classifySeriesMatch({
+            tournament: req.tournament || {},
+            match: req.match || {},
+        })
+        if (classification === "invalid") {
+            throw new HttpError(
+                409,
+                "PLAYOFF_CONFIGURATION_ERROR",
+                "La configuración de la serie de playoff es inválida"
+            )
+        }
+        const matchWithoutResult =
+            classification === "legacy"
+                ? await removeLegacyResult(match)
+                : await removeSeriesResult({
+                      tournamentId: tournament,
+                      matchId: match,
+                      expectedSeriesRevision: req.body.expectedSeriesRevision,
+                      requestId: req.requestId || null,
+                  })
 
         if (!matchWithoutResult) {
             throw new HttpError(

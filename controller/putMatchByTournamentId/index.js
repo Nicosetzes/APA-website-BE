@@ -1,3 +1,7 @@
+const { HttpError } = require("../../middleware/httpErrors")
+const { classifySeriesMatch } = require("../../service/playoffSeries")
+const logger = require("../../utils/logger")
+const withTransaction = require("../../utils/withTransaction")
 const {
     modifyMatchResult,
     modifyTournamentOutcome,
@@ -6,10 +10,8 @@ const {
     retrievePlayinMatchesByTournamentId,
     generatePlayoffUpdate,
     generatePlayinUpdate,
+    processPlayoffSeriesResult,
 } = require("./../../service")
-const { HttpError } = require("../../middleware/httpErrors")
-const withTransaction = require("../../utils/withTransaction")
-const logger = require("../../utils/logger")
 const {
     getPlayoffStartSize,
     hasTabulatedFinalPlayoffId,
@@ -89,11 +91,34 @@ const createPutMatchByTournamentId = (dependencies = {}) => {
         retrievePlayinMatchesByTournamentId
     const updatePlayin =
         dependencies.generatePlayinUpdate || generatePlayinUpdate
+    const processSeries =
+        dependencies.processPlayoffSeriesResult || processPlayoffSeriesResult
     const runInTransaction = dependencies.withTransaction || withTransaction
     const log = dependencies.logger || logger
 
     return async (req, res) => {
         const { tournament, match } = req.params
+        const classification = classifySeriesMatch({
+            tournament: req.tournament || {},
+            match: req.match || {},
+        })
+        if (["series_leg", "decisive"].includes(classification)) {
+            const result = await processSeries({
+                tournamentId: tournament,
+                matchId: match,
+                body: req.body,
+                requestId: req.requestId || null,
+            })
+            return res.status(200).send(result)
+        }
+        if (classification === "invalid") {
+            throw new HttpError(
+                409,
+                "PLAYOFF_CONFIGURATION_ERROR",
+                "La configuración de la serie de playoff es inválida"
+            )
+        }
+
         const {
             playerP1,
             teamP1,
