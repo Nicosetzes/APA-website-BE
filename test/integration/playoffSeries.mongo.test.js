@@ -6,11 +6,6 @@ const matchesModel = require("../../dao/models/matches")
 const tournamentsModel = require("../../dao/models/tournaments")
 const updatePlayoffSeriesMatchResult = require("../../dao/updatePlayoffSeriesMatchResult")
 const {
-    PLAYOFF_LEG_INDEX_KEY: INDEX_KEY,
-    PLAYOFF_LEG_INDEX_NAME: INDEX_NAME,
-    PLAYOFF_LEG_INDEX_FILTER: PARTIAL_FILTER,
-} = require("../../config/playoffLegIndex")
-const {
     buildLegsForTie,
     calculatePhysicalOutcome,
 } = require("../../service/playoffSeries")
@@ -78,14 +73,15 @@ test(
                 "integration database name must explicitly contain test/dev/qa/staging"
             )
             const collection = matchesModel.collection
+            // Igual que en producción: autoIndex construye el índice al conectar.
+            await matchesModel.init()
             const indexes = await collection.listIndexes().toArray()
-            if (!indexes.some(({ name }) => name === INDEX_NAME)) {
-                await collection.createIndex(INDEX_KEY, {
-                    name: INDEX_NAME,
-                    unique: true,
-                    partialFilterExpression: PARTIAL_FILTER,
-                })
-            }
+            assert.ok(
+                indexes.some(
+                    ({ name }) => name === "uniq_playoff_tournament_tie_leg_v1"
+                ),
+                "autoIndex must build uniq_playoff_tournament_tie_leg_v1"
+            )
 
             const concurrent = await createFixture("concurrent")
             tournamentIds.push(concurrent.tournament._id)

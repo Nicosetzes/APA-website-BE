@@ -1,14 +1,13 @@
+const { HttpError } = require("../../middleware/httpErrors")
+const claimPlayoffSeriesRevision = require("../../dao/claimPlayoffSeriesRevision")
+const deletePendingPlayoffTiebreak = require("../../dao/deletePendingPlayoffTiebreak")
+const findPlayoffSeriesByTie = require("../../dao/findPlayoffSeriesByTie")
+const logger = require("../../utils/logger")
 const matchesModel = require("../../dao/models/matches")
 const tournamentsModel = require("../../dao/models/tournaments")
-const findPlayoffSeriesByTie = require("../../dao/findPlayoffSeriesByTie")
-const claimPlayoffSeriesRevision = require("../../dao/claimPlayoffSeriesRevision")
 const updatePlayoffSeriesMatchResult = require("../../dao/updatePlayoffSeriesMatchResult")
 const updatePlayoffSeriesSlots = require("../../dao/updatePlayoffSeriesSlots")
-const deletePendingPlayoffTiebreak = require("../../dao/deletePendingPlayoffTiebreak")
 const withTransaction = require("../../utils/withTransaction")
-const logger = require("../../utils/logger")
-const { ensurePlayoffLegIndexReady } = require("../../database")
-const { HttpError } = require("../../middleware/httpErrors")
 const {
     assertSeriesStructure,
     buildLegsForTie,
@@ -122,12 +121,9 @@ const createProcessPlayoffSeriesResult = (dependencies = {}) => {
         dependencies.deletePendingPlayoffTiebreak ||
         deletePendingPlayoffTiebreak
     const runInTransaction = dependencies.withTransaction || withTransaction
-    const ensureIndex =
-        dependencies.ensurePlayoffLegIndexReady || ensurePlayoffLegIndexReady
     const log = dependencies.logger || logger
 
     return async ({ tournamentId, matchId, body, requestId = null }) => {
-        await ensureIndex()
         const execute = ({ concurrentRetry = false } = {}) =>
             runInTransaction(async (session) => {
                 const tournament = await Tournament.findById(

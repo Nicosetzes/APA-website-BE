@@ -171,7 +171,6 @@ const createEnvironment = ({ playoffId = 1 } = {}) => {
         deletePendingPlayoffTiebreak: deleteTiebreak,
         withTransaction: runInTransaction,
         logger: { warn() {} },
-        ensurePlayoffLegIndexReady: async () => true,
     }
 
     return {
@@ -205,35 +204,6 @@ const markPlayed = (match, scoreP1, scoreP2) => {
         outcome: calculatePhysicalOutcome({ match, body, decisive: false }),
     })
 }
-
-test("managed mutation services check index readiness before transactions", async () => {
-    for (const createService of [
-        createProcessPlayoffSeriesResult,
-        createRemovePlayoffSeriesResult,
-    ]) {
-        const environment = createEnvironment()
-        const unavailable = new Error("index unavailable")
-        let transactionCalls = 0
-        environment.dependencies.ensurePlayoffLegIndexReady = async () => {
-            throw unavailable
-        }
-        environment.dependencies.withTransaction = async () => {
-            transactionCalls += 1
-        }
-        const service = createService(environment.dependencies)
-
-        await assert.rejects(
-            service({
-                tournamentId: "tournament",
-                matchId: environment.matches[0]._id,
-                body: bodyFor(environment.matches[0], 1, 0),
-                expectedSeriesRevision: 0,
-            }),
-            unavailable
-        )
-        assert.equal(transactionCalls, 0)
-    }
-})
 
 test("first feeder creates a complete TBD successor and returns decorated state", async () => {
     const environment = createEnvironment()

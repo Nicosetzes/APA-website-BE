@@ -1,11 +1,10 @@
-const matchesModel = require("../../dao/models/matches")
-const tournamentsModel = require("../../dao/models/tournaments")
-const findPlayoffSeriesByTie = require("../../dao/findPlayoffSeriesByTie")
 const claimPlayoffSeriesRevision = require("../../dao/claimPlayoffSeriesRevision")
 const deletePendingPlayoffTiebreak = require("../../dao/deletePendingPlayoffTiebreak")
-const withTransaction = require("../../utils/withTransaction")
 const logger = require("../../utils/logger")
-const { ensurePlayoffLegIndexReady } = require("../../database")
+const findPlayoffSeriesByTie = require("../../dao/findPlayoffSeriesByTie")
+const matchesModel = require("../../dao/models/matches")
+const tournamentsModel = require("../../dao/models/tournaments")
+const withTransaction = require("../../utils/withTransaction")
 const { HttpError } = require("../../middleware/httpErrors")
 const {
     assertSeriesStructure,
@@ -33,8 +32,6 @@ const createRemovePlayoffSeriesResult = (dependencies = {}) => {
         dependencies.deletePendingPlayoffTiebreak ||
         deletePendingPlayoffTiebreak
     const runInTransaction = dependencies.withTransaction || withTransaction
-    const ensureIndex =
-        dependencies.ensurePlayoffLegIndexReady || ensurePlayoffLegIndexReady
     const log = dependencies.logger || logger
 
     return async ({
@@ -43,7 +40,6 @@ const createRemovePlayoffSeriesResult = (dependencies = {}) => {
         expectedSeriesRevision,
         requestId = null,
     }) => {
-        await ensureIndex()
         try {
             return await runInTransaction(async (session) => {
                 const tournament = await Tournament.findById(

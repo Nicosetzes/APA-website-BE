@@ -1,10 +1,6 @@
+const logger = require("../../utils/logger")
 const mongoose = require("mongoose")
 const { schemaVersionPlugin } = require("./plugins/schemaVersion")
-const {
-    PLAYOFF_LEG_INDEX_FILTER,
-    PLAYOFF_LEG_INDEX_KEY,
-    PLAYOFF_LEG_INDEX_NAME,
-} = require("../../config/playoffLegIndex")
 
 const collection = "face-to-face"
 const MATCH_TYPES = ["regular", "playin", "playoff"]
@@ -100,12 +96,35 @@ matchesSchema.index(
     { name: "playoff_tournament_listing_v1" }
 )
 
-matchesSchema.index(PLAYOFF_LEG_INDEX_KEY, {
-    name: PLAYOFF_LEG_INDEX_NAME,
-    unique: true,
-    partialFilterExpression: PLAYOFF_LEG_INDEX_FILTER,
-})
+// Un partido físico por llave y leg; processPlayoffSeriesResult traduce el
+// error 11000 de este índice en 409 PLAYOFF_DUPLICATE_LEG.
+matchesSchema.index(
+    { "tournament.id": 1, playoff_id: 1, leg: 1 },
+    {
+        name: "uniq_playoff_tournament_tie_leg_v1",
+        unique: true,
+        partialFilterExpression: {
+            type: "playoff",
+            leg: { $type: "number" },
+            playoff_id: { $type: "number" },
+            "tournament.id": { $type: "string" },
+        },
+    }
+)
 
 matchesSchema.plugin(schemaVersionPlugin)
 
-module.exports = mongoose.model(collection, matchesSchema)
+const Match = mongoose.model(collection, matchesSchema)
+
+// Mongoose construye los índices al conectar y, si falla, sólo emite "index".
+Match.on("index", (error) => {
+    if (!error) return
+    logger.error("mongo_index_build_failed", {
+        collection,
+        errorName: error.name || "Error",
+        code: error.code ?? null,
+        codeName: error.codeName ?? null,
+    })
+})
+
+module.exports = Match

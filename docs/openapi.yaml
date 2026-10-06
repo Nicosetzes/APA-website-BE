@@ -522,8 +522,6 @@ paths:
                     $ref: "#/components/responses/BadRequest"
                 "401":
                     $ref: "#/components/responses/InvalidSession"
-                "503":
-                    $ref: "#/components/responses/PlayoffIndexUnavailable"
     /api/tournaments/{tournament}:
         get:
             tags: [Tournaments]
@@ -961,8 +959,6 @@ paths:
                     $ref: "#/components/responses/NotFound"
                 "409":
                     $ref: "#/components/responses/PlayoffMutationConflict"
-                "503":
-                    $ref: "#/components/responses/PlayoffIndexUnavailable"
     /api/tournaments/{tournament}/matches/delete-game/{match}:
         put:
             tags: [Matches]
@@ -999,8 +995,6 @@ paths:
                     $ref: "#/components/responses/NotFound"
                 "409":
                     $ref: "#/components/responses/PlayoffMutationConflict"
-                "503":
-                    $ref: "#/components/responses/PlayoffIndexUnavailable"
     /api/tournaments/{tournament}/playoffs/preview:
         get:
             tags: [Tournaments]
@@ -1395,12 +1389,6 @@ components:
                 PLAYOFF_COMPETITOR_CONFLICT, PLAYOFF_SERIES_NOT_READY o
                 PLAYOFF_CONFIGURATION_ERROR. PLAYOFF_SERIES_ADVANCED también
                 protege de forma fail-closed una final ya cerrada; no se ejecutan cascadas.
-            content:
-                application/json:
-                    schema:
-                        $ref: "#/components/schemas/ErrorResponse"
-        PlayoffIndexUnavailable:
-            description: PLAYOFF_INDEX_NOT_READY. La definición requerida del índice parcial único no está disponible; no se inicia la escritura administrada.
             content:
                 application/json:
                     schema:

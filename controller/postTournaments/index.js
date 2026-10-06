@@ -1,4 +1,3 @@
-const { ensurePlayoffLegIndexReady } = require("../../database")
 const withTransaction = require("../../utils/withTransaction")
 const {
     originateTournament,
@@ -29,8 +28,6 @@ const createPostTournaments = (dependencies = {}) => {
         dependencies.originatePlayoffByTournamentId ||
         originatePlayoffByTournamentId
     const runInTransaction = dependencies.withTransaction || withTransaction
-    const ensureIndex =
-        dependencies.ensurePlayoffLegIndexReady || ensurePlayoffLegIndexReady
 
     return async (req, res) => {
         const { cloudinary_id, format, name, players } = req.body
@@ -57,7 +54,6 @@ const createPostTournaments = (dependencies = {}) => {
 
             newTournament = await createTournament(tournament)
         } else if (format === "playoff") {
-            await ensureIndex()
             newTournament = await runInTransaction(async (session) => {
                 const createdTournament = await createTournament(tournament, {
                     session,
