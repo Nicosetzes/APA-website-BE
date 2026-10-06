@@ -1,4 +1,4 @@
-const { updateStreaks, finalizeLongestStreak } = require("./streaks")
+const { createStreakState, updateStreaks } = require("./streaks")
 
 const createAccumulator = ({ id, name }) => ({
     id,
@@ -16,31 +16,7 @@ const createAccumulator = ({ id, name }) => ({
     _curType: null,
     _curLen: 0,
     _curDone: false,
-    _prevType: null,
-    _prevLen: 0,
-    _prevEndDate: null,
-    _maxW: 0,
-    _maxWDate: null,
-    _maxD: 0,
-    _maxDDate: null,
-    _maxL: 0,
-    _maxLDate: null,
-    _runCS: 0,
-    _maxCS: 0,
-    _maxCSDate: null,
-    _runCSEndDate: null,
-    _runG1: 0,
-    _maxG1: 0,
-    _maxG1Date: null,
-    _runG1EndDate: null,
-    _runG2: 0,
-    _maxG2: 0,
-    _maxG2Date: null,
-    _runG2EndDate: null,
-    _runG3: 0,
-    _maxG3: 0,
-    _maxG3Date: null,
-    _runG3EndDate: null,
+    ...createStreakState(),
     _recent: [],
 })
 
@@ -112,7 +88,7 @@ const aggregatePlayers = ({
             result,
             goalsFor,
             goalsAgainst,
-            date: match.updatedAt || null,
+            match,
         })
 
         if (accumulator._recent.length < 10) {
@@ -150,10 +126,6 @@ const aggregatePlayers = ({
             goalsAgainst: scoreP1,
             team: match.teamP2,
         })
-    }
-
-    for (const accumulator of accumulators.values()) {
-        finalizeLongestStreak(accumulator)
     }
 
     for (const player of registeredPlayers) ensure(player.id)

@@ -78,6 +78,7 @@ test("statistics keeps its top level contract in global scope", async () => {
         "decisiveMatchesStats",
         "leaderboards",
         "records",
+        "activeStreaks",
     ])
     assert.deepEqual(response.body.scope, { tournament: null })
     assert.deepEqual(Object.keys(response.body.leaderboards), [
@@ -104,7 +105,43 @@ test("statistics keeps its top level contract in global scope", async () => {
         "most_wins_in_a_row",
         "most_draws_in_a_row",
         "most_losses_in_a_row",
+        "most_unbeaten_in_a_row",
     ])
+    assert.ok(response.body.activeStreaks)
+    assert.deepEqual(Object.keys(response.body.activeStreaks), [
+        "most_clean_sheets_in_a_row",
+        "most_consecutive_matches_scoring_1_plus_goals",
+        "most_consecutive_matches_scoring_2_plus_goals",
+        "most_consecutive_matches_scoring_3_plus_goals",
+        "most_wins_in_a_row",
+        "most_draws_in_a_row",
+        "most_losses_in_a_row",
+        "most_unbeaten_in_a_row",
+    ])
+
+    const holderKeys = [
+        "id",
+        "name",
+        "date",
+        "isActive",
+        "startDate",
+        "endDate",
+        "startMatch",
+        "endMatch",
+        "breakMatch",
+    ]
+    const [closedDraw] = response.body.records.most_draws_in_a_row.players
+    assert.deepEqual(Object.keys(closedDraw), holderKeys)
+    assert.equal(closedDraw.isActive, false)
+    assert.equal(closedDraw.breakMatch.date, "2026-09-20T12:00:00.000Z")
+
+    // Las vigentes de un solo partido no cuentan como racha.
+    assert.equal(response.body.activeStreaks.most_wins_in_a_row, null)
+    const [unbeaten] =
+        response.body.activeStreaks.most_unbeaten_in_a_row.players
+    assert.deepEqual(Object.keys(unbeaten), holderKeys)
+    assert.equal(response.body.activeStreaks.most_unbeaten_in_a_row.count, 2)
+    assert.equal(unbeaten.breakMatch, null)
 })
 
 test("statistics aggregates per player without a tournament scope", async () => {

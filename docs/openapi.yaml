@@ -417,6 +417,28 @@ paths:
                 partidos válidos jugados de ese torneo, y agrega `longest_streak`
                 por jugador. El detalle interno de cada leaderboard todavía no
                 está descripto campo por campo.
+
+                Las rachas de `records` (`most_*_in_a_row`) y de `activeStreaks`
+                comparten el shape `{ count, players }` (o `null` si nadie tiene
+                racha). Cada poseedor trae `id`, `name`, `date` (igual a
+                `endDate`, por compatibilidad), `isActive`, `startDate`,
+                `endDate`, `startMatch`, `endMatch` y `breakMatch`. Las fechas
+                salen de `updatedAt` y son `null` en partidos sin timestamps.
+                Una racha está activa si incluye el partido más reciente del
+                jugador. `endMatch` es el último partido válido de la racha y
+                `breakMatch` el partido que la cortó (`null` si está activa).
+                Los partidos (`date`, `tournament`, `type`, `team`, `opponent`,
+                `opponentTeam`, `goalsFor`, `goalsAgainst`, `result`,
+                `penalties`) van en la perspectiva del poseedor; con una racha
+                de un partido, `startMatch` y `endMatch` son el mismo.
+                `penalties` es `null` si el partido no se definió por penales;
+                si no, `{ won, goalsFor, goalsAgainst }` con los goles de la
+                tanda (ambos `null` en partidos sin ese resultado registrado).
+                Entre empatados se ordena primero la activa y después por
+                `startDate` ascendente (sin fecha al final). `activeStreaks`
+                tiene, por tipo, la racha vigente más larga entre jugadores;
+                es `null` si esa racha tiene menos de 2 partidos. En `records`
+                se mantienen las rachas de 1 partido por compatibilidad.
             parameters:
                 - in: query
                   name: tournament
@@ -436,6 +458,7 @@ paths:
                                     - decisiveMatchesStats
                                     - leaderboards
                                     - records
+                                    - activeStreaks
                                 properties:
                                     scope:
                                         type: object
@@ -457,6 +480,9 @@ paths:
                                         type: object
                                         additionalProperties: true
                                     records:
+                                        type: object
+                                        additionalProperties: true
+                                    activeStreaks:
                                         type: object
                                         additionalProperties: true
                 "400":

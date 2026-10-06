@@ -1,14 +1,18 @@
+const { HttpError } = require("../../middleware/httpErrors")
+const { aggregatePlayers } = require("./domain/playerAggregation")
+const { buildDecisiveMatchesStats } = require("./domain/decisiveStatistics")
+const {
+    buildActiveStreaks,
+    buildRecords,
+    selectMatchRecords,
+} = require("./domain/records")
+const { buildPlayersOutput, buildLeaderboards } = require("./domain/rankings")
 const {
     retrieveAllUsers,
     retrieveAllMatches,
     retrieveTournamentById,
     orderMatchesFromTournamentById,
 } = require("./../../service")
-const { HttpError } = require("../../middleware/httpErrors")
-const { buildDecisiveMatchesStats } = require("./domain/decisiveStatistics")
-const { aggregatePlayers } = require("./domain/playerAggregation")
-const { buildPlayersOutput, buildLeaderboards } = require("./domain/rankings")
-const { selectMatchRecords, buildRecords } = require("./domain/records")
 
 // Combined summary stats and streaks endpoint
 // GET /api/statistics[?tournament=<id>]
@@ -90,6 +94,8 @@ const createGetStatistics = (dependencies = {}) => {
         })
 
         const records = buildRecords({ matchRecords, accumulators: vals })
+        // Fuera de `records` para que el FE no lo itere como un récord más.
+        const activeStreaks = buildActiveStreaks({ accumulators: vals })
 
         return res.status(200).json({
             scope,
@@ -97,6 +103,7 @@ const createGetStatistics = (dependencies = {}) => {
             decisiveMatchesStats,
             leaderboards,
             records,
+            activeStreaks,
         })
     }
 }
