@@ -100,3 +100,48 @@ test("daily recap container validation applies only to v1 tournaments", async ()
     assert.equal(legacy.schemaVersion, undefined)
     assert.deepEqual(legacy.daily_recap, [])
 })
+
+test("tournament dates are optional, without defaults or indexes", async () => {
+    const tournament = new tournamentsModel(validTournament)
+    await tournament.validate()
+
+    assert.equal(tournament.startedAt, undefined)
+    assert.equal(tournament.closedAt, undefined)
+    assert.equal(tournament.startedAtPrecision, undefined)
+    assert.equal(tournament.closedAtPrecision, undefined)
+
+    const dated = new tournamentsModel({
+        ...validTournament,
+        startedAt: "2019-01-01T00:00:00.000Z",
+        startedAtPrecision: "year",
+        closedAt: "2019-12-31T00:00:00.000Z",
+        closedAtPrecision: "approx",
+    })
+    await dated.validate()
+    assert.ok(dated.startedAt instanceof Date)
+
+    const invalid = new tournamentsModel({
+        ...validTournament,
+        closedAtPrecision: "week",
+    })
+    const error = await invalid
+        .validate()
+        .catch((validationError) => validationError)
+    assert.ok(error.errors.closedAtPrecision)
+
+    const indexedPaths = tournamentsModel.schema
+        .indexes()
+        .flatMap(([fields]) => Object.keys(fields))
+    for (const path of [
+        "startedAt",
+        "closedAt",
+        "startedAtPrecision",
+        "closedAtPrecision",
+    ]) {
+        assert.equal(indexedPaths.includes(path), false, path)
+        assert.equal(
+            tournamentsModel.schema.path(path).options.index,
+            undefined
+        )
+    }
+})

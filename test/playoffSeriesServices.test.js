@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict")
 const test = require("node:test")
+const matchesModel = require("../dao/models/matches")
 const {
     buildLegsForTie,
     calculatePhysicalOutcome,
@@ -30,6 +31,19 @@ const tournamentFixture = () => ({
 const clone = (value) => JSON.parse(JSON.stringify(value))
 const queryResult = (getValue) => ({ session: async () => getValue() })
 
+const INITIAL_UPDATED_AT = "2026-03-01T00:00:00.000Z"
+
+const valueAt = (document, path) =>
+    path.split(".").reduce((value, key) => value?.[key], document)
+const matchesFilter = (document, filter) =>
+    Object.entries(filter).every(([path, expected]) => {
+        if (expected === undefined) return true
+        const value = valueAt(document, path)
+        return expected === null
+            ? value == null
+            : String(value) === String(expected)
+    })
+
 const createEnvironment = ({ playoffId = 1 } = {}) => {
     const tournament = tournamentFixture()
     const matches = buildLegsForTie({
@@ -37,8 +51,24 @@ const createEnvironment = ({ playoffId = 1 } = {}) => {
         playoffId,
         unitA: unit(1, `${playoffId}A`),
         unitB: unit(2, `${playoffId}B`),
-    }).map((match, index) => ({ ...match, _id: `match-${index + 1}` }))
+    }).map((match, index) => ({
+        ...match,
+        _id: `match-${index + 1}`,
+        updatedAt: INITIAL_UPDATED_AT,
+    }))
     let nextId = 10
+    let tick = 0
+    const clock = () =>
+        new Date(Date.UTC(2026, 3, 1, 0, 0, ++tick)).toISOString()
+    // Simula los timestamps de Mongoose: toda escritura sin
+    // `timestamps: false` mueve updatedAt.
+    const applyUpdate = (document, update, options = {}) => {
+        for (const [key, amount] of Object.entries(update.$inc || {}))
+            document[key] = (document[key] || 0) + amount
+        for (const key of Object.keys(update.$unset || {})) delete document[key]
+        Object.assign(document, clone(update.$set || {}))
+        if (options?.timestamps !== false) document.updatedAt = clock()
+    }
 
     const Match = {
         findById: (id) =>
@@ -68,17 +98,12 @@ const createEnvironment = ({ playoffId = 1 } = {}) => {
             matches.push(...inserted)
             return inserted
         },
-        findOneAndUpdate: async (filter, update) => {
-            const match = matches.find(
-                (candidate) =>
-                    String(candidate._id) === String(filter._id) &&
-                    (filter.played === undefined ||
-                        candidate.played === filter.played)
+        findOneAndUpdate: async (filter, update, options) => {
+            const match = matches.find((candidate) =>
+                matchesFilter(candidate, filter)
             )
             if (!match) return null
-            for (const key of Object.keys(update.$unset || {}))
-                delete match[key]
-            Object.assign(match, update.$set || {})
+            applyUpdate(match, update, options)
             return match
         },
     }
@@ -180,7 +205,39 @@ const createEnvironment = ({ playoffId = 1 } = {}) => {
         Match,
         claimRevision,
         findSeries,
+        applyUpdate,
     }
+}
+
+// Reemplaza los stubs de DAO por los DAO reales (claim de revisión, resultado
+// y slots) sobre un modelo falso, para que las opciones que pasan los DAO
+// decidan si updatedAt se mueve.
+const useRealSeriesDaos = (t, environment) => {
+    const originalFindOneAndUpdate = matchesModel.findOneAndUpdate
+    const originalUpdateOne = matchesModel.updateOne
+    t.after(() => {
+        matchesModel.findOneAndUpdate = originalFindOneAndUpdate
+        matchesModel.updateOne = originalUpdateOne
+    })
+    const find = (filter) =>
+        environment.matches.find((match) => matchesFilter(match, filter))
+
+    matchesModel.findOneAndUpdate = async (filter, update, options) => {
+        const match = find(filter)
+        if (!match) return null
+        environment.applyUpdate(match, update, options)
+        return match
+    }
+    matchesModel.updateOne = async (filter, update, options) => {
+        const match = find(filter)
+        if (!match) return { modifiedCount: 0 }
+        environment.applyUpdate(match, update, options)
+        return { modifiedCount: 1 }
+    }
+
+    delete environment.dependencies.claimPlayoffSeriesRevision
+    delete environment.dependencies.updatePlayoffSeriesMatchResult
+    delete environment.dependencies.updatePlayoffSeriesSlots
 }
 
 const bodyFor = (match, scoreP1, scoreP2, extra = {}) => ({
@@ -566,6 +623,13 @@ test("final closes fail-closed and later correction is rejected", async () => {
         environment.tournament.outcome.champion.team.id,
         final.teamP1.id
     )
+    // El cierre toma la fecha del partido que decidió la final.
+    assert.ok(final.playedAt)
+    assert.equal(
+        new Date(environment.tournament.closedAt).getTime(),
+        new Date(final.playedAt).getTime()
+    )
+    assert.equal(environment.tournament.closedAtPrecision, "exact")
 
     const remove = createRemovePlayoffSeriesResult(environment.dependencies)
     await assert.rejects(
@@ -576,6 +640,185 @@ test("final closes fail-closed and later correction is rejected", async () => {
         }),
         { status: 409, code: "PLAYOFF_SERIES_ADVANCED" }
     )
+})
+
+test("series final closure inherits the final's playedAt precision", async () => {
+    const environment = createEnvironment({ playoffId: 31 })
+    const [final] = environment.matches
+    const updateResult = environment.dependencies.updatePlayoffSeriesMatchResult
+    environment.dependencies.updatePlayoffSeriesMatchResult = async (
+        ...args
+    ) => {
+        const updated = await updateResult(...args)
+        if (updated) {
+            updated.playedAt = "2022-11-15T00:00:00.000Z"
+            updated.playedAtPrecision = "day"
+        }
+        return updated
+    }
+    const process = createProcessPlayoffSeriesResult(environment.dependencies)
+
+    await process({
+        tournamentId: "tournament",
+        matchId: final._id,
+        body: bodyFor(final, 2, 1),
+    })
+
+    assert.equal(environment.tournament.ongoing, false)
+    assert.equal(environment.tournament.closedAt, "2022-11-15T00:00:00.000Z")
+    assert.equal(environment.tournament.closedAtPrecision, "day")
+})
+
+test("loading the return leg does not move the first leg updatedAt", async (t) => {
+    const environment = createEnvironment()
+    useRealSeriesDaos(t, environment)
+    const [first, second] = environment.matches
+    markPlayed(first, 1, 0)
+    const service = createProcessPlayoffSeriesResult(environment.dependencies)
+
+    const result = await service({
+        tournamentId: "tournament",
+        matchId: second._id,
+        body: bodyFor(second, 1, 0, { expectedSeriesRevision: 0 }),
+    })
+
+    assert.equal(result.series.status, "awaiting_tiebreak")
+    assert.equal(first.seriesRevision, 1)
+    assert.equal(first.updatedAt, INITIAL_UPDATED_AT)
+    assert.notEqual(second.updatedAt, INITIAL_UPDATED_AT)
+    // Sólo la pierna cargada recibe playedAt; ni la ida ni el desempate.
+    assert.equal(first.playedAt, undefined)
+    assert.equal(first.playedAtPrecision, undefined)
+    assert.ok(Number.isFinite(Date.parse(second.playedAt)))
+    assert.equal(second.playedAtPrecision, "exact")
+    const tiebreak = environment.matches.find(({ leg }) => leg === 3)
+    assert.equal(tiebreak.playedAt, undefined)
+})
+
+test("re-editing the return leg does not move the first leg updatedAt", async (t) => {
+    const environment = createEnvironment()
+    useRealSeriesDaos(t, environment)
+    const [first, second] = environment.matches
+    markPlayed(first, 1, 0)
+    const service = createProcessPlayoffSeriesResult(environment.dependencies)
+    await service({
+        tournamentId: "tournament",
+        matchId: second._id,
+        body: bodyFor(second, 1, 0, { expectedSeriesRevision: 0 }),
+    })
+    const loadedAt = second.updatedAt
+    const playedAt = second.playedAt
+    assert.ok(playedAt)
+
+    const result = await service({
+        tournamentId: "tournament",
+        matchId: second._id,
+        body: bodyFor(second, 2, 0, { expectedSeriesRevision: 1 }),
+    })
+
+    assert.equal(result.series.status, "decided")
+    assert.equal(first.seriesRevision, 2)
+    assert.equal(first.updatedAt, INITIAL_UPDATED_AT)
+    assert.notEqual(second.updatedAt, loadedAt)
+    // Editar el resultado no mueve playedAt.
+    assert.equal(second.playedAt, playedAt)
+    assert.equal(second.playedAtPrecision, "exact")
+    assert.equal(first.playedAt, undefined)
+    assert.equal(
+        environment.matches.some(({ leg }) => leg === 3),
+        false
+    )
+})
+
+test("removing the return leg does not move the first leg updatedAt", async (t) => {
+    const environment = createEnvironment()
+    useRealSeriesDaos(t, environment)
+    const [first, second] = environment.matches
+    markPlayed(first, 1, 0)
+    const process = createProcessPlayoffSeriesResult(environment.dependencies)
+    await process({
+        tournamentId: "tournament",
+        matchId: second._id,
+        body: bodyFor(second, 1, 0, { expectedSeriesRevision: 0 }),
+    })
+    const loadedAt = second.updatedAt
+
+    const remove = createRemovePlayoffSeriesResult(environment.dependencies)
+    const cleaned = await remove({
+        tournamentId: "tournament",
+        matchId: second._id,
+        expectedSeriesRevision: 1,
+    })
+
+    assert.equal(cleaned.played, false)
+    assert.equal(first.seriesRevision, 2)
+    assert.equal(first.updatedAt, INITIAL_UPDATED_AT)
+    assert.notEqual(second.updatedAt, loadedAt)
+    // Borrar el resultado borra playedAt y su precisión.
+    assert.equal("playedAt" in second, false)
+    assert.equal("playedAtPrecision" in second, false)
+})
+
+test("editing a leg played before the backfill keeps its previous updatedAt as playedAt", async (t) => {
+    const environment = createEnvironment()
+    useRealSeriesDaos(t, environment)
+    const [first, second] = environment.matches
+    markPlayed(first, 1, 0)
+    const service = createProcessPlayoffSeriesResult(environment.dependencies)
+
+    await service({
+        tournamentId: "tournament",
+        matchId: first._id,
+        body: bodyFor(first, 2, 0, { expectedSeriesRevision: 0 }),
+    })
+
+    assert.equal(first.scoreP1, 2)
+    assert.equal(
+        new Date(first.playedAt).toISOString(),
+        new Date(INITIAL_UPDATED_AT).toISOString()
+    )
+    assert.equal(first.playedAtPrecision, "exact")
+    assert.equal(second.playedAt, undefined)
+})
+
+test("advancing a winner keeps bookkeeping without moving sibling updatedAt", async (t) => {
+    const environment = createEnvironment({ playoffId: 2 })
+    useRealSeriesDaos(t, environment)
+    const [first, second] = environment.matches
+    const existingDestination = buildLegsForTie({
+        tournament: environment.tournament,
+        playoffId: 17,
+        unitA: unit(9, "source-1"),
+        unitB: null,
+    }).map((match, index) => ({
+        ...match,
+        _id: `destination-${index}`,
+        updatedAt: INITIAL_UPDATED_AT,
+    }))
+    environment.matches.push(...existingDestination)
+    markPlayed(first, 1, 0)
+    const service = createProcessPlayoffSeriesResult(environment.dependencies)
+
+    const result = await service({
+        tournamentId: "tournament",
+        matchId: second._id,
+        body: bodyFor(second, 0, 1, { expectedSeriesRevision: 0 }),
+    })
+
+    const [destinationFirst, destinationSecond] = existingDestination
+    assert.equal(result.series.status, "decided")
+    assert.equal(first.seriesRevision, 1)
+    assert.equal(first.updatedAt, INITIAL_UPDATED_AT)
+    assert.equal(destinationFirst.seriesRevision, 1)
+    assert.equal(destinationFirst.teamP2.id, first.teamP1.id)
+    assert.equal(destinationSecond.teamP1.id, first.teamP1.id)
+    assert.equal(destinationFirst.updatedAt, INITIAL_UPDATED_AT)
+    assert.equal(destinationSecond.updatedAt, INITIAL_UPDATED_AT)
+    // Los slots de destino y la ida no reciben playedAt.
+    assert.equal(first.playedAt, undefined)
+    assert.equal(destinationFirst.playedAt, undefined)
+    assert.equal(destinationSecond.playedAt, undefined)
+    assert.ok(second.playedAt)
 })
 
 test("team-identified aggregate remains stable when the return leg swaps sides", () => {

@@ -259,3 +259,70 @@ test("play-in reads attach the session and keep the playoff_id sort", async (t) 
     assert.equal(query.receivedSession, session)
     assert.deepEqual(query.receivedSort, { playoff_id: 1 })
 })
+
+test("filling a side of an already played destination recomputes its outcome", async (t) => {
+    const writes = stubWrites(t)
+    const staleTeam = { id: "stale-team", name: "Stale Team" }
+
+    await generatePlayinUpdate(tournament, [
+        played(1, "A"),
+        played(2, "A"),
+        pending(3, "B"),
+        pending(4, "B"),
+        {
+            playoff_id: 5,
+            played: true,
+            group: "A",
+            playerP1: null,
+            teamP1: null,
+            seedP1: null,
+            scoreP1: 2,
+            playerP2: { id: "2-winner", name: "Winner" },
+            teamP2: { id: "2-winner-team", name: "Winner Team" },
+            seedP2: "2W",
+            scoreP2: 1,
+            outcome: {
+                playerThatWon: { id: "1-loser", name: "Loser" },
+                teamThatWon: staleTeam,
+                seedFromTeamThatWon: "1L",
+                scoreFromTeamThatWon: 2,
+                playerThatLost: { id: "2-winner", name: "Winner" },
+                teamThatLost: { id: "2-winner-team", name: "Winner Team" },
+                seedFromTeamThatLost: "2W",
+                scoreFromTeamThatLost: 1,
+                draw: false,
+                scoringDifference: 1,
+            },
+        },
+    ])
+
+    const { update } = writes.updated[0]
+    assert.equal(update.$set.teamP1.id, "1-loser-team")
+    assert.equal(update.$set.outcome.teamThatWon.id, "1-loser-team")
+    assert.equal(update.$set.outcome.playerThatWon.id, "1-loser")
+    assert.equal(update.$set.outcome.teamThatLost.id, "2-winner-team")
+    assert.equal(update.$set.outcome.scoreFromTeamThatWon, 2)
+    assert.equal(update.$set.outcome.scoringDifference, 1)
+})
+
+test("filling a side of a pending destination does not write an outcome", async (t) => {
+    const writes = stubWrites(t)
+
+    await generatePlayinUpdate(tournament, [
+        played(1, "A"),
+        played(2, "A"),
+        pending(3, "B"),
+        pending(4, "B"),
+        {
+            playoff_id: 5,
+            played: false,
+            group: "A",
+            playerP1: null,
+            teamP1: null,
+            playerP2: { id: "2-winner" },
+            teamP2: { id: "2-winner-team" },
+        },
+    ])
+
+    assert.equal("outcome" in writes.updated[0].update.$set, false)
+})

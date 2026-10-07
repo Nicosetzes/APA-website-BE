@@ -475,3 +475,71 @@ test("tournament creation accepts a null group and rejects an invalid letter", a
         "VALIDATION_ERROR"
     )
 })
+
+test("tournament creation stores team ids as numbers", async () => {
+    const request = (teamId) => ({
+        params: {},
+        query: {},
+        body: {
+            format: "league",
+            name: "Liga",
+            players: [{ id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Player" }],
+            teams: [
+                {
+                    team: { id: teamId, name: "Team" },
+                    player: { id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Player" },
+                },
+            ],
+        },
+    })
+
+    const numericString = request("435")
+    assert.equal(
+        await runValidation(schemas.createTournament, numericString),
+        undefined
+    )
+    assert.equal(numericString.body.teams[0].team.id, 435)
+
+    const numeric = request(10)
+    assert.equal(
+        await runValidation(schemas.createTournament, numeric),
+        undefined
+    )
+    assert.equal(numeric.body.teams[0].team.id, 10)
+
+    for (const invalid of ["river", "-1", 1.5, -3]) {
+        assert.equal(
+            (await runValidation(schemas.createTournament, request(invalid)))
+                ?.code,
+            "VALIDATION_ERROR",
+            String(invalid)
+        )
+    }
+})
+
+test("match updates keep accepting string and number team ids", async () => {
+    const request = (teamId) => ({
+        params: {
+            tournament: "aaaaaaaaaaaaaaaaaaaaaaaa",
+            match: "bbbbbbbbbbbbbbbbbbbbbbbb",
+        },
+        query: {},
+        body: {
+            playerP1: { id: "1", name: "Player 1" },
+            teamP1: { id: teamId, name: "Team A" },
+            scoreP1: 2,
+            playerP2: { id: "2", name: "Player 2" },
+            teamP2: { id: 20, name: "Team B" },
+            scoreP2: 1,
+        },
+    })
+
+    assert.equal(
+        await runValidation(schemas.updateMatch, request("10")),
+        undefined
+    )
+    assert.equal(
+        await runValidation(schemas.updateMatch, request(10)),
+        undefined
+    )
+})

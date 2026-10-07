@@ -8,6 +8,7 @@ const tournamentsModel = require("../../dao/models/tournaments")
 const updatePlayoffSeriesMatchResult = require("../../dao/updatePlayoffSeriesMatchResult")
 const updatePlayoffSeriesSlots = require("../../dao/updatePlayoffSeriesSlots")
 const withTransaction = require("../../utils/withTransaction")
+const { resolvePlayedAtOnResult } = require("../../utils/playedAt")
 const {
     assertSeriesStructure,
     buildLegsForTie,
@@ -253,6 +254,8 @@ const createProcessPlayoffSeriesResult = (dependencies = {}) => {
                         "La serie fue modificada por otra solicitud"
                     )
 
+                // playedAt sólo va en el resultado del partido cargado; las
+                // piernas hermanas, el desempate y los slots no lo reciben.
                 const updated = await updateResult(
                     matchId,
                     {
@@ -263,6 +266,7 @@ const createProcessPlayoffSeriesResult = (dependencies = {}) => {
                         ...(body.valid !== undefined
                             ? { valid: Boolean(body.valid) }
                             : {}),
+                        ...resolvePlayedAtOnResult(match, new Date()),
                     },
                     {
                         session,
@@ -332,6 +336,12 @@ const createProcessPlayoffSeriesResult = (dependencies = {}) => {
                                             player: loser.player,
                                         },
                                     },
+                                    // El cierre toma la fecha del partido
+                                    // que decidió la final (D3).
+                                    closedAt: updated.playedAt ?? new Date(),
+                                    closedAtPrecision: updated.playedAt
+                                        ? updated.playedAtPrecision ?? "exact"
+                                        : "exact",
                                 },
                             },
                             { session }

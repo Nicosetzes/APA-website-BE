@@ -1,3 +1,5 @@
+const { getPlayedAt, getPlayedAtPrecision } = require("../../../utils/playedAt")
+
 const selectMatchRecords = (matchesNewestFirst) => {
     let highestDiffMatch = null
     let mostGoalsMatch = null
@@ -26,7 +28,8 @@ const formatMatch = (match) => ({
     team2: match.teamP2?.name || null,
     score: `${match.scoreP1}-${match.scoreP2}`,
     tournament: match.tournament?.name || null,
-    date: match.updatedAt || null,
+    date: getPlayedAt(match) || null,
+    datePrecision: getPlayedAtPrecision(match),
 })
 
 const toReference = (entity) =>
@@ -78,7 +81,8 @@ const formatStreakMatch = (match, playerId) => {
     else if (goalsFor < goalsAgainst) result = "L"
 
     return {
-        date: match.updatedAt || null,
+        date: getPlayedAt(match) || null,
+        datePrecision: getPlayedAtPrecision(match),
         tournament: toReference(match.tournament),
         type: match.type || null,
         team: toReference(isP1 ? match.teamP1 : match.teamP2),
@@ -94,15 +98,19 @@ const formatStreakMatch = (match, playerId) => {
 const formatStreakHolder = (entry, prefix, isActive) => {
     const startMatch = entry[`${prefix}Start`]
     const endMatch = entry[`${prefix}End`]
-    const endDate = endMatch?.updatedAt || null
+    const endDate = getPlayedAt(endMatch) || null
+    const endDatePrecision = getPlayedAtPrecision(endMatch)
 
     return {
         id: entry.id,
         name: entry.name,
         date: endDate,
+        datePrecision: endDatePrecision,
         isActive,
-        startDate: startMatch?.updatedAt || null,
+        startDate: getPlayedAt(startMatch) || null,
+        startDatePrecision: getPlayedAtPrecision(startMatch),
         endDate,
+        endDatePrecision,
         startMatch: formatStreakMatch(startMatch, entry.id),
         endMatch: formatStreakMatch(endMatch, entry.id),
         // Partido que cortó la racha; una vigente todavía no tiene corte.

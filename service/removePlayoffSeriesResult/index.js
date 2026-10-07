@@ -143,6 +143,8 @@ const createRemovePlayoffSeriesResult = (dependencies = {}) => {
                             scoreP2: 1,
                             outcome: 1,
                             valid: 1,
+                            playedAt: 1,
+                            playedAtPrecision: 1,
                         },
                         $set: { played: false },
                     },

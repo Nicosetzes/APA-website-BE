@@ -1,23 +1,18 @@
 const matchesModel = require("./../models/matches.js")
+const { comparePlayedAtDesc } = require("../../utils/playedAt")
 
 const sortMatchesFromTournamentById = async (tournamentId, group) => {
-    let matches = group
-        ? await matchesModel
-              .find({
-                  "tournament.id": tournamentId,
-                  group: group,
-                  played: true,
-                  type: "regular",
-              })
-              .sort({ updatedAt: -1, _id: -1 })
-        : await matchesModel
-              .find({
-                  "tournament.id": tournamentId,
-                  played: true,
-                  type: "regular",
-              })
-              .sort({ updatedAt: -1, _id: -1 })
-    return matches
+    const filter = {
+        "tournament.id": tournamentId,
+        played: true,
+        type: "regular",
+    }
+    if (group) filter.group = group
+
+    const matches = await matchesModel.find(filter)
+
+    // Orden `playedAt ?? updatedAt` desc en JS: no hay índice para esa clave.
+    return Array.from(matches).sort(comparePlayedAtDesc)
 }
 
 module.exports = sortMatchesFromTournamentById

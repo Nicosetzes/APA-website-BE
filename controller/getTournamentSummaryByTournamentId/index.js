@@ -3,6 +3,11 @@ const {
     retrieveAllPlayedMatchesByTournamentId,
 } = require("./../../service")
 const { HttpError } = require("../../middleware/httpErrors")
+const {
+    comparePlayedAtDesc,
+    getPlayedAt,
+    getPlayedAtPrecision,
+} = require("../../utils/playedAt")
 
 const calculateParticipantStats = (players, matches) => {
     const statsByPlayer = new Map()
@@ -94,13 +99,7 @@ const calculateParticipantStats = (players, matches) => {
 }
 
 const buildTournamentSummary = (tournament, playedMatches) => {
-    const sortedMatches = [...playedMatches].sort((left, right) => {
-        const leftDate = left.updatedAt ? new Date(left.updatedAt) : new Date(0)
-        const rightDate = right.updatedAt
-            ? new Date(right.updatedAt)
-            : new Date(0)
-        return rightDate - leftDate
-    })
+    const sortedMatches = [...playedMatches].sort(comparePlayedAtDesc)
     const recent = sortedMatches.slice(0, 6).map((match) => ({
         id: match._id,
         playerP1: match.playerP1,
@@ -112,6 +111,9 @@ const buildTournamentSummary = (tournament, playedMatches) => {
         outcome: match.outcome,
         type: match.type,
         updatedAt: match.updatedAt,
+        // Con fallback a updatedAt mientras falte el backfill.
+        playedAt: getPlayedAt(match),
+        playedAtPrecision: getPlayedAtPrecision(match),
     }))
     const players = Array.isArray(tournament.players) ? tournament.players : []
     const summary = {

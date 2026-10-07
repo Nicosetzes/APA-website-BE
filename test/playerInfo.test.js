@@ -320,3 +320,40 @@ test("player info validation accepts historical ids and normalizes the matches f
         assert.equal(error.code, "VALIDATION_ERROR")
     }
 })
+
+test("player info for every player orders natural-order matches newest first", async () => {
+    const [win, draw] = createMatches()
+    const controller = createGetPlayerInfoByTournamentId({
+        retrieveTournamentById: async () => createTournament(),
+        retrieveTournamentPlayersByTournamentId: async () => [
+            { id: NICO_ID, nickname: "Nico" },
+        ],
+        // Orden natural de Mongo (más viejo primero) con y sin playedAt.
+        retrieveAllPlayedMatchesByTournamentId: async () => [
+            {
+                ...draw,
+                _id: "000000000000000000000001",
+                playedAt: new Date("2019-05-01T00:00:00.000Z"),
+                updatedAt: new Date("2026-06-01T00:00:00.000Z"),
+            },
+            {
+                ...win,
+                _id: "000000000000000000000002",
+                updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+            },
+        ],
+    })
+    const response = createResponse()
+    await controller(
+        { params: { tournament: TOURNAMENT_ID }, query: { matches: true } },
+        response
+    )
+
+    const [nico] = response.body.players
+    assert.deepEqual(nico.stats.recentForm, ["D", "W"])
+    assert.deepEqual(nico.stats.currentStreak, { type: "W", count: 1 })
+    assert.deepEqual(
+        nico.matches.map(({ _id }) => _id),
+        ["000000000000000000000002", "000000000000000000000001"]
+    )
+})

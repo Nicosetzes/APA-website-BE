@@ -173,3 +173,39 @@ test("fixture generation failures become canonical 422 errors", () => {
             error.status === 422 && error.code === "FIXTURE_GENERATION_FAILED"
     )
 })
+
+test("POST fixture copies numeric team ids into the generated matches", async () => {
+    let received
+    const controller = createPostFixtureByTournamentId({
+        retrieveTournamentById: async () => ({
+            id: "tournament",
+            name: "Tournament",
+            format: "league",
+            players: [{ id: "player-1", name: "Player 1" }],
+            teams: [
+                {
+                    team: { id: "10", name: "Team 10" },
+                    player: { id: "player-1", name: "Player 1" },
+                },
+                {
+                    team: { id: 20, name: "Team 20" },
+                    player: { id: "player-1", name: "Player 1" },
+                },
+            ],
+        }),
+        originateFixtureByTournamentId: async (...args) => {
+            received = args
+            return []
+        },
+    })
+
+    await controller(
+        { params: { tournament: "tournament" }, body: {} },
+        createResponse()
+    )
+
+    assert.deepEqual(
+        received[3].map(({ team }) => team.id),
+        [10, 20]
+    )
+})

@@ -1,4 +1,5 @@
 const { createStreakState, updateStreaks } = require("./streaks")
+const { getPlayedAt, getPlayedAtPrecision } = require("../../../utils/playedAt")
 
 const createAccumulator = ({ id, name }) => ({
     id,
@@ -100,7 +101,8 @@ const aggregatePlayers = ({
                 playerP2: match.playerP2,
                 teamP2: match.teamP2,
                 scoreP2: match.scoreP2,
-                date: match.updatedAt || null,
+                date: getPlayedAt(match) || null,
+                datePrecision: getPlayedAtPrecision(match),
                 tournament: match.tournament?.name || null,
             })
         }

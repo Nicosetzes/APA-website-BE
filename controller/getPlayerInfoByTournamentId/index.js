@@ -1,3 +1,4 @@
+const { comparePlayedAtDesc } = require("../../utils/playedAt")
 const {
     retrievePlayerMatchesByTournamentId,
     retrieveTournamentById,
@@ -56,7 +57,11 @@ const createGetPlayerInfoByTournamentId = (dependencies = {}) => {
 
         if (playerQuery === "all") {
             // Fetch all played & valid matches once
-            const allMatches = (await retrievePlayedMatches(tournament)) || []
+            // Más nuevo primero, como la rama de un jugador: recentForm y
+            // currentStreak invierten este orden.
+            const allMatches = Array.from(
+                (await retrievePlayedMatches(tournament)) || []
+            ).sort(comparePlayedAtDesc)
 
             // Ensure all players appear even with zero matches
             const resultMap = new Map()

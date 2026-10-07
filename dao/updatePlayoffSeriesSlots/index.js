@@ -17,7 +17,8 @@ const updatePlayoffSeriesSlots = async (
                 [emptyTeamField]: null,
             },
             { $set: fields },
-            { session }
+            // Completar el cruce siguiente no es cargar un resultado.
+            { session, timestamps: false }
         )
         results.push(result)
     }

@@ -215,24 +215,18 @@ test("matches listing validation rejects invalid filters with canonical error", 
 })
 
 test("matches route accepts a real FE query string and rejects unknown filters", async (t) => {
-    const originalFind = matchesModel.find
+    const originalAggregate = matchesModel.aggregate
     const originalCountDocuments = matchesModel.countDocuments
     let receivedFilter
 
     t.after(() => {
-        matchesModel.find = originalFind
+        matchesModel.aggregate = originalAggregate
         matchesModel.countDocuments = originalCountDocuments
     })
 
-    matchesModel.find = (filter) => {
-        receivedFilter = filter
-        return {
-            limit: () => ({
-                skip: () => ({
-                    sort: async () => [],
-                }),
-            }),
-        }
+    matchesModel.aggregate = async (pipeline) => {
+        receivedFilter = pipeline[0].$match
+        return []
     }
     matchesModel.countDocuments = async () => 0
 
@@ -274,20 +268,14 @@ const tournamentsModel = require("../dao/models/tournaments")
 // $and que arma para Mongo.
 const captureFindMatchesFilter = async (filters, tournaments = []) => {
     const findMatches = require("../dao/findMatches")
-    const originalFind = matchesModel.find
+    const originalAggregate = matchesModel.aggregate
     const originalCountDocuments = matchesModel.countDocuments
     const originalTournamentsFind = tournamentsModel.find
     let receivedFilter
 
-    matchesModel.find = (filter) => {
-        receivedFilter = filter
-        return {
-            limit: () => ({
-                skip: () => ({
-                    sort: async () => [],
-                }),
-            }),
-        }
+    matchesModel.aggregate = async (pipeline) => {
+        receivedFilter = pipeline[0].$match
+        return []
     }
     matchesModel.countDocuments = async () => 0
     tournamentsModel.find = () => ({ lean: async () => tournaments })
@@ -295,7 +283,7 @@ const captureFindMatchesFilter = async (filters, tournaments = []) => {
     try {
         await findMatches(filters)
     } finally {
-        matchesModel.find = originalFind
+        matchesModel.aggregate = originalAggregate
         matchesModel.countDocuments = originalCountDocuments
         tournamentsModel.find = originalTournamentsFind
     }
@@ -507,31 +495,211 @@ test("the final round range agrees with the final playoff_id of every format", (
 
 test("public playoff history stays chronological while tournament history uses bracket order", async (t) => {
     const findMatches = require("../dao/findMatches")
-    const originalFind = matchesModel.find
+    const originalAggregate = matchesModel.aggregate
     const originalCountDocuments = matchesModel.countDocuments
-    const sorts = []
+    const pipelines = []
     t.after(() => {
-        matchesModel.find = originalFind
+        matchesModel.aggregate = originalAggregate
         matchesModel.countDocuments = originalCountDocuments
     })
-    matchesModel.find = () => ({
-        limit: () => ({
-            skip: () => ({
-                sort: async (sort) => {
-                    sorts.push(sort)
-                    return []
-                },
-            }),
-        }),
-    })
+    matchesModel.aggregate = async (pipeline) => {
+        pipelines.push(pipeline)
+        return []
+    }
     matchesModel.countDocuments = async () => 0
 
-    await findMatches({ type: "playoff" })
+    await findMatches({ type: "playoff", page: 2 })
     await findMatches({ type: "playoff", tournamentId: "tournament" })
 
-    assert.deepEqual(sorts, [
-        { updatedAt: -1, _id: -1 },
-        { playoff_id: 1, leg: 1, _id: 1 },
+    assert.deepEqual(pipelines[0].slice(1), [
+        {
+            $addFields: {
+                _sortPlayedAt: { $ifNull: ["$playedAt", "$updatedAt"] },
+            },
+        },
+        { $sort: { _sortPlayedAt: -1, _id: -1 } },
+        { $project: { _sortPlayedAt: 0 } },
+        { $skip: 20 },
+        { $limit: 20 },
+    ])
+    assert.deepEqual(pipelines[1].slice(1), [
+        { $sort: { playoff_id: 1, leg: 1, _id: 1 } },
+        { $skip: 0 },
+        { $limit: 20 },
+    ])
+})
+
+test("findMatches hydrates aggregate results and filters dates by playedAt ?? updatedAt", async (t) => {
+    const findMatches = require("../dao/findMatches")
+    const originalAggregate = matchesModel.aggregate
+    const originalCountDocuments = matchesModel.countDocuments
+    let pipeline
+    let countFilter
+    t.after(() => {
+        matchesModel.aggregate = originalAggregate
+        matchesModel.countDocuments = originalCountDocuments
+    })
+    const playedAt = new Date("2019-05-01T00:00:00.000Z")
+    matchesModel.aggregate = async (received) => {
+        pipeline = received
+        return [
+            {
+                _id: "aaaaaaaaaaaaaaaaaaaaaaaa",
+                played: true,
+                playedAt,
+                playedAtPrecision: "year",
+            },
+        ]
+    }
+    matchesModel.countDocuments = async (filter) => {
+        countFilter = filter
+        return 1
+    }
+
+    const result = await findMatches({
+        dateFrom: "2019-01-01",
+        dateTo: "2019-12-31",
+    })
+
+    assert.equal(result.matches.length, 1)
+    assert.ok(result.matches[0] instanceof matchesModel)
+    assert.equal(result.matches[0].playedAtPrecision, "year")
+    assert.equal(
+        result.matches[0].toJSON().playedAt.getTime(),
+        playedAt.getTime()
+    )
+    assert.equal(result.totalMatches, 1)
+    assert.equal(countFilter, pipeline[0].$match)
+
+    const range = {
+        $gte: new Date("2019-01-01T03:00:00.000Z"),
+        $lt: new Date("2020-01-01T03:00:00.000Z"),
+    }
+    assertHasCondition(pipeline[0].$match.$and, {
+        $or: [
+            { playedAt: range },
+            { playedAt: { $exists: false }, updatedAt: range },
+        ],
+    })
+})
+
+// Mezcla partidos con y sin playedAt: la clave es `playedAt ?? updatedAt` y el
+// desempate `_id` desc.
+const MIXED_MATCHES = [
+    {
+        _id: "000000000000000000000001",
+        updatedAt: new Date("2024-03-01T00:00:00Z"),
+    },
+    {
+        _id: "000000000000000000000002",
+        playedAt: new Date("2019-06-01T00:00:00Z"),
+        updatedAt: new Date("2025-01-01T00:00:00Z"),
+    },
+    {
+        _id: "000000000000000000000003",
+        updatedAt: new Date("2024-03-01T00:00:00Z"),
+    },
+    {
+        _id: "000000000000000000000004",
+        playedAt: new Date("2024-06-01T00:00:00Z"),
+        updatedAt: new Date("2020-01-01T00:00:00Z"),
+    },
+]
+const MIXED_ORDER = [
+    "000000000000000000000004",
+    "000000000000000000000003",
+    "000000000000000000000001",
+    "000000000000000000000002",
+]
+
+const withStubbedFind = async (t, callback) => {
+    const originalFind = matchesModel.find
+    const calls = []
+    t.after(() => {
+        matchesModel.find = originalFind
+    })
+    matchesModel.find = (...args) => {
+        calls.push(args)
+        return Promise.resolve([...MIXED_MATCHES])
+    }
+    const result = await callback()
+    return { result, calls }
+}
+
+test("findAllMatches orders mixed playedAt/updatedAt matches in JS", async (t) => {
+    const findAllMatches = require("../dao/findAllMatches")
+    const { result, calls } = await withStubbedFind(t, () => findAllMatches())
+
+    assert.deepEqual(
+        result.map(({ _id }) => _id),
+        MIXED_ORDER
+    )
+    assert.match(calls[0][1], /\bplayedAt playedAtPrecision\b/)
+})
+
+test("sortMatchesFromTournamentById orders mixed matches with and without group", async (t) => {
+    const sortMatchesFromTournamentById = require("../dao/sortMatchesFromTournamentById")
+    const { result, calls } = await withStubbedFind(t, async () => [
+        await sortMatchesFromTournamentById("tournament", "A"),
+        await sortMatchesFromTournamentById("tournament"),
+    ])
+
+    for (const matches of result) {
+        assert.deepEqual(
+            matches.map(({ _id }) => _id),
+            MIXED_ORDER
+        )
+    }
+    assert.deepEqual(calls[0][0], {
+        "tournament.id": "tournament",
+        played: true,
+        type: "regular",
+        group: "A",
+    })
+    assert.deepEqual(calls[1][0], {
+        "tournament.id": "tournament",
+        played: true,
+        type: "regular",
+    })
+})
+
+test("findPlayerMatchesByTournamentId orders mixed matches and projects playedAt", async (t) => {
+    const findPlayerMatchesByTournamentId = require("../dao/findPlayerMatchesByTournamentId")
+    const { result, calls } = await withStubbedFind(t, () =>
+        findPlayerMatchesByTournamentId("tournament", "player")
+    )
+
+    assert.deepEqual(
+        result.map(({ _id }) => _id),
+        MIXED_ORDER
+    )
+    assert.match(calls[0][1], /\bplayedAt playedAtPrecision\b/)
+})
+
+test("fixture listing sorts played pages by playedAt ?? updatedAt and drops the helper", async (t) => {
+    const findFixtureByTournamentId = require("../dao/findFixtureByTournamentId")
+    const originalAggregate = matchesModel.aggregate
+    let pipeline
+    t.after(() => {
+        matchesModel.aggregate = originalAggregate
+    })
+    matchesModel.aggregate = (received) => {
+        pipeline = received
+        return { option: async () => [{ data: [], totals: [], teamStats: [] }] }
+    }
+
+    await findFixtureByTournamentId("tournament", 1)
+
+    assert.deepEqual(pipeline[1], {
+        $addFields: {
+            _sortPlayedAt: { $ifNull: ["$playedAt", "$updatedAt"] },
+        },
+    })
+    assert.deepEqual(pipeline[2].$facet.data, [
+        { $sort: { played: 1, group: 1, _sortPlayedAt: -1, _id: -1 } },
+        { $skip: 0 },
+        { $limit: 9 },
+        { $project: { _sortPlayedAt: 0 } },
     ])
 })
 

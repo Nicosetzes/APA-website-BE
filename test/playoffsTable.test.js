@@ -119,6 +119,45 @@ test("playoffs table appends play-in qualifiers after the direct ones", async ()
     assert.deepEqual(ids.slice(12), ["a7", "b7", "a8", "b8"])
 })
 
+test("playoffs table matches team ids stored as string and number", async () => {
+    // Torneo con ids string (antes de M4) y partido generado con ids number.
+    const numericTeams = [
+        ...Array.from({ length: 8 }, (_, index) =>
+            team(String(10 + index), `A${index + 1}`, "A")
+        ),
+        ...Array.from({ length: 8 }, (_, index) =>
+            team(String(20 + index), `B${index + 1}`, "B")
+        ),
+    ]
+    const controller = createController({
+        retrieveTournamentById: async () => ({
+            format: "league_playin_playoff",
+            teams: numericTeams,
+        }),
+        orderMatchesFromTournamentById: async () => [
+            {
+                playerP1: { id: "p10", name: "Player 10" },
+                teamP1: { id: 10, name: "A1" },
+                scoreP1: 2,
+                playerP2: { id: "p11", name: "Player 11" },
+                teamP2: { id: 11, name: "A2" },
+                scoreP2: 0,
+                outcome: { draw: false, teamThatWon: { id: 10 } },
+            },
+        ],
+    })
+    const response = createResponse()
+
+    await controller({ params: { tournament: TOURNAMENT_ID } }, response)
+
+    assert.equal(response.body.standings.length, 12)
+    assert.equal(String(response.body.standings[0].team.id), "10")
+    assert.equal(response.body.standings[0].points, 3)
+    assert.equal(response.body.standings[0].played, 1)
+    const ids = response.body.standings.map((row) => String(row.team.id))
+    assert.equal(ids.includes("11"), false)
+})
+
 test("playoffs table stays empty for other formats", async () => {
     let askedForMatches = false
     const controller = createController({

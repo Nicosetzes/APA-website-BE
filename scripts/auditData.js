@@ -11,6 +11,7 @@ const tournamentsModel = require("../dao/models/tournaments")
 const matchesModel = require("../dao/models/matches")
 const editsModel = require("../dao/models/edits")
 const { getFinalPlayoffId } = require("../config/playoffFormats")
+const { PLAYED_AT_PRECISIONS } = require("../utils/playedAt")
 
 const FORMATS = new Set([
     "champions_league",
@@ -414,6 +415,44 @@ const buildDuplicatePlayoffSlotDetails = (
     return details
 }
 
+// Sólo conteos: precisión de los partidos que tienen `playedAt`.
+const countPlayedAtPrecisions = (matches) => {
+    const counts = createCounts([...PLAYED_AT_PRECISIONS, "missing", "other"])
+    matches
+        .filter((match) => isDate(match.playedAt))
+        .forEach((match) => {
+            if (match.playedAtPrecision === undefined) {
+                increment(counts, "missing")
+            } else if (PLAYED_AT_PRECISIONS.includes(match.playedAtPrecision)) {
+                increment(counts, match.playedAtPrecision)
+            } else {
+                increment(counts, "other")
+            }
+        })
+    return counts
+}
+
+// Tipo de `teamP1.id` / `teamP2.id` (M4 los deja en number).
+const countTeamIdTypes = (matches) => {
+    const counts = createCounts(["string", "number", "other"])
+    matches.forEach((match) =>
+        [match.teamP1, match.teamP2].forEach((team) => {
+            if (!hasId(team)) return
+            const type = typeof team.id
+            increment(
+                counts,
+                type === "string" || type === "number" ? type : "other"
+            )
+        })
+    )
+    return counts
+}
+
+// `tournament: null` es un partido sin torneo (amistoso o histórico suelto):
+// se cuenta en `withoutTournament`, no como routing faltante.
+const missingTournamentId = (match) =>
+    match.tournament !== null && match.tournament?.id === undefined
+
 const auditMatches = (matches, tournamentIds, formatByTournamentId) => {
     const routingCategories = [
         "invalidType",
@@ -445,7 +484,7 @@ const auditMatches = (matches, tournamentIds, formatByTournamentId) => {
         const era = eraCohort(match)
         const routingReasons = []
         if (!MATCH_TYPES.has(match.type)) routingReasons.push("invalidType")
-        if (match.tournament?.id === undefined) {
+        if (missingTournamentId(match)) {
             routingReasons.push("missingTournamentId")
         }
         if (typeof match.played !== "boolean") {
@@ -523,9 +562,16 @@ const auditMatches = (matches, tournamentIds, formatByTournamentId) => {
         missingRoutingFields: matches.filter(
             (match) =>
                 !MATCH_TYPES.has(match.type) ||
-                match.tournament?.id === undefined ||
+                missingTournamentId(match) ||
                 typeof match.played !== "boolean"
         ).length,
+        withoutTournament: matches.filter((match) => match.tournament === null)
+            .length,
+        playedWithoutPlayedAt: matches.filter(
+            (match) => match.played === true && !isDate(match.playedAt)
+        ).length,
+        playedAtPrecision: countPlayedAtPrecisions(matches),
+        teamIdTypes: countTeamIdTypes(matches),
         invalidStateTypes: matches.filter(
             (match) =>
                 match.valid !== undefined && typeof match.valid !== "boolean"
@@ -653,7 +699,7 @@ const run = async () => {
         matchesModel
             .find({})
             .select(
-                "schemaVersion type tournament.id played valid playerP1.id playerP2.id teamP1.id teamP2.id scoreP1 scoreP2 outcome.draw outcome.playerThatWon.id outcome.playerThatLost.id outcome.teamThatWon.id outcome.teamThatLost.id playoff_id leg seriesRevision playerP3 playerP4 createdAt updatedAt"
+                "schemaVersion type tournament.id played valid playerP1.id playerP2.id teamP1.id teamP2.id scoreP1 scoreP2 outcome.draw outcome.playerThatWon.id outcome.playerThatLost.id outcome.teamThatWon.id outcome.teamThatLost.id playoff_id leg seriesRevision playerP3 playerP4 playedAt playedAtPrecision createdAt updatedAt"
             )
             .lean(),
         editsModel

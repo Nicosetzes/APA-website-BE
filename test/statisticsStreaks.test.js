@@ -421,6 +421,7 @@ test("streak matches are summarized from the holder perspective", () => {
 
     assert.deepEqual(summary, {
         date: day(1),
+        datePrecision: "exact",
         tournament: { id: TOURNAMENT.id, name: "Liga" },
         type: "playoff",
         team: { id: "10", name: "Racing" },
@@ -585,4 +586,57 @@ test("max W/D/L and longest_streak match the previous implementation", () => {
             assert.equal(player.current_streak.type, results[0])
         }
     }
+})
+
+test("streaks, records and recent use playedAt with its precision over updatedAt", async () => {
+    const year2019 = "2019-06-01T00:00:00.000Z"
+    const approx2022 = "2022-11-15T00:00:00.000Z"
+    // updatedAt de la recarga manual: no debe aparecer en la respuesta.
+    const reloadedAt = day(20)
+    const body = await runStatistics([
+        win(day(3)),
+        win(reloadedAt, {
+            scoreP1: 5,
+            playedAt: approx2022,
+            playedAtPrecision: "approx",
+        }),
+        win(reloadedAt, { playedAt: year2019, playedAtPrecision: "year" }),
+    ])
+
+    const nico = holderOf(body.records.most_wins_in_a_row, NICO.id)
+    assert.equal(nico.startDate, year2019)
+    assert.equal(nico.startDatePrecision, "year")
+    assert.equal(nico.endDate, day(3))
+    assert.equal(nico.endDatePrecision, "exact")
+    assert.equal(nico.date, day(3))
+    assert.equal(nico.datePrecision, "exact")
+    assert.equal(nico.startMatch.date, year2019)
+    assert.equal(nico.startMatch.datePrecision, "year")
+
+    const highest = body.records.highest_total_goals_match.match
+    assert.equal(highest.date, approx2022)
+    assert.equal(highest.datePrecision, "approx")
+
+    const player = body.players.find((entry) => entry.player.id === NICO.id)
+    assert.deepEqual(
+        player.recent.map(({ date, datePrecision }) => [date, datePrecision]),
+        [
+            [year2019, "year"],
+            [approx2022, "approx"],
+            [day(3), "exact"],
+        ]
+    )
+})
+
+test("matches without tournament count in global streaks without breaking", async () => {
+    const body = await runStatistics([
+        win(day(3), { tournament: null }),
+        win(day(2), { tournament: null }),
+        win(day(1)),
+    ])
+
+    const record = body.records.most_wins_in_a_row
+    assert.equal(record.count, 3)
+    assert.equal(record.players[0].id, NICO.id)
+    assert.equal(record.players[0].endMatch.tournament, null)
 })

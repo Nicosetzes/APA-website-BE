@@ -238,3 +238,106 @@ test("face to face propagates persistence failures", async () => {
 
     await assert.rejects(controller({}, createResponse()), expectedError)
 })
+
+test("face to face compares string scores as numbers and ties by playedAt", async () => {
+    const santiWin = (extra, match = {}) => ({
+        ...win(SANTI, BOCA, NICO, RACING, { scoringDifference: 2, ...extra }),
+        ...match,
+    })
+    const controller = createGetAllTimeFaceToFace({
+        retrieveAllUsers: async () => [NICO, SANTI],
+        retrieveAllMatches: async () => [
+            santiWin(
+                { scoreFromTeamThatWon: "9", marker: "nine" },
+                { updatedAt: "2018-01-01T00:00:00.000Z" }
+            ),
+            santiWin(
+                { scoreFromTeamThatWon: "12", marker: "twelve" },
+                { updatedAt: "2026-12-01T00:00:00.000Z" }
+            ),
+            // Mismo marcador: gana el jugado antes, aunque se editó después.
+            santiWin(
+                { scoreFromTeamThatWon: 12, marker: "older" },
+                {
+                    playedAt: "2019-05-01T00:00:00.000Z",
+                    updatedAt: "2026-10-01T00:00:00.000Z",
+                }
+            ),
+            santiWin(
+                { scoreFromTeamThatWon: 12, marker: "newer" },
+                { updatedAt: "2026-01-01T00:00:00.000Z" }
+            ),
+        ],
+    })
+    const response = createResponse()
+
+    await controller({}, response)
+
+    const [{ p1, p2 }] = response.body
+    const santi = p1.id === SANTI.id ? p1 : p2
+    assert.equal(santi.wins, 4)
+    assert.equal(santi.bestWin.marker, "older")
+})
+
+test("all-time teams does not split a team stored with string and number ids", async () => {
+    const racingAsNumber = { id: 10, name: "Racing" }
+    const bocaAsNumber = { id: 20, name: "Boca" }
+    const controller = createGetAllTimeTeams({
+        retrieveAllMatches: async () => [
+            win(NICO, RACING, SANTI, BOCA),
+            win(NICO, racingAsNumber, SANTI, bocaAsNumber),
+            ...Array.from({ length: 5 }, () => win(NICO, RACING, SANTI, BOCA)),
+            ...Array.from({ length: 5 }, () =>
+                win(NICO, racingAsNumber, SANTI, bocaAsNumber)
+            ),
+        ],
+    })
+    const response = createResponse()
+
+    await controller({}, response)
+
+    const racing = response.body.completeStatsByTotalPoints.filter(
+        ({ team }) => team.name === "Racing"
+    )
+    assert.equal(racing.length, 1)
+    assert.equal(racing[0].wins, 12)
+    const boca = response.body.completeStatsByTotalPoints.filter(
+        ({ team }) => team.name === "Boca"
+    )
+    assert.equal(boca.length, 1)
+    assert.equal(boca[0].losses, 12)
+
+    // El ranking por torneo tampoco parte al equipo en dos.
+    const effectiveness = response.body.completeStatsByEffectiveness.filter(
+        ({ team }) => team.name === "Racing"
+    )
+    assert.equal(effectiveness.length, 1)
+    assert.equal(effectiveness[0].played, 12)
+})
+
+test("matches without tournament count globally but not per tournament", async () => {
+    const friendly = (extra = {}) => ({
+        ...win(NICO, RACING, SANTI, BOCA),
+        tournament: null,
+        ...extra,
+    })
+    const controller = createGetAllTimeTeams({
+        retrieveAllMatches: async () => [
+            ...Array.from({ length: 10 }, () => friendly()),
+            friendly({
+                scoreP1: 1,
+                scoreP2: 1,
+                outcome: { draw: true, penalties: false },
+            }),
+        ],
+    })
+    const response = createResponse()
+
+    await controller({}, response)
+
+    const [racing] = response.body.completeStatsByTotalPoints
+    assert.equal(racing.team.name, "Racing")
+    assert.equal(racing.wins, 10)
+    assert.equal(racing.draws, 1)
+    assert.deepEqual(response.body.completeStatsByEffectiveness, [])
+})

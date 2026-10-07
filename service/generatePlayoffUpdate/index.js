@@ -2,6 +2,8 @@ const {
     createPlayoffByTournamentId,
     updatePlayoffMatchTeams,
 } = require("./../../dao")
+// Un destino ya jugado recalcula su outcome al cambiar participantes (D6).
+const { withRecomputedOutcome } = require("../../utils/matchOutcome")
 
 // idStart(r) = startSize * (1 - 1/2^(r-1)) + 1,  matchCount(r) = startSize / 2^r
 const generatePlayoffUpdate = async (
@@ -63,7 +65,10 @@ const generatePlayoffUpdate = async (
                 }
 
                 if (Object.keys(updateFields).length) {
-                    toUpdate.push({ playoffId: destId, fields: updateFields })
+                    toUpdate.push({
+                        playoffId: destId,
+                        fields: withRecomputedOutcome(dest, updateFields),
+                    })
                 }
             }
         }

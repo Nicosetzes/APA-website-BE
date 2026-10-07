@@ -121,6 +121,37 @@ test(
                 2
             )
 
+            // Cargar la vuelta no debe mover updatedAt de la ida.
+            const timestamps = await createFixture("timestamps")
+            tournamentIds.push(timestamps.tournament._id)
+            const [timestampsFirst, timestampsSecond] = timestamps.matches
+            await createProcessPlayoffSeriesResult()({
+                tournamentId: timestamps.tournament._id,
+                matchId: timestampsFirst._id,
+                body: bodyFor(timestampsFirst, 1, 0),
+            })
+            const firstLoaded = await collection.findOne({
+                _id: timestampsFirst._id,
+            })
+            assert.ok(firstLoaded.updatedAt instanceof Date)
+            await createProcessPlayoffSeriesResult()({
+                tournamentId: timestamps.tournament._id,
+                matchId: timestampsSecond._id,
+                body: bodyFor(timestampsSecond, 0, 1, 1),
+            })
+            const firstAfterReturn = await collection.findOne({
+                _id: timestampsFirst._id,
+            })
+            const secondAfterReturn = await collection.findOne({
+                _id: timestampsSecond._id,
+            })
+            assert.equal(firstAfterReturn.seriesRevision, 2)
+            assert.equal(
+                firstAfterReturn.updatedAt.getTime(),
+                firstLoaded.updatedAt.getTime()
+            )
+            assert.ok(secondAfterReturn.updatedAt instanceof Date)
+
             const rollback = await createFixture("rollback")
             tournamentIds.push(rollback.tournament._id)
             const before = await collection

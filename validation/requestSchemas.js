@@ -19,6 +19,12 @@ const entityReference = Joi.object({
     name: Joi.string().trim().min(1).max(255).required(),
 }).unknown(true)
 
+// Los equipos de un torneo nuevo guardan `id` number (D5); "10" se convierte.
+const teamReference = Joi.object({
+    id: Joi.number().integer().min(0).required(),
+    name: Joi.string().trim().min(1).max(255).required(),
+}).unknown(true)
+
 const score = Joi.number().integer().min(0).max(24)
 const penaltyScore = score.empty("")
 
@@ -64,7 +70,7 @@ const tournamentBody = Joi.object({
     teams: Joi.array()
         .items(
             Joi.object({
-                team: entityReference.required(),
+                team: teamReference.required(),
                 player: entityReference.required(),
                 group: group.optional().allow(null),
                 playoff_id: Joi.number().integer().min(1).optional(),

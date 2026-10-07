@@ -114,7 +114,13 @@ test("remove result DAO clears scores and outcome without touching history", asy
 
     assert.equal(receivedId, "bbbbbbbbbbbbbbbbbbbbbbbb")
     assert.deepEqual(receivedUpdate, {
-        $unset: { scoreP1: 1, scoreP2: 1, outcome: 1 },
+        $unset: {
+            scoreP1: 1,
+            scoreP2: 1,
+            outcome: 1,
+            playedAt: 1,
+            playedAtPrecision: 1,
+        },
         played: false,
     })
     assert.equal(receivedOptions.new, true)

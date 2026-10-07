@@ -13,7 +13,8 @@ const updatePlayinMatchTeams = async (
             type: "playin",
         },
         { $set: fields },
-        { ...options, new: true }
+        // Completar participantes no es cargar un resultado.
+        { ...options, new: true, timestamps: false }
     )
 }
 

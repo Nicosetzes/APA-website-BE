@@ -1,6 +1,7 @@
 const logger = require("../../utils/logger")
 const mongoose = require("mongoose")
 const { schemaVersionPlugin } = require("./plugins/schemaVersion")
+const { PLAYED_AT_PRECISIONS } = require("../../utils/playedAt")
 
 const collection = "face-to-face"
 const MATCH_TYPES = ["regular", "playin", "playoff"]
@@ -83,6 +84,13 @@ const matchesSchema = new mongoose.Schema(
             required: false,
         },
         seriesRevision: { type: Number, min: 0, required: false },
+        // Fecha en la que se jugó; sin default ni índice (ver utils/playedAt).
+        playedAt: { type: Date, required: false },
+        playedAtPrecision: {
+            type: String,
+            enum: PLAYED_AT_PRECISIONS,
+            required: false,
+        },
         seedP1: { type: String, require: false, max: 2 },
         seedP2: { type: String, require: false, max: 2 },
         playerP3: { type: Object, require: true, max: 100 },

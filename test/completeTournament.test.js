@@ -255,3 +255,92 @@ test("league outcome counts draws and keeps players attached", () => {
         "Santi",
     ])
 })
+
+test("complete tournament closes on the last played match and its precision", async () => {
+    let closure
+    const matches = createMatches()
+    matches[0].playedAt = new Date("2024-03-10T20:00:00.000Z")
+    matches[0].playedAtPrecision = "day"
+    // Sin playedAt: cae a updatedAt, exacto.
+    matches[1].updatedAt = new Date("2024-03-01T20:00:00.000Z")
+    const controller = createController({
+        retrieveAllPlayedMatchesByTournamentId: async () => matches,
+        modifyTournamentOutcome: async (...args) => {
+            closure = args[4]
+            return { id: TOURNAMENT_ID, ongoing: false }
+        },
+    })
+
+    await controller(
+        { params: { tournament: TOURNAMENT_ID } },
+        createResponse()
+    )
+
+    assert.deepEqual(closure, {
+        closedAt: new Date("2024-03-10T20:00:00.000Z"),
+        closedAtPrecision: "day",
+    })
+})
+
+test("complete tournament closes now when no played match has a date", async () => {
+    let closure
+    const before = Date.now()
+    const controller = createController({
+        modifyTournamentOutcome: async (...args) => {
+            closure = args[4]
+            return { id: TOURNAMENT_ID, ongoing: false }
+        },
+    })
+
+    await controller(
+        { params: { tournament: TOURNAMENT_ID } },
+        createResponse()
+    )
+
+    assert.equal(closure.closedAtPrecision, "exact")
+    assert.ok(closure.closedAt.getTime() >= before)
+})
+
+test("league outcome does not split a team stored with string and number ids", () => {
+    const teamA = { id: 10, name: "Team A" }
+    const teamB = { id: "20", name: "Team B" }
+    const teamC = { id: 30, name: "Team C" }
+    const playerA = { id: "a", name: "Player A" }
+    const playerB = { id: "b", name: "Player B" }
+    const playerC = { id: "c", name: "Player C" }
+    const matches = [
+        {
+            teamP1: { id: "10", name: "Team A" },
+            playerP1: playerA,
+            scoreP1: 1,
+            teamP2: teamB,
+            playerP2: playerB,
+            scoreP2: 0,
+            outcome: { draw: false, teamThatWon: { id: 10, name: "Team A" } },
+        },
+        {
+            teamP1: teamA,
+            playerP1: playerA,
+            scoreP1: 1,
+            teamP2: teamC,
+            playerP2: playerC,
+            scoreP2: 0,
+            outcome: { draw: false, teamThatWon: { id: "10", name: "Team A" } },
+        },
+        {
+            teamP1: { id: 20, name: "Team B" },
+            playerP1: playerB,
+            scoreP1: 2,
+            teamP2: teamC,
+            playerP2: playerC,
+            scoreP2: 0,
+            outcome: { draw: false, teamThatWon: teamB },
+        },
+    ]
+
+    const { champion, finalist } = computeLeagueOutcome(matches, [])
+
+    // Team A suma 6 puntos en una sola entrada; Team B 3.
+    assert.equal(champion.team.name, "Team A")
+    assert.equal(finalist.team.name, "Team B")
+})

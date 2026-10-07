@@ -60,15 +60,10 @@ test("legacy=false boolean keeps precedence over status in DAO", async (t) => {
         tournamentsModel.find = originalFind
     })
 
-    tournamentsModel.find = (filter, projection) => {
+    tournamentsModel.find = async (filter, projection) => {
         receivedFilter = filter
         receivedProjection = projection
-        return {
-            sort: async (sort) => {
-                receivedSort = sort
-                return []
-            },
-        }
+        return []
     }
 
     await findTournaments(false, "finalized")
@@ -79,7 +74,79 @@ test("legacy=false boolean keeps precedence over status in DAO", async (t) => {
     })
     assert.equal(
         receivedProjection,
-        "cloudinary_id name ongoing outcome updatedAt format playoffMode"
+        "cloudinary_id name ongoing outcome updatedAt format playoffMode createdAt startedAt startedAtPrecision closedAt closedAtPrecision"
     )
-    assert.deepEqual(receivedSort, { createdAt: -1, id: -1 })
+})
+
+const datedTournaments = () => [
+    // Sólo createdAt (sin backfill).
+    { _id: "a1", createdAt: new Date("2023-01-01T00:00:00Z") },
+    // startedAt manda sobre createdAt (legacy con createdAt inventado).
+    {
+        _id: "b2",
+        createdAt: new Date("2024-06-01T00:00:00Z"),
+        startedAt: new Date("2019-03-01T00:00:00Z"),
+        startedAtPrecision: "year",
+    },
+    { _id: "c3", createdAt: new Date("2025-01-01T00:00:00Z") },
+    // Mismo instante que c3: desempate por _id desc.
+    { _id: "c4", createdAt: new Date("2025-01-01T00:00:00Z") },
+    // Sin ninguna fecha: al final.
+    { _id: "z9" },
+]
+
+test("tournament lists are ordered by startedAt ?? createdAt in JS", async (t) => {
+    const originalFind = tournamentsModel.find
+    t.after(() => {
+        tournamentsModel.find = originalFind
+    })
+    const projections = []
+    tournamentsModel.find = async (filter, projection) => {
+        projections.push(projection)
+        return datedTournaments()
+    }
+
+    const ids = (list) => list.map(({ _id }) => _id)
+
+    assert.deepEqual(ids(await findTournaments(false)), [
+        "c4",
+        "c3",
+        "a1",
+        "b2",
+        "z9",
+    ])
+    assert.deepEqual(ids(await findTournaments(undefined, "active")), [
+        "c4",
+        "c3",
+        "a1",
+        "b2",
+        "z9",
+    ])
+    assert.deepEqual(ids(await findTournaments(undefined)), [
+        "c4",
+        "c3",
+        "a1",
+        "b2",
+        "z9",
+    ])
+    // Finalizados: del más viejo al más nuevo.
+    assert.deepEqual(ids(await findTournaments(undefined, "finalized")), [
+        "b2",
+        "a1",
+        "c4",
+        "c3",
+        "z9",
+    ])
+
+    for (const projection of projections) {
+        for (const field of [
+            "createdAt",
+            "startedAt",
+            "startedAtPrecision",
+            "closedAt",
+            "closedAtPrecision",
+        ]) {
+            assert.ok(projection.split(" ").includes(field), field)
+        }
+    }
 })

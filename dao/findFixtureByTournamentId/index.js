@@ -1,4 +1,9 @@
 const matchesModel = require("./../models/matches.js")
+const {
+    PLAYED_AT_ADD_FIELDS_STAGE,
+    PLAYED_AT_PROJECT_STAGE,
+    PLAYED_AT_SORT_FIELD,
+} = require("../../utils/playedAt")
 
 // Build an efficient, reusable filter and fetch results + counts in a single round-trip using aggregation.
 const findFixtureByTournamentId = async (id, page, players, team, group) => {
@@ -52,12 +57,21 @@ const findFixtureByTournamentId = async (id, page, players, team, group) => {
     const [result] = await matchesModel
         .aggregate([
             { $match: finalMatch },
+            PLAYED_AT_ADD_FIELDS_STAGE,
             {
                 $facet: {
                     data: [
-                        { $sort: { played: 1, group: 1, updatedAt: -1 } },
+                        {
+                            $sort: {
+                                played: 1,
+                                group: 1,
+                                [PLAYED_AT_SORT_FIELD]: -1,
+                                _id: -1,
+                            },
+                        },
                         { $skip: (currentPage - 1) * limit },
                         { $limit: limit },
+                        PLAYED_AT_PROJECT_STAGE,
                     ],
                     totals: [
                         {

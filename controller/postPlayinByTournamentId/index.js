@@ -5,6 +5,7 @@ const {
     retrieveTournamentById,
 } = require("./../../service")
 const { HttpError } = require("../../middleware/httpErrors")
+const { normalizeTeamEntries } = require("../../utils/teamRef")
 
 const sameId = (left, right) => String(left) === String(right)
 const hasReference = (value) =>
@@ -178,7 +179,7 @@ const createPostPlayinByTournamentId = (dependencies = {}) => {
             )
         }
 
-        const teams = tournamentData.teams.filter(
+        const teams = normalizeTeamEntries(tournamentData.teams).filter(
             (entry) => entry.group === group
         )
         const regularMatches = await orderMatches(tournament, group)

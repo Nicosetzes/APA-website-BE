@@ -97,7 +97,7 @@ test("result, final outcome and playoff progression share one transaction", asyn
             return updatedMatch
         },
         modifyTournamentOutcome: async (...args) => {
-            calls.push(["outcome", args.at(-1)])
+            calls.push(["outcome", args[3]])
         },
         retrieveTournamentById: async (...args) => {
             calls.push(["tournament", args.at(-1)])
@@ -522,4 +522,201 @@ test("an undecidable final leaves a warning instead of failing silently", async 
     )
     assert.equal(warnings[0].fields.playoffId, null)
     assert.equal(warnings[1].fields.format, "club_world_cup")
+})
+
+test("the loaded match is forwarded as previous only to the result update", async () => {
+    const session = { id: "session" }
+    const previous = {
+        _id: "match",
+        type: "playoff",
+        played: true,
+        updatedAt: new Date("2023-05-10T12:00:00.000Z"),
+    }
+    const updatedMatch = {
+        _id: "match",
+        type: "playoff",
+        playoff_id: 15,
+        tournament: { id: "tournament", name: "Tournament" },
+    }
+    const options = []
+    const controller = createPutMatchByTournamentId({
+        modifyMatchResult: async (...args) => {
+            options.push(["match", args.at(-1)])
+            return updatedMatch
+        },
+        modifyTournamentOutcome: async (...args) => {
+            options.push(["outcome", args[3]])
+        },
+        retrieveTournamentById: async (...args) => {
+            options.push(["tournament", args.at(-1)])
+            return { id: "tournament", name: "Tournament", format: "world_cup" }
+        },
+        retrievePlayoffMatchesByTournamentId: async (...args) => {
+            options.push(["matches", args.at(-1)])
+            return [updatedMatch]
+        },
+        generatePlayoffUpdate: async (...args) => {
+            options.push(["playoff", args.at(-1)])
+        },
+        withTransaction: async (work) => work(session),
+    })
+
+    await controller({ ...createRequest(), match: previous }, createResponse())
+
+    assert.deepEqual(options[0], ["match", { session, previous }])
+    for (const [name, received] of options.slice(1)) {
+        assert.deepEqual(received, { session }, name)
+    }
+})
+
+test("outcome scores are numbers even when the body sends strings", () => {
+    const outcome = calculateOutcome({
+        playerP1,
+        teamP1,
+        scoreP1: Number("3"),
+        playerP2,
+        teamP2,
+        scoreP2: Number("1"),
+    })
+
+    assert.equal(outcome.scoreFromTeamThatWon, 3)
+    assert.equal(outcome.scoreFromTeamThatLost, 1)
+    assert.equal(typeof outcome.scoreFromTeamThatWon, "number")
+    assert.equal(typeof outcome.scoreFromTeamThatLost, "number")
+})
+
+test("the legacy result uses the persisted participants, not the body ones", async () => {
+    const persistedTeamP1 = { id: 9568, name: "Persisted team" }
+    const staleTeamP1 = { id: 1137, name: "Stale team" }
+    const persisted = {
+        _id: "match",
+        type: "regular",
+        played: false,
+        playerP1,
+        teamP1: persistedTeamP1,
+        playerP2,
+        teamP2,
+        tournament: { id: "tournament", name: "Tournament" },
+    }
+    const received = []
+    const warnings = []
+    const controller = createPutMatchByTournamentId({
+        modifyMatchResult: async (matchId, scoreP1, scoreP2, outcome) => {
+            received.push(outcome)
+            return { ...persisted, played: true, outcome }
+        },
+        withTransaction: async (work) => work({ id: "session" }),
+        logger: { warn: (event, fields) => warnings.push({ event, fields }) },
+    })
+
+    await controller(
+        {
+            ...createRequest({
+                teamP1: staleTeamP1,
+                seedP1: undefined,
+                seedP2: undefined,
+                scoreP1: 3,
+                scoreP2: 1,
+                penaltyScoreP1: undefined,
+                penaltyScoreP2: undefined,
+            }),
+            match: persisted,
+            requestId: "req-1",
+        },
+        createResponse()
+    )
+
+    assert.equal(received.length, 1)
+    assert.equal(received[0].teamThatWon, persistedTeamP1)
+    assert.equal(received[0].teamThatLost, teamP2)
+    assert.equal(received[0].scoreFromTeamThatWon, 3)
+    assert.deepEqual(warnings, [
+        {
+            event: "match_result_participants_mismatch",
+            fields: {
+                requestId: "req-1",
+                tournamentId: "tournament",
+                matchId: "match",
+                fields: ["teamP1"],
+            },
+        },
+    ])
+})
+
+test("matching body participants do not log a mismatch", async () => {
+    const warnings = []
+    const persisted = {
+        _id: "match",
+        type: "regular",
+        played: false,
+        // Mismo equipo con id string en la base y number en el body.
+        playerP1,
+        teamP1: { id: "10", name: "Team 10" },
+        playerP2,
+        teamP2,
+        tournament: { id: "tournament", name: "Tournament" },
+    }
+    const controller = createPutMatchByTournamentId({
+        modifyMatchResult: async () => ({ ...persisted, played: true }),
+        withTransaction: async (work) => work({ id: "session" }),
+        logger: { warn: (event, fields) => warnings.push({ event, fields }) },
+    })
+
+    await controller(
+        {
+            ...createRequest({
+                teamP1: { id: 10, name: "Team 10" },
+                seedP1: undefined,
+                seedP2: undefined,
+                penaltyScoreP1: undefined,
+                penaltyScoreP2: undefined,
+            }),
+            match: persisted,
+        },
+        createResponse()
+    )
+
+    assert.deepEqual(warnings, [])
+})
+
+test("the legacy final closes the tournament with the final's playedAt", async () => {
+    const playedAt = new Date("2026-02-01T21:55:44.000Z")
+    const closures = []
+    const createController = (updatedMatch) =>
+        createPutMatchByTournamentId({
+            modifyMatchResult: async () => updatedMatch,
+            modifyTournamentOutcome: async (...args) => {
+                closures.push(args[4])
+            },
+            retrieveTournamentById: async () => ({
+                id: "tournament",
+                name: "Tournament",
+                format: "world_cup",
+            }),
+            retrievePlayoffMatchesByTournamentId: async () => [updatedMatch],
+            generatePlayoffUpdate: async () => {},
+            withTransaction: async (work) => work({ id: "session" }),
+        })
+    const final = {
+        _id: "match",
+        type: "playoff",
+        playoff_id: 15,
+        tournament: { id: "tournament", name: "Tournament" },
+    }
+
+    await createController({
+        ...final,
+        playedAt,
+        playedAtPrecision: "day",
+    })(createRequest(), createResponse())
+    const before = Date.now()
+    await createController(final)(createRequest(), createResponse())
+
+    assert.deepEqual(closures[0], {
+        closedAt: playedAt,
+        closedAtPrecision: "day",
+    })
+    assert.equal(closures[1].closedAtPrecision, "exact")
+    assert.ok(closures[1].closedAt instanceof Date)
+    assert.ok(closures[1].closedAt.getTime() >= before)
 })

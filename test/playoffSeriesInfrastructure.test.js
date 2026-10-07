@@ -4,8 +4,84 @@ const path = require("node:path")
 const test = require("node:test")
 const matchesModel = require("../dao/models/matches")
 const findPlayoffSeriesByTie = require("../dao/findPlayoffSeriesByTie")
+const claimPlayoffSeriesRevision = require("../dao/claimPlayoffSeriesRevision")
+const updatePlayoffSeriesSlots = require("../dao/updatePlayoffSeriesSlots")
+const updatePlayoffMatchTeams = require("../dao/updatePlayoffMatchTeams")
+const updatePlayinMatchTeams = require("../dao/updatePlayinMatchTeams")
 
 const ROOT = path.join(__dirname, "..")
+
+const stubMatchesModel = (t, method, result) => {
+    const original = matchesModel[method]
+    const calls = []
+    t.after(() => {
+        matchesModel[method] = original
+    })
+    matchesModel[method] = async (...args) => {
+        calls.push(args)
+        return result
+    }
+    return calls
+}
+
+test("series revision claim does not touch the first leg timestamps", async (t) => {
+    const calls = stubMatchesModel(t, "findOneAndUpdate", { _id: "leg-1" })
+    const session = { id: "session" }
+
+    await claimPlayoffSeriesRevision("tournament", "7", 3, { session })
+
+    const [[filter, update, options]] = calls
+    assert.deepEqual(filter, {
+        "tournament.id": "tournament",
+        type: "playoff",
+        playoff_id: 7,
+        leg: 1,
+        seriesRevision: 3,
+    })
+    assert.deepEqual(update, { $inc: { seriesRevision: 1 } })
+    assert.deepEqual(options, { new: true, session, timestamps: false })
+})
+
+test("series slot filling does not touch destination timestamps", async (t) => {
+    const calls = stubMatchesModel(t, "updateOne", { modifiedCount: 1 })
+    const session = { id: "session" }
+
+    await updatePlayoffSeriesSlots(
+        "tournament",
+        17,
+        [
+            { leg: 1, emptyTeamField: "teamP2", fields: { teamP2: "team" } },
+            { leg: 2, emptyTeamField: "teamP1", fields: { teamP1: "team" } },
+        ],
+        { session }
+    )
+
+    assert.equal(calls.length, 2)
+    for (const [, , options] of calls)
+        assert.deepEqual(options, { session, timestamps: false })
+})
+
+test("playoff and playin slot filling do not touch match timestamps", async (t) => {
+    const calls = stubMatchesModel(t, "findOneAndUpdate", { _id: "slot" })
+    const session = { id: "session" }
+
+    await updatePlayoffMatchTeams(
+        "tournament",
+        5,
+        { teamP1: "team" },
+        { session }
+    )
+    await updatePlayinMatchTeams(
+        "tournament",
+        3,
+        { teamP2: "team" },
+        { session }
+    )
+
+    assert.equal(calls.length, 2)
+    for (const [, , options] of calls)
+        assert.deepEqual(options, { session, new: true, timestamps: false })
+})
 
 test("hot tie query includes the partial-index predicate", async (t) => {
     const originalFind = matchesModel.find

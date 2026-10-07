@@ -159,3 +159,58 @@ test("summary controller preserves dependency arguments and response", async () 
     assert.equal(response.statusCode, 200)
     assert.equal(response.body.matches.totalPlayed, 0)
 })
+
+test("tournament summary orders recent by playedAt ?? updatedAt and exposes precision", () => {
+    const base = {
+        playerP1: { id: "p1" },
+        teamP1: { id: "t1" },
+        scoreP1: 1,
+        playerP2: { id: "p2" },
+        teamP2: { id: "t2" },
+        scoreP2: 0,
+        type: "regular",
+    }
+    const reloadedAt = new Date("2026-05-01T00:00:00.000Z")
+    const summary = buildTournamentSummary(
+        { id: "tournament", name: "Tournament", ongoing: true, players: [] },
+        [
+            {
+                ...base,
+                _id: "reloaded",
+                playedAt: new Date("2019-06-01T00:00:00.000Z"),
+                playedAtPrecision: "approx",
+                updatedAt: reloadedAt,
+            },
+            {
+                ...base,
+                _id: "regular",
+                updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+            },
+        ]
+    )
+
+    assert.deepEqual(
+        summary.matches.recent.map(
+            ({ id, playedAt, playedAtPrecision, updatedAt }) => [
+                id,
+                playedAt.toISOString(),
+                playedAtPrecision,
+                updatedAt.toISOString(),
+            ]
+        ),
+        [
+            [
+                "regular",
+                "2026-01-01T00:00:00.000Z",
+                "exact",
+                "2026-01-01T00:00:00.000Z",
+            ],
+            [
+                "reloaded",
+                "2019-06-01T00:00:00.000Z",
+                "approx",
+                reloadedAt.toISOString(),
+            ],
+        ]
+    )
+})

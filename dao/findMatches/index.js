@@ -2,6 +2,10 @@ const { escapeRegExp } = require("es-toolkit")
 const matchesModel = require("./../models/matches.js")
 const tournamentsModel = require("./../models/tournaments.js")
 const { getPlayoffRoundIdRange } = require("../../config/playoffFormats")
+const {
+    PLAYED_AT_SORT_STAGES,
+    playedAtRangeCondition,
+} = require("../../utils/playedAt")
 
 const MONGO_COMPARISON_OPS = { gte: "$gte", lte: "$lte", eq: "$eq" }
 
@@ -265,24 +269,28 @@ const findMatches = async (filters) => {
             )
         }
 
-        queryConditions.push({ updatedAt: dateFilter })
+        queryConditions.push(playedAtRangeCondition(dateFilter))
     }
 
     const finalFilter = { $and: queryConditions }
     const currentPage = Math.max(1, Number(page) || 1)
-    const matchSort =
+    const sortStages =
         type === "playoff" && tournamentId && tournamentId !== "all"
-            ? { playoff_id: 1, leg: 1, _id: 1 }
-            : { updatedAt: -1, _id: -1 }
+            ? [{ $sort: { playoff_id: 1, leg: 1, _id: 1 } }]
+            : PLAYED_AT_SORT_STAGES
 
-    const [matches, amountOfTotalMatches] = await Promise.all([
-        matchesModel
-            .find(finalFilter)
-            .limit(limit)
-            .skip((currentPage - 1) * limit)
-            .sort(matchSort),
+    // Aggregate para ordenar por `playedAt ?? updatedAt`; hydrate conserva el
+    // shape de documento que devolvía `find`.
+    const [documents, amountOfTotalMatches] = await Promise.all([
+        matchesModel.aggregate([
+            { $match: finalFilter },
+            ...sortStages,
+            { $skip: (currentPage - 1) * limit },
+            { $limit: limit },
+        ]),
         matchesModel.countDocuments(finalFilter),
     ])
+    const matches = documents.map((document) => matchesModel.hydrate(document))
 
     return {
         matches,

@@ -4,14 +4,44 @@ const {
     modifyTournamentOutcome,
 } = require("./../../service")
 const { HttpError } = require("../../middleware/httpErrors")
+const { getPlayedAt, getPlayedAtPrecision } = require("../../utils/playedAt")
+const { sameTeamId } = require("../../utils/teamRef")
+
+const toTime = (value) => {
+    if (value === null || value === undefined) return null
+    const time = new Date(value).getTime()
+    return Number.isNaN(time) ? null : time
+}
+
+// Cierre de liga (D3): el último partido jugado, con su precisión.
+const computeLeagueClosure = (matches) => {
+    let latest = null
+    let latestTime = null
+    for (const match of matches) {
+        const time = toTime(getPlayedAt(match))
+        if (time !== null && (latestTime === null || time > latestTime)) {
+            latest = match
+            latestTime = time
+        }
+    }
+
+    if (!latest) return { closedAt: new Date(), closedAtPrecision: "exact" }
+
+    return {
+        closedAt: new Date(latestTime),
+        closedAtPrecision: getPlayedAtPrecision(latest) ?? "exact",
+    }
+}
 
 // Helper to compute champion and finalist for league format
 const computeLeagueOutcome = (matches, teams) => {
     const statsMap = new Map()
 
+    // Claves String: el mismo equipo puede venir con id string o number.
     const ensureTeam = (teamObj, playerObj) => {
-        if (!statsMap.has(teamObj.id)) {
-            statsMap.set(teamObj.id, {
+        const key = String(teamObj.id)
+        if (!statsMap.has(key)) {
+            statsMap.set(key, {
                 id: teamObj.id,
                 team: { id: teamObj.id, name: teamObj.name },
                 player: playerObj
@@ -26,7 +56,7 @@ const computeLeagueOutcome = (matches, teams) => {
                 points: 0,
             })
         }
-        return statsMap.get(teamObj.id)
+        return statsMap.get(key)
     }
     for (const m of matches) {
         const {
@@ -52,7 +82,7 @@ const computeLeagueOutcome = (matches, teams) => {
             t1.points += 1
             t2.points += 1
         } else if (
-            outcome?.teamThatWon?.id === teamP1.id ||
+            sameTeamId(outcome?.teamThatWon?.id, teamP1.id) ||
             scoreP1 > scoreP2
         ) {
             t1.wins += 1
@@ -161,7 +191,9 @@ const createPutCompleteTournamentById = (dependencies = {}) => {
         const completedTournament = await modifyOutcome(
             tournamentId,
             champion,
-            finalist
+            finalist,
+            {},
+            computeLeagueClosure(matches)
         )
 
         if (!completedTournament) {
@@ -184,3 +216,4 @@ const putCompleteTournamentById = createPutCompleteTournamentById()
 module.exports = putCompleteTournamentById
 module.exports.createPutCompleteTournamentById = createPutCompleteTournamentById
 module.exports.computeLeagueOutcome = computeLeagueOutcome
+module.exports.computeLeagueClosure = computeLeagueClosure

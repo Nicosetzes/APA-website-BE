@@ -8,6 +8,8 @@ const updateMatchResultToRemoveIt = async (matchId) => {
                 scoreP1: 1,
                 scoreP2: 1,
                 outcome: 1,
+                playedAt: 1,
+                playedAtPrecision: 1,
             },
             played: false,
         },

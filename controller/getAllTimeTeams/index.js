@@ -25,8 +25,9 @@ const createGetAllTimeTeams = (dependencies = {}) => {
             const isPenalty = outcome?.penalties || false
 
             // Helper to update team stats (for total points leaderboard)
+            // Claves String: el mismo equipo puede tener id string o number.
             const updateTeamStats = (team, result) => {
-                const key = team.id
+                const key = String(team.id)
                 if (!teamStats.has(key)) {
                     teamStats.set(key, {
                         team: { id: team.id, name: team.name },
@@ -42,13 +43,18 @@ const createGetAllTimeTeams = (dependencies = {}) => {
             }
 
             // Helper to update player+team+tournament stats (for effectiveness leaderboard)
+            // Los partidos sin torneo (`tournament: null`) cuentan en el
+            // total por equipo pero no en el ranking por torneo.
             const updatePlayerTeamStats = (
                 player,
                 team,
                 tournamentData,
                 result
             ) => {
-                const key = `${player.id}|${team.id}|${tournamentData?.id}`
+                if (!tournamentData?.id) return
+                const key = `${player.id}|${String(team.id)}|${
+                    tournamentData.id
+                }`
                 if (!playerTeamStats.has(key)) {
                     playerTeamStats.set(key, {
                         player: { id: player.id, name: player.name },

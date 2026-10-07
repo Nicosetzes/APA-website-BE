@@ -75,6 +75,31 @@ const calculateOutcome = ({
     return outcome
 }
 
+const PARTICIPANT_FIELDS = [
+    "playerP1",
+    "teamP1",
+    "seedP1",
+    "playerP2",
+    "teamP2",
+    "seedP2",
+]
+
+const pickParticipants = (source) =>
+    Object.fromEntries(
+        PARTICIPANT_FIELDS.map((field) => [field, source?.[field]])
+    )
+
+const participantKey = (field, value) =>
+    String((field.startsWith("seed") ? value : value?.id) ?? "")
+
+// Nombres de los campos cuyo id (o seed) difiere; no expone nombres.
+const diffParticipants = (persisted, body) =>
+    PARTICIPANT_FIELDS.filter(
+        (field) =>
+            participantKey(field, persisted[field]) !==
+            participantKey(field, body[field])
+    )
+
 const createPutMatchByTournamentId = (dependencies = {}) => {
     const updateMatch = dependencies.modifyMatchResult || modifyMatchResult
     const updateTournament =
@@ -137,28 +162,52 @@ const createPutMatchByTournamentId = (dependencies = {}) => {
         const scoreP2 = Number(scoreP2AsString)
         const penaltyScoreP1 = Number(penaltyScoreP1AsString)
         const penaltyScoreP2 = Number(penaltyScoreP2AsString)
-        const outcome = calculateOutcome({
+
+        // Los participantes salen del partido guardado: el body puede venir
+        // de una vista desactualizada y dejaría un ganador que no juega el
+        // partido (D6). El body sólo se usa si no hay partido cargado.
+        const bodyParticipants = {
             playerP1,
             teamP1,
             seedP1,
-            scoreP1,
-            penaltyScoreP1,
             playerP2,
             teamP2,
             seedP2,
+        }
+        const participants = req.match
+            ? pickParticipants(req.match)
+            : bodyParticipants
+
+        if (req.match) {
+            const mismatches = diffParticipants(participants, bodyParticipants)
+            if (mismatches.length) {
+                log.warn("match_result_participants_mismatch", {
+                    requestId: req.requestId || null,
+                    tournamentId: tournament,
+                    matchId: match,
+                    fields: mismatches,
+                })
+            }
+        }
+
+        const outcome = calculateOutcome({
+            ...participants,
+            scoreP1,
+            penaltyScoreP1,
             scoreP2,
             penaltyScoreP2,
         })
 
         const uploadedMatch = await runInTransaction(async (session) => {
             const options = { session }
+            // `previous` sólo viaja al update del partido: decide su playedAt.
             const updatedMatch = await updateMatch(
                 match,
                 scoreP1,
                 scoreP2,
                 outcome,
                 valid,
-                options
+                { ...options, previous: req.match }
             )
 
             if (!updatedMatch) {
@@ -219,11 +268,18 @@ const createPutMatchByTournamentId = (dependencies = {}) => {
                         team: outcome.teamThatLost,
                         player: outcome.playerThatLost,
                     }
+                    // El torneo cierra con la fecha de la final (D3).
                     await updateTournament(
                         tournament,
                         champion,
                         finalist,
-                        options
+                        options,
+                        {
+                            closedAt: updatedMatch.playedAt ?? new Date(),
+                            closedAtPrecision: updatedMatch.playedAt
+                                ? updatedMatch.playedAtPrecision ?? "exact"
+                                : "exact",
+                        }
                     )
                 }
 

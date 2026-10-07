@@ -1,4 +1,13 @@
+const { getPlayedAt } = require("../../utils/playedAt")
 const { retrieveAllUsers, retrieveAllMatches } = require("./../../service")
+
+const toPlayedAtTime = (match) => {
+    const time = new Date(getPlayedAt(match) ?? 0).getTime()
+    return Number.isNaN(time) ? 0 : time
+}
+
+// Desempate de mejor victoria / peor derrota: el partido jugado antes primero.
+const compareByPlayedAtAsc = (a, b) => toPlayedAtTime(a) - toPlayedAtTime(b)
 
 const createGetAllTimeFaceToFace = (dependencies = {}) => {
     const retrieveUsers = dependencies.retrieveAllUsers || retrieveAllUsers
@@ -55,18 +64,17 @@ const createGetAllTimeFaceToFace = (dependencies = {}) => {
                         return 1
 
                     if (
-                        a.outcome.scoreFromTeamThatWon >
-                        b.outcome.scoreFromTeamThatWon
+                        Number(a.outcome.scoreFromTeamThatWon) >
+                        Number(b.outcome.scoreFromTeamThatWon)
                     )
                         return -1
                     if (
-                        a.outcome.scoreFromTeamThatWon <
-                        b.outcome.scoreFromTeamThatWon
+                        Number(a.outcome.scoreFromTeamThatWon) <
+                        Number(b.outcome.scoreFromTeamThatWon)
                     )
                         return 1
 
-                    if (a.updatedAt > b.updatedAt) return 1
-                    if (a.updatedAt < b.updatedAt) return -1
+                    return compareByPlayedAtAsc(a, b)
                 })[0].outcome
 
                 firstPlayerAmountOfWins = firstPlayerWins.length
@@ -97,18 +105,17 @@ const createGetAllTimeFaceToFace = (dependencies = {}) => {
                         return 1
 
                     if (
-                        a.outcome.scoreFromTeamThatLost >
-                        b.outcome.scoreFromTeamThatLost
+                        Number(a.outcome.scoreFromTeamThatLost) >
+                        Number(b.outcome.scoreFromTeamThatLost)
                     )
                         return -1
                     if (
-                        a.outcome.scoreFromTeamThatLost <
-                        b.outcome.scoreFromTeamThatLost
+                        Number(a.outcome.scoreFromTeamThatLost) <
+                        Number(b.outcome.scoreFromTeamThatLost)
                     )
                         return 1
 
-                    if (a.updatedAt > b.updatedAt) return 1
-                    if (a.updatedAt < b.updatedAt) return -1
+                    return compareByPlayedAtAsc(a, b)
                 })[0].outcome
 
                 firstPlayerAmountOfLosses = firstPlayerLosses.length

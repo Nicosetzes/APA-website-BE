@@ -15,7 +15,8 @@ const claimPlayoffSeriesRevision = async (
             seriesRevision: expectedRevision,
         },
         { $inc: { seriesRevision: 1 } },
-        { new: true, session }
+        // Escritura de control: no debe mover updatedAt de la ida.
+        { new: true, session, timestamps: false }
     )
 
 module.exports = claimPlayoffSeriesRevision

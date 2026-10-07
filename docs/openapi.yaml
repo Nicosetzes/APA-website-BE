@@ -281,8 +281,20 @@ paths:
                                 properties:
                                     matches:
                                         type: array
+                                        description: >-
+                                            Ordenados por `playedAt` (con
+                                            fallback a `updatedAt`) y `_id`
+                                            desc; en el historial de playoff de
+                                            un torneo, por llave y pierna.
+                                            `dateFrom`/`dateTo` filtran sobre
+                                            la misma fecha.
                                         items:
                                             type: object
+                                            properties:
+                                                playedAt:
+                                                    $ref: "#/components/schemas/PlayedAt"
+                                                playedAtPrecision:
+                                                    $ref: "#/components/schemas/PlayedAtPrecision"
                                             additionalProperties: true
                                     totalMatches:
                                         type: integer
@@ -421,13 +433,23 @@ paths:
                 Las rachas de `records` (`most_*_in_a_row`) y de `activeStreaks`
                 comparten el shape `{ count, players }` (o `null` si nadie tiene
                 racha). Cada poseedor trae `id`, `name`, `date` (igual a
-                `endDate`, por compatibilidad), `isActive`, `startDate`,
-                `endDate`, `startMatch`, `endMatch` y `breakMatch`. Las fechas
-                salen de `updatedAt` y son `null` en partidos sin timestamps.
+                `endDate`, por compatibilidad), `datePrecision`, `isActive`,
+                `startDate`, `startDatePrecision`, `endDate`,
+                `endDatePrecision`, `startMatch`, `endMatch` y `breakMatch`.
+                Las fechas salen de `playedAt`, con fallback a `updatedAt`
+                mientras falte el backfill, y son `null` en partidos sin
+                ninguna de las dos. Cada `*Precision` (y `datePrecision` de
+                los partidos) es `exact`, `day`, `month`, `year` o `approx`
+                (`null` si no hay fecha); clientes viejos sin precisión la
+                tratan como `exact`. Los partidos de
+                `highest_scoring_difference_match` y
+                `highest_total_goals_match` y los `recent` de cada jugador
+                también traen `date` + `datePrecision`.
                 Una racha está activa si incluye el partido más reciente del
                 jugador. `endMatch` es el último partido válido de la racha y
                 `breakMatch` el partido que la cortó (`null` si está activa).
-                Los partidos (`date`, `tournament`, `type`, `team`, `opponent`,
+                Los partidos (`date`, `datePrecision`, `tournament`, `type`,
+                `team`, `opponent`,
                 `opponentTeam`, `goalsFor`, `goalsAgainst`, `result`,
                 `penalties`) van en la perspectiva del poseedor; con una racha
                 de un partido, `startMatch` y `endMatch` son el mismo.
@@ -499,6 +521,11 @@ paths:
         get:
             tags: [Tournaments]
             summary: Lista torneos
+            description: >-
+                Ordenados por `startedAt` (con fallback a `createdAt`) y `_id`
+                desc; `status=finalized` va del más viejo al más nuevo. Cada
+                torneo trae `createdAt`, `startedAt`, `closedAt` y sus
+                precisiones.
             parameters:
                 - in: query
                   name: status
@@ -575,6 +602,11 @@ paths:
         get:
             tags: [Tournaments]
             summary: Obtiene resumen, recientes y estadísticas de participantes
+            description: |
+                `matches.recent` (hasta 6) va ordenado por `playedAt` con
+                fallback a `updatedAt` y `_id` desc. Cada partido trae
+                `updatedAt` (última edición), `playedAt` (ya resuelto con el
+                fallback) y `playedAtPrecision`.
             parameters:
                 - $ref: "#/components/parameters/TournamentId"
             responses:
@@ -907,7 +939,10 @@ paths:
                 envía `group`, devuelve todos; si no tiene grupos, devuelve una
                 sola entrada con `group` ausente. En formato `league` agrega
                 `eliminated`, y en `league_playin_playoff` además
-                `directlyQualified` y `playinQualified`.
+                `directlyQualified` y `playinQualified`. Cada entrada de
+                `streak` trae `date` (texto legacy formateado en el server),
+                `playedAt` (ISO, de `playedAt` con fallback a `updatedAt`) y
+                `datePrecision` (`exact`, `day`, `month`, `year` o `approx`).
             parameters:
                 - $ref: "#/components/parameters/TournamentId"
                 - in: query
@@ -1526,7 +1561,20 @@ components:
                         required: [team, player]
                         properties:
                             team:
-                                $ref: "#/components/schemas/EntityReference"
+                                type: object
+                                required: [id, name]
+                                additionalProperties: true
+                                description: >-
+                                    El `id` del equipo se guarda como número;
+                                    un string numérico ("10") se convierte.
+                                properties:
+                                    id:
+                                        type: integer
+                                        minimum: 0
+                                    name:
+                                        type: string
+                                        minLength: 1
+                                        maxLength: 255
                             player:
                                 $ref: "#/components/schemas/EntityReference"
                             group:
@@ -1563,6 +1611,23 @@ components:
                     items:
                         type: object
                         additionalProperties: true
+                startedAt:
+                    type: string
+                    format: date-time
+                    description: >-
+                        Inicio del torneo. Ausente en torneos sin backfill: las
+                        listas caen a `createdAt`.
+                startedAtPrecision:
+                    $ref: "#/components/schemas/PlayedAtPrecision"
+                closedAt:
+                    type: string
+                    format: date-time
+                    description: >-
+                        Cierre del torneo: fecha del partido que decidió la final
+                        o del último partido de la liga. Ausente en torneos sin
+                        backfill: los clientes caen a `updatedAt`.
+                closedAtPrecision:
+                    $ref: "#/components/schemas/PlayedAtPrecision"
             additionalProperties: true
         PlayoffSeriesAggregate:
             type: object
@@ -1621,6 +1686,20 @@ components:
                         [PLAYOFF_CONFIGURATION_ERROR, PLAYOFF_SERIES_NOT_READY]
                 message:
                     type: string
+        PlayedAt:
+            type: string
+            format: date-time
+            description: >-
+                Fecha en la que se jugó el partido. Se fija al cargar el
+                primer resultado, no cambia al editarlo y se borra al quitar el
+                resultado. Partidos jugados antes del backfill no la tienen:
+                los clientes caen a `updatedAt`.
+        PlayedAtPrecision:
+            type: string
+            enum: [exact, day, month, year, approx]
+            description: >-
+                Qué parte de `playedAt` es conocida. Ausente equivale a
+                `exact`.
         PlayoffMatch:
             type: object
             properties:
@@ -1630,6 +1709,10 @@ components:
                 seriesRevision:
                     type: integer
                     minimum: 0
+                playedAt:
+                    $ref: "#/components/schemas/PlayedAt"
+                playedAtPrecision:
+                    $ref: "#/components/schemas/PlayedAtPrecision"
                 series:
                     $ref: "#/components/schemas/PlayoffSeriesMetadata"
                 mutation:

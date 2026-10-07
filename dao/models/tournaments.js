@@ -1,5 +1,6 @@
 const mongoose = require("mongoose")
 const { schemaVersionPlugin } = require("./plugins/schemaVersion")
+const { PLAYED_AT_PRECISIONS } = require("../../utils/playedAt")
 
 const collection = "tournaments"
 const TOURNAMENT_FORMATS = [
@@ -125,6 +126,19 @@ const tournamentsSchema = new mongoose.Schema(
             },
         },
         legacy: { type: Boolean, require: false, default: false },
+        // Fechas de inicio y cierre; sin default ni índice (ver utils/playedAt).
+        startedAt: { type: Date, required: false },
+        startedAtPrecision: {
+            type: String,
+            enum: PLAYED_AT_PRECISIONS,
+            required: false,
+        },
+        closedAt: { type: Date, required: false },
+        closedAtPrecision: {
+            type: String,
+            enum: PLAYED_AT_PRECISIONS,
+            required: false,
+        },
     },
     {
         collection,

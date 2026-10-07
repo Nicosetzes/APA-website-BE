@@ -4,9 +4,16 @@ const modifyTournamentOutcome = async (
     tournament,
     champion,
     finalist,
-    options = {}
+    options = {},
+    closure = {}
 ) => {
-    return updateTournamentOutcome(tournament, champion, finalist, options)
+    return updateTournamentOutcome(
+        tournament,
+        champion,
+        finalist,
+        options,
+        closure
+    )
 }
 
 module.exports = modifyTournamentOutcome

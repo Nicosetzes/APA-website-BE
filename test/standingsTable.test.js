@@ -306,3 +306,88 @@ test("standings table validation accepts an optional group and rejects the rest"
         assert.equal(error.code, "VALIDATION_ERROR")
     }
 })
+
+test("standings streak entries carry playedAt and its precision", async () => {
+    const [newer, older] = createPlayedMatches()
+    const controller = createGetStandingsTableByTournamentId({
+        retrieveTournamentById: async () => createLeagueTournament(),
+        orderMatchesFromTournamentById: async () => [
+            newer,
+            {
+                ...older,
+                playedAt: new Date("2019-05-01T00:00:00.000Z"),
+                playedAtPrecision: "year",
+            },
+        ],
+        retrieveAllNotPlayedMatchesByTournamentId: async () => [],
+    })
+    const response = createResponse()
+    await controller(
+        { params: { tournament: TOURNAMENT_ID }, query: {} },
+        response
+    )
+    const racing = response.body.standings[0].teams[0]
+    assert.deepEqual(
+        racing.streak.map(({ playedAt, datePrecision }) => [
+            playedAt,
+            datePrecision,
+        ]),
+        [
+            ["2019-05-01T00:00:00.000Z", "year"],
+            ["2026-09-20T12:00:00.000Z", "exact"],
+        ]
+    )
+    // `date` sigue siendo el texto legacy, ahora desde playedAt.
+    assert.equal(
+        racing.streak[0].date,
+        new Date("2019-05-01T00:00:00.000Z").toLocaleString()
+    )
+})
+
+test("standings table does not split teams stored with string and number ids", async () => {
+    const racingAsNumber = { id: 10, name: "Racing" }
+    const riverAsNumber = { id: 30, name: "River" }
+    const matches = createPlayedMatches()
+    // Mismo partido de Racing con ids number en lados y outcome.
+    matches[0] = {
+        ...matches[0],
+        teamP1: racingAsNumber,
+        teamP2: riverAsNumber,
+        outcome: {
+            ...matches[0].outcome,
+            teamThatWon: racingAsNumber,
+            teamThatLost: riverAsNumber,
+        },
+    }
+    const controller = createGetStandingsTableByTournamentId({
+        retrieveTournamentById: async () => createLeagueTournament(),
+        orderMatchesFromTournamentById: async () => matches,
+        retrieveAllNotPlayedMatchesByTournamentId: async () => [
+            { teamP1: { id: 20, name: "Boca" }, teamP2: riverAsNumber },
+        ],
+    })
+    const response = createResponse()
+
+    await controller(
+        { params: { tournament: TOURNAMENT_ID }, query: {} },
+        response
+    )
+
+    const rows = response.body.standings[0].teams
+    assert.equal(rows.length, 3)
+    const racing = rows.find((row) => row.team.name === "Racing")
+    assert.equal(racing.played, 2)
+    assert.equal(racing.points, 4)
+    assert.deepEqual(
+        racing.streak.map((entry) => entry.outcome),
+        ["d", "w"]
+    )
+    const river = rows.find((row) => row.team.name === "River")
+    assert.equal(river.played, 1)
+    assert.equal(river.eliminated, true)
+    // Boca suma la pendiente aunque el id llegue como number.
+    assert.equal(
+        rows.find((row) => row.team.name === "Boca").eliminated,
+        undefined
+    )
+})

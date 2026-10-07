@@ -1,9 +1,14 @@
+const { sameTeamId } = require("../../utils/teamRef")
+const { getPlayedAt, getPlayedAtPrecision } = require("../../utils/playedAt")
 const {
     retrieveTournamentById,
     orderMatchesFromTournamentById,
     retrieveAllNotPlayedMatchesByTournamentId,
 } = require("./../../service")
 const { HttpError } = require("../../middleware/httpErrors")
+
+// Claves String: el mismo equipo puede tener id string o number (D5).
+const teamKey = (team) => String(team?.id)
 
 const createGetStandingsTableByTournamentId = (dependencies = {}) => {
     const retrieveTournament =
@@ -44,8 +49,9 @@ const createGetStandingsTableByTournamentId = (dependencies = {}) => {
             const statsMap = new Map()
 
             const ensureTeam = (teamObj, playerObj) => {
-                if (!statsMap.has(teamObj.id)) {
-                    statsMap.set(teamObj.id, {
+                const key = teamKey(teamObj)
+                if (!statsMap.has(key)) {
+                    statsMap.set(key, {
                         team: teamObj,
                         player: playerObj,
                         played: 0,
@@ -59,7 +65,7 @@ const createGetStandingsTableByTournamentId = (dependencies = {}) => {
                         streak: [],
                     })
                 }
-                return statsMap.get(teamObj.id)
+                return statsMap.get(key)
             }
 
             for (const m of matches) {
@@ -72,8 +78,9 @@ const createGetStandingsTableByTournamentId = (dependencies = {}) => {
                     scoreP2,
                     outcome,
                     id: matchId,
-                    updatedAt,
                 } = m
+                const playedAt = getPlayedAt(m)
+                const datePrecision = getPlayedAtPrecision(m)
 
                 const t1 = ensureTeam(teamP1, playerP1)
                 const t2 = ensureTeam(teamP2, playerP2)
@@ -91,30 +98,37 @@ const createGetStandingsTableByTournamentId = (dependencies = {}) => {
                     t2.draws += 1
                     t1.points += 1
                     t2.points += 1
-                } else if (outcome?.teamThatWon?.id === teamP1.id) {
+                } else if (sameTeamId(outcome?.teamThatWon?.id, teamP1.id)) {
                     t1.wins += 1
                     t2.losses += 1
                     t1.points += 3
-                } else if (outcome?.teamThatWon?.id === teamP2.id) {
+                } else if (sameTeamId(outcome?.teamThatWon?.id, teamP2.id)) {
                     t2.wins += 1
                     t1.losses += 1
                     t2.points += 3
-                } else if (outcome?.teamThatLost?.id === teamP1.id) {
+                } else if (sameTeamId(outcome?.teamThatLost?.id, teamP1.id)) {
                     // Fallback if only teamThatLost is set
                     t1.losses += 1
                     t2.wins += 1
                     t2.points += 3
-                } else if (outcome?.teamThatLost?.id === teamP2.id) {
+                } else if (sameTeamId(outcome?.teamThatLost?.id, teamP2.id)) {
                     t2.losses += 1
                     t1.wins += 1
                     t1.points += 3
                 }
 
-                const dateStr = updatedAt
-                    ? new Date(updatedAt).toLocaleString()
+                const dateStr = playedAt
+                    ? new Date(playedAt).toLocaleString()
                     : new Date(
                           parseInt(String(matchId).substring(0, 8), 16) * 1000
                       ).toLocaleDateString()
+                // `date` queda como texto legacy; `playedAt` + precisión le
+                // permiten al FE mostrar fechas no exactas.
+                const playedAtTime = playedAt ? new Date(playedAt) : null
+                const playedAtIso =
+                    playedAtTime && !Number.isNaN(playedAtTime.getTime())
+                        ? playedAtTime.toISOString()
+                        : null
 
                 if (t1.streak.length < 5) {
                     if (outcome?.draw) {
@@ -127,8 +141,12 @@ const createGetStandingsTableByTournamentId = (dependencies = {}) => {
                             teamP2,
                             scoreP2,
                             date: dateStr,
+                            playedAt: playedAtIso,
+                            datePrecision,
                         })
-                    } else if (outcome?.teamThatWon?.id === teamP1.id) {
+                    } else if (
+                        sameTeamId(outcome?.teamThatWon?.id, teamP1.id)
+                    ) {
                         t1.streak.push({
                             outcome: "w",
                             playerP1: outcome.playerThatWon || playerP1,
@@ -138,8 +156,12 @@ const createGetStandingsTableByTournamentId = (dependencies = {}) => {
                             teamP2: outcome.teamThatLost || teamP2,
                             scoreP2: outcome.scoreFromTeamThatLost ?? scoreP2,
                             date: dateStr,
+                            playedAt: playedAtIso,
+                            datePrecision,
                         })
-                    } else if (outcome?.teamThatLost?.id === teamP1.id) {
+                    } else if (
+                        sameTeamId(outcome?.teamThatLost?.id, teamP1.id)
+                    ) {
                         t1.streak.push({
                             outcome: "l",
                             playerP1: outcome.playerThatLost || playerP1,
@@ -149,6 +171,8 @@ const createGetStandingsTableByTournamentId = (dependencies = {}) => {
                             teamP2: outcome.teamThatWon || teamP2,
                             scoreP2: outcome.scoreFromTeamThatWon ?? scoreP2,
                             date: dateStr,
+                            playedAt: playedAtIso,
+                            datePrecision,
                         })
                     }
                 }
@@ -164,8 +188,12 @@ const createGetStandingsTableByTournamentId = (dependencies = {}) => {
                             teamP2,
                             scoreP2,
                             date: dateStr,
+                            playedAt: playedAtIso,
+                            datePrecision,
                         })
-                    } else if (outcome?.teamThatWon?.id === teamP2.id) {
+                    } else if (
+                        sameTeamId(outcome?.teamThatWon?.id, teamP2.id)
+                    ) {
                         t2.streak.push({
                             outcome: "w",
                             playerP1: outcome.playerThatWon || playerP2,
@@ -175,8 +203,12 @@ const createGetStandingsTableByTournamentId = (dependencies = {}) => {
                             teamP2: outcome.teamThatLost || teamP1,
                             scoreP2: outcome.scoreFromTeamThatLost ?? scoreP1,
                             date: dateStr,
+                            playedAt: playedAtIso,
+                            datePrecision,
                         })
-                    } else if (outcome?.teamThatLost?.id === teamP2.id) {
+                    } else if (
+                        sameTeamId(outcome?.teamThatLost?.id, teamP2.id)
+                    ) {
                         t2.streak.push({
                             outcome: "l",
                             playerP1: outcome.playerThatLost || playerP2,
@@ -186,6 +218,8 @@ const createGetStandingsTableByTournamentId = (dependencies = {}) => {
                             teamP2: outcome.teamThatWon || teamP1,
                             scoreP2: outcome.scoreFromTeamThatWon ?? scoreP1,
                             date: dateStr,
+                            playedAt: playedAtIso,
+                            datePrecision,
                         })
                     }
                 }
@@ -193,7 +227,7 @@ const createGetStandingsTableByTournamentId = (dependencies = {}) => {
 
             const standings = []
             for (const { team, player } of teamsInGroup) {
-                const s = statsMap.get(team.id) || {
+                const s = statsMap.get(teamKey(team)) || {
                     team,
                     player,
                     played: 0,
@@ -230,18 +264,18 @@ const createGetStandingsTableByTournamentId = (dependencies = {}) => {
                 const remainingByTeam = new Map()
                 for (const { teamP1, teamP2 } of notPlayedMatches) {
                     remainingByTeam.set(
-                        teamP1.id,
-                        (remainingByTeam.get(teamP1.id) || 0) + 1
+                        teamKey(teamP1),
+                        (remainingByTeam.get(teamKey(teamP1)) || 0) + 1
                     )
                     remainingByTeam.set(
-                        teamP2.id,
-                        (remainingByTeam.get(teamP2.id) || 0) + 1
+                        teamKey(teamP2),
+                        (remainingByTeam.get(teamKey(teamP2)) || 0) + 1
                     )
                 }
 
                 sortedStandings = sortedStandings.map((team) => {
                     let amountOfRemainingMatchesForEachTeam =
-                        remainingByTeam.get(team.team.id) || 0
+                        remainingByTeam.get(teamKey(team.team)) || 0
 
                     let pointsThatTeamCouldHaveAtTheEnd =
                         amountOfRemainingMatchesForEachTeam * 3 + team.points
@@ -258,12 +292,12 @@ const createGetStandingsTableByTournamentId = (dependencies = {}) => {
                 const remainingByTeam = new Map()
                 for (const { teamP1, teamP2 } of notPlayedMatches) {
                     remainingByTeam.set(
-                        teamP1.id,
-                        (remainingByTeam.get(teamP1.id) || 0) + 1
+                        teamKey(teamP1),
+                        (remainingByTeam.get(teamKey(teamP1)) || 0) + 1
                     )
                     remainingByTeam.set(
-                        teamP2.id,
-                        (remainingByTeam.get(teamP2.id) || 0) + 1
+                        teamKey(teamP2),
+                        (remainingByTeam.get(teamKey(teamP2)) || 0) + 1
                     )
                 }
 
@@ -277,7 +311,8 @@ const createGetStandingsTableByTournamentId = (dependencies = {}) => {
                     }))
                 } else {
                     const calcMaxPotential = (row) =>
-                        (remainingByTeam.get(row.team.id) || 0) * 3 + row.points
+                        (remainingByTeam.get(teamKey(row.team)) || 0) * 3 +
+                        row.points
 
                     // Compute safe worst-case thresholds using ALL contenders below cut lines
                     const maxPotentialBelow6 = (() => {
