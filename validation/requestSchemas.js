@@ -234,7 +234,14 @@ module.exports = {
                 .valid("all", "", ...PLAYOFF_ROUNDS)
                 .optional(),
             outcome: Joi.string()
-                .valid("all", "win", "draw", "loss", "penalties")
+                .valid(
+                    "all",
+                    "win",
+                    "winIncludingPenalties",
+                    "draw",
+                    "loss",
+                    "penalties"
+                )
                 .optional(),
             goalDiffOp: comparisonOp,
             goalDiffVal: Joi.number()

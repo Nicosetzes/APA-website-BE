@@ -404,6 +404,162 @@ test("findMatches filters goals conceded and teams from player1's perspective", 
     })
 })
 
+// Evalúa una condición plana de Mongo (`"a.b.c": valor`) contra un documento.
+const matchesFlatCondition = (condition, document) =>
+    Object.entries(condition).every(
+        ([path, expected]) =>
+            path
+                .split(".")
+                .reduce(
+                    (value, key) => (value == null ? value : value[key]),
+                    document
+                ) === expected
+    )
+
+const OUTCOME_KEYS = [
+    "outcome.draw",
+    "outcome.penalties",
+    "outcome.playerThatWon.id",
+    "outcome.playerThatLost.id",
+]
+
+// La condición de resultado que arma el DAO: la única con claves `outcome.*`.
+const outcomeConditionFor = async (outcome) => {
+    const conditions = await captureFindMatchesFilter({
+        player1: PLAYER_A,
+        outcome,
+    })
+    const found = conditions.filter((condition) =>
+        Object.keys(condition).some((key) => OUTCOME_KEYS.includes(key))
+    )
+    assert.equal(found.length, 1, `one outcome condition for ${outcome}`)
+    return found[0]
+}
+
+const outcomeDocument = ({ draw, penalties = false, winner, loser }) => ({
+    valid: true,
+    outcome: {
+        draw,
+        penalties,
+        playerThatWon: winner ? { id: winner } : null,
+        playerThatLost: loser ? { id: loser } : null,
+    },
+})
+
+const OUTCOME_FIXTURES = {
+    regularWin: outcomeDocument({
+        draw: false,
+        winner: PLAYER_A,
+        loser: PLAYER_B,
+    }),
+    regularLoss: outcomeDocument({
+        draw: false,
+        winner: PLAYER_B,
+        loser: PLAYER_A,
+    }),
+    regularDraw: outcomeDocument({ draw: true }),
+    // Las tandas se guardan como empate con ganador.
+    shootoutWin: outcomeDocument({
+        draw: true,
+        penalties: true,
+        winner: PLAYER_A,
+        loser: PLAYER_B,
+    }),
+    shootoutLoss: outcomeDocument({
+        draw: true,
+        penalties: true,
+        winner: PLAYER_B,
+        loser: PLAYER_A,
+    }),
+    // Final `valid: false` entre dos equipos del mismo jugador.
+    samePlayerFinal: {
+        ...outcomeDocument({ draw: false, winner: PLAYER_A, loser: PLAYER_A }),
+        valid: false,
+    },
+}
+
+const matchingFixtures = (condition) =>
+    Object.entries(OUTCOME_FIXTURES)
+        .filter(([, document]) => matchesFlatCondition(condition, document))
+        .map(([name]) => name)
+
+test("findMatches outcome=winIncludingPenalties matches any win of player1, shootouts included", async () => {
+    const condition = await outcomeConditionFor("winIncludingPenalties")
+
+    assert.deepEqual(condition, { "outcome.playerThatWon.id": PLAYER_A })
+    assert.deepEqual(matchingFixtures(condition), [
+        "regularWin",
+        "shootoutWin",
+        "samePlayerFinal",
+    ])
+})
+
+test("findMatches keeps win, draw, loss and penalties outcome conditions unchanged", async () => {
+    const expected = {
+        win: {
+            condition: {
+                "outcome.draw": false,
+                "outcome.playerThatWon.id": PLAYER_A,
+            },
+            matches: ["regularWin", "samePlayerFinal"],
+        },
+        draw: {
+            condition: { "outcome.draw": true },
+            matches: ["regularDraw", "shootoutWin", "shootoutLoss"],
+        },
+        loss: {
+            condition: {
+                "outcome.draw": false,
+                "outcome.playerThatLost.id": PLAYER_A,
+            },
+            matches: ["regularLoss", "samePlayerFinal"],
+        },
+        penalties: {
+            condition: { "outcome.penalties": true },
+            matches: ["shootoutWin", "shootoutLoss"],
+        },
+    }
+
+    for (const [outcome, { condition, matches }] of Object.entries(expected)) {
+        const received = await outcomeConditionFor(outcome)
+        assert.deepEqual(received, condition, outcome)
+        assert.deepEqual(matchingFixtures(received), matches, outcome)
+    }
+})
+
+test("findMatches ignores outcome=winIncludingPenalties without player1", async () => {
+    const conditions = await captureFindMatchesFilter({
+        player1: "all",
+        outcome: "winIncludingPenalties",
+    })
+
+    assert.equal(JSON.stringify(conditions).includes("outcome."), false)
+})
+
+test("matches listing validation accepts the streak link filters", async () => {
+    const request = {
+        query: {
+            player1: PLAYER_A,
+            type: "playoff",
+            playoffRound: "final",
+            outcome: "winIncludingPenalties",
+            player1GoalsOp: "gte",
+            player1GoalsVal: "3",
+            player1ConcededOp: "eq",
+            player1ConcededVal: "0",
+            dateFrom: "2019-07-20",
+            dateTo: "2022-07-03",
+            page: "1",
+        },
+        body: {},
+    }
+
+    const error = await runValidation(schemas.getMatches, request)
+
+    assert.equal(error, undefined)
+    assert.equal(request.query.outcome, "winIncludingPenalties")
+})
+
 test("findMatches ignores player-dependent filters when their player is not selected", async () => {
     const withoutPlayers = await captureFindMatchesFilter({
         player1: "all",
@@ -449,6 +605,165 @@ test("findMatches maps the playoff round to playoff_id ranges per tournament for
                 playoff_id: { $in: [25, 26, 27, 28, "25", "26", "27", "28"] },
             },
         ],
+    })
+})
+
+// Los links de las rachas por torneo usan `playoffRound=semifinal|final`.
+test("findMatches maps semifinal and final for every bracket format in use", async () => {
+    const tournaments = [
+        { _id: "t-world-cup", format: "world_cup" },
+        { _id: "t-super-cup", format: "super_cup" },
+        { _id: "t-playoff", format: "playoff" },
+        { _id: "t-world-cup-2026", format: "world_cup_2026" },
+        { _id: "t-champions", format: "champions_league" },
+    ]
+
+    const semis = await captureFindMatchesFilter(
+        { type: "playoff", playoffRound: "semifinal" },
+        tournaments
+    )
+    assertHasCondition(semis, {
+        type: "playoff",
+        $or: [
+            {
+                "tournament.id": { $in: ["t-world-cup", "t-super-cup"] },
+                playoff_id: { $in: [13, 14, "13", "14"] },
+            },
+            {
+                "tournament.id": { $in: ["t-playoff", "t-world-cup-2026"] },
+                playoff_id: { $in: [29, 30, "29", "30"] },
+            },
+            {
+                "tournament.id": { $in: ["t-champions"] },
+                playoff_id: { $in: [25, 26, 27, 28, "25", "26", "27", "28"] },
+            },
+        ],
+    })
+
+    // Las dos piernas de una llave de ida y vuelta comparten `playoff_id`, así
+    // que el rango de ids las incluye sin condición sobre `leg`.
+    const finals = await captureFindMatchesFilter(
+        { type: "playoff", playoffRound: "final" },
+        tournaments
+    )
+    assertHasCondition(finals, {
+        type: "playoff",
+        $or: [
+            {
+                "tournament.id": { $in: ["t-world-cup", "t-super-cup"] },
+                playoff_id: { $in: [15, "15"] },
+            },
+            {
+                "tournament.id": { $in: ["t-playoff", "t-world-cup-2026"] },
+                playoff_id: { $in: [31, "31"] },
+            },
+            {
+                "tournament.id": { $in: ["t-champions"] },
+                playoff_id: { $in: [29, "29"] },
+            },
+        ],
+    })
+    assert.equal(JSON.stringify(finals).includes("leg"), false)
+})
+
+// Evaluador mínimo de las condiciones de ronda: igualdad, `$in` y `$or`.
+const matchesRoundCondition = (condition, document) =>
+    Object.entries(condition).every(([key, expected]) => {
+        if (key === "$or") {
+            return expected.some((branch) =>
+                matchesRoundCondition(branch, document)
+            )
+        }
+        const value = key
+            .split(".")
+            .reduce((current, part) => current?.[part], document)
+        if (expected && typeof expected === "object" && "$in" in expected) {
+            return expected.$in.includes(value)
+        }
+        return value === expected
+    })
+
+// Partidos de playoff de cada formato en prod, con todos sus `playoff_id`.
+const ROUND_TOURNAMENTS = [
+    { _id: "t-league", format: "league_playin_playoff" },
+    { _id: "t-world-cup", format: "world_cup" },
+    { _id: "t-playoff", format: "playoff", playoffMode: "single" },
+    { _id: "t-world-cup-2026", format: "world_cup_2026" },
+    { _id: "t-two-legged", format: "playoff", playoffMode: "two_legged" },
+    { _id: "t-champions", format: "champions_league" },
+]
+
+const playoffMatch = (tournamentId, playoffId, extra = {}) => ({
+    _id: `${tournamentId}#${playoffId}#${extra.leg ?? "-"}`,
+    type: "playoff",
+    tournament: { id: tournamentId },
+    playoff_id: playoffId,
+    ...extra,
+})
+
+const range = (from, to) =>
+    Array.from({ length: to - from + 1 }, (_, index) => from + index)
+
+const ROUND_MATCHES = [
+    ...range(1, 15).map((id) => playoffMatch("t-league", id)),
+    // Un playin con el mismo id que una semi no es de playoff.
+    { ...playoffMatch("t-league", 13), _id: "t-league#playin", type: "playin" },
+    ...range(1, 15).map((id) => playoffMatch("t-world-cup", id)),
+    ...range(1, 31).map((id) => playoffMatch("t-playoff", id)),
+    ...range(1, 31).map((id) => playoffMatch("t-world-cup-2026", id)),
+    // Ida, vuelta y desempate comparten `playoff_id`.
+    ...range(25, 31).flatMap((id) =>
+        [1, 2, 3].map((leg) => playoffMatch("t-two-legged", id, { leg }))
+    ),
+    // CL legacy: cada pierna es un id consecutivo; uno guardado como texto.
+    ...range(17, 28).map((id) => playoffMatch("t-champions", id)),
+    playoffMatch("t-champions", "29"),
+]
+
+const matchedIdsByTournament = (condition) => {
+    const byTournament = {}
+    for (const match of ROUND_MATCHES) {
+        if (!matchesRoundCondition(condition, match)) continue
+        const key = match.tournament.id
+        byTournament[key] = byTournament[key] || []
+        byTournament[key].push(
+            match.leg ? `${match.playoff_id}/${match.leg}` : match.playoff_id
+        )
+    }
+    return byTournament
+}
+
+test("playoffRound=semifinal returns the semis of every bracket format in prod", async () => {
+    const conditions = await captureFindMatchesFilter(
+        { type: "playoff", playoffRound: "semifinal" },
+        ROUND_TOURNAMENTS
+    )
+    const roundCondition = conditions.find((condition) => condition.$or)
+
+    assert.deepEqual(matchedIdsByTournament(roundCondition), {
+        "t-league": [13, 14],
+        "t-world-cup": [13, 14],
+        "t-playoff": [29, 30],
+        "t-world-cup-2026": [29, 30],
+        "t-two-legged": ["29/1", "29/2", "29/3", "30/1", "30/2", "30/3"],
+        "t-champions": [25, 26, 27, 28],
+    })
+})
+
+test("playoffRound=final returns the final of every bracket format in prod", async () => {
+    const conditions = await captureFindMatchesFilter(
+        { type: "playoff", playoffRound: "final" },
+        ROUND_TOURNAMENTS
+    )
+    const roundCondition = conditions.find((condition) => condition.$or)
+
+    assert.deepEqual(matchedIdsByTournament(roundCondition), {
+        "t-league": [15],
+        "t-world-cup": [15],
+        "t-playoff": [31],
+        "t-world-cup-2026": [31],
+        "t-two-legged": ["31/1", "31/2", "31/3"],
+        "t-champions": ["29"],
     })
 })
 
@@ -576,6 +891,37 @@ test("findMatches hydrates aggregate results and filters dates by playedAt ?? up
         $lt: new Date("2020-01-01T03:00:00.000Z"),
     }
     assertHasCondition(pipeline[0].$match.$and, {
+        $or: [
+            { playedAt: range },
+            { playedAt: { $exists: false }, updatedAt: range },
+        ],
+    })
+})
+
+test("findMatches dateFrom/dateTo cover whole Argentina days, both inclusive", async (t) => {
+    const findMatches = require("../dao/findMatches")
+    const originalAggregate = matchesModel.aggregate
+    const originalCountDocuments = matchesModel.countDocuments
+    let countFilter
+    t.after(() => {
+        matchesModel.aggregate = originalAggregate
+        matchesModel.countDocuments = originalCountDocuments
+    })
+    matchesModel.aggregate = async () => []
+    matchesModel.countDocuments = async (filter) => {
+        countFilter = filter
+        return 0
+    }
+
+    // Los links de rachas mandan el mismo día en las dos puntas.
+    await findMatches({ dateFrom: "2024-07-08", dateTo: "2024-07-08" })
+
+    // 08/07 00:00 ART = 03:00 UTC; 08/07 23:59 ART = 09/07 02:59 UTC.
+    const range = {
+        $gte: new Date("2024-07-08T03:00:00.000Z"),
+        $lt: new Date("2024-07-09T03:00:00.000Z"),
+    }
+    assertHasCondition(countFilter.$and, {
         $or: [
             { playedAt: range },
             { playedAt: { $exists: false }, updatedAt: range },

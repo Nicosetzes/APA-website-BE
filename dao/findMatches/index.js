@@ -202,6 +202,10 @@ const findMatches = async (filters) => {
                 "outcome.draw": false,
                 "outcome.playerThatWon.id": player1,
             })
+        } else if (outcome === "winIncludingPenalties") {
+            // Cualquier partido que ganó, también por penales o una final
+            // entre dos equipos suyos.
+            queryConditions.push({ "outcome.playerThatWon.id": player1 })
         } else if (outcome === "loss") {
             queryConditions.push({
                 "outcome.draw": false,

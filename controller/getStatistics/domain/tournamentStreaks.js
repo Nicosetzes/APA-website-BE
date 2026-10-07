@@ -117,6 +117,8 @@ const createFact = (tournament) => {
         closedAtPrecision: tournament.closedAtPrecision ?? null,
         lastPlayedAt: null,
         lastPlayedAtPrecision: null,
+        // Primer y último partido de playoff jugado y válido de cada jugador.
+        playoffDates: new Map(),
         roundRanges: getRoundRanges(tournament.format),
         finalPlayoffId: getFinalPlayoffId(tournament.format),
         ranks,
@@ -133,6 +135,38 @@ const raiseRank = (fact, playerId, rank) => {
     if (current === undefined || rank > current) {
         fact.ranks.set(playerId, rank)
     }
+}
+
+// Sólo los partidos que lista /matches con `type=playoff`: jugados y válidos.
+const isListedPlayoff = (match) =>
+    match.type === "playoff" && isPlayed(match) && match.valid !== false
+
+// Rondas con fechas propias en el resumen: las que usan los links de las
+// rachas a /matches (`playoffRound=semifinal|final`).
+const DATED_ROUNDS = ["semifinal", "final"]
+
+const widenRange = (ranges, scope, point) => {
+    const range = ranges[scope]
+    if (!range) {
+        ranges[scope] = { first: point, last: point }
+        return
+    }
+    if (point.time < range.first.time) range.first = point
+    if (point.time > range.last.time) range.last = point
+}
+
+// Primer y último partido del jugador en el playoff y en cada ronda fechada.
+const collectPlayoffDate = (fact, playerId, match, round) => {
+    const value = getPlayedAt(match)
+    const time = toTime(value)
+    if (time === null) return
+
+    const point = { value, precision: getPlayedAtPrecision(match), time }
+    if (!fact.playoffDates.has(playerId)) fact.playoffDates.set(playerId, {})
+    const ranges = fact.playoffDates.get(playerId)
+
+    widenRange(ranges, "playoff", point)
+    if (DATED_ROUNDS.includes(round)) widenRange(ranges, round, point)
 }
 
 const getMatchRank = (fact, match) => {
@@ -160,6 +194,11 @@ const collectMatch = (fact, match) => {
     const p2 = sideId(match.playerP2)
     if (p1) raiseRank(fact, p1, rank)
     if (p2) raiseRank(fact, p2, rank)
+
+    if (isListedPlayoff(match)) {
+        if (p1) collectPlayoffDate(fact, p1, match, round)
+        if (p2 && p2 !== p1) collectPlayoffDate(fact, p2, match, round)
+    }
 
     if (!round) return
     fact.hasPlayoff = true
@@ -283,17 +322,33 @@ const buildTournamentFacts = ({
     return counted.sort(compareFactsNewestFirst)
 }
 
-// Resumen público del torneo en la perspectiva de un jugador.
-const toSummary = (fact, rank) => ({
-    id: fact.id,
-    name: fact.name,
-    phaseReached: RANK_PHASE[rank],
-    ongoing: fact.ongoing,
-    closedAt: fact.closedAt,
-    closedAtPrecision: fact.closedAtPrecision,
-    lastPlayedAt: fact.lastPlayedAt,
-    lastPlayedAtPrecision: fact.lastPlayedAtPrecision,
+// `firstPlayoffPlayedAt`, `lastSemifinalPlayedAtPrecision`, etc.
+const rangeFields = (range, name) => ({
+    [`first${name}PlayedAt`]: range?.first.value ?? null,
+    [`first${name}PlayedAtPrecision`]: range?.first.precision ?? null,
+    [`last${name}PlayedAt`]: range?.last.value ?? null,
+    [`last${name}PlayedAtPrecision`]: range?.last.precision ?? null,
 })
+
+// Resumen público del torneo en la perspectiva de un jugador. Las fechas de
+// playoff (y de semis y final) del jugador son null si no jugó ningún partido
+// válido ahí (p. ej. sólo está asignado a un slot sin jugar).
+const toSummary = (fact, rank, playerId) => {
+    const ranges = fact.playoffDates.get(playerId) ?? {}
+    return {
+        id: fact.id,
+        name: fact.name,
+        phaseReached: RANK_PHASE[rank],
+        ongoing: fact.ongoing,
+        closedAt: fact.closedAt,
+        closedAtPrecision: fact.closedAtPrecision,
+        lastPlayedAt: fact.lastPlayedAt,
+        lastPlayedAtPrecision: fact.lastPlayedAtPrecision,
+        ...rangeFields(ranges.playoff, "Playoff"),
+        ...rangeFields(ranges.semifinal, "Semifinal"),
+        ...rangeFields(ranges.final, "Final"),
+    }
+}
 
 // Si el torneo cuenta para el jugador y el tipo, y si extiende la racha.
 const decide = (fact, type, playerId, rank) => {
@@ -331,7 +386,7 @@ const applyTournamentStreaks = ({ accumulators, facts }) => {
             const accumulator = byId.get(playerId)
             if (!accumulator) continue
 
-            const summary = toSummary(fact, rank)
+            const summary = toSummary(fact, rank, playerId)
             for (const type of TOURNAMENT_STREAK_TYPES) {
                 const { counts, continues } = decide(fact, type, playerId, rank)
                 if (!counts) continue

@@ -188,10 +188,21 @@ paths:
                           ]
                 - in: query
                   name: outcome
-                  description: Resultado desde la perspectiva de player1
+                  description: >-
+                      Resultado desde la perspectiva de player1. `win` excluye
+                      las tandas de penales; `winIncludingPenalties` es
+                      cualquier partido que ganó player1, también por penales.
                   schema:
                       type: string
-                      enum: [all, win, draw, loss, penalties]
+                      enum:
+                          [
+                              all,
+                              win,
+                              winIncludingPenalties,
+                              draw,
+                              loss,
+                              penalties,
+                          ]
                 - in: query
                   name: goalDiffOp
                   schema:
@@ -525,9 +536,20 @@ paths:
                 torneo trae `id`, `name`, `phaseReached` (`regular`, `playin`,
                 `round_of_32`, `round_of_16`, `quarterfinal`, `semifinal`,
                 `final` = perdió la final, o `champion`), `ongoing`,
-                `closedAt`, `closedAtPrecision`, `lastPlayedAt` y
-                `lastPlayedAtPrecision`. Las fechas del poseedor salen de
+                `closedAt`, `closedAtPrecision`, `lastPlayedAt`,
+                `lastPlayedAtPrecision` y, para `X` en `Playoff`,
+                `Semifinal` y `Final`, `firstXPlayedAt`,
+                `firstXPlayedAtPrecision`, `lastXPlayedAt` y
+                `lastXPlayedAtPrecision`. Las fechas del poseedor salen de
                 `closedAt` (o de `lastPlayedAt` si el torneo sigue en curso).
+                `firstPlayoffPlayedAt`/`lastPlayoffPlayedAt` son el primer y
+                el último partido `type: playoff` jugado y válido del jugador
+                en ese torneo (los que lista `/api/matches`; `playedAt` con
+                fallback a `updatedAt`), o `null` si no jugó ninguno. Los de
+                `Semifinal` y `Final` son lo mismo restringido a esa ronda
+                (por rango de `playoff_id` del formato, como
+                `/api/matches?playoffRound=`); las dos piernas de una llave de
+                ida y vuelta cuentan.
 
                 Con `tournament` las 5 claves van en `null`. Sin `tournament`,
                 si falla la lectura de torneos, las 3 rachas por torneo se

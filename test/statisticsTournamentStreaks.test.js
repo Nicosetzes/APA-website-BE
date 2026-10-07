@@ -1000,6 +1000,18 @@ test("tournament streak holders and summaries have the documented shape", async 
         "closedAtPrecision",
         "lastPlayedAt",
         "lastPlayedAtPrecision",
+        "firstPlayoffPlayedAt",
+        "firstPlayoffPlayedAtPrecision",
+        "lastPlayoffPlayedAt",
+        "lastPlayoffPlayedAtPrecision",
+        "firstSemifinalPlayedAt",
+        "firstSemifinalPlayedAtPrecision",
+        "lastSemifinalPlayedAt",
+        "lastSemifinalPlayedAtPrecision",
+        "firstFinalPlayedAt",
+        "firstFinalPlayedAtPrecision",
+        "lastFinalPlayedAt",
+        "lastFinalPlayedAtPrecision",
     ]
     for (const key of ["startTournament", "endTournament", "breakTournament"]) {
         assert.deepEqual(Object.keys(nico[key]), summaryKeys, key)
@@ -1013,7 +1025,26 @@ test("tournament streak holders and summaries have the documented shape", async 
         closedAtPrecision: "exact",
         lastPlayedAt: nico.breakTournament.lastPlayedAt,
         lastPlayedAtPrecision: "exact",
+        firstPlayoffPlayedAt: nico.breakTournament.firstPlayoffPlayedAt,
+        firstPlayoffPlayedAtPrecision: "exact",
+        lastPlayoffPlayedAt: nico.breakTournament.lastPlayoffPlayedAt,
+        lastPlayoffPlayedAtPrecision: "exact",
+        firstSemifinalPlayedAt: nico.breakTournament.firstSemifinalPlayedAt,
+        firstSemifinalPlayedAtPrecision: "exact",
+        lastSemifinalPlayedAt: nico.breakTournament.lastSemifinalPlayedAt,
+        lastSemifinalPlayedAtPrecision: "exact",
+        firstFinalPlayedAt: nico.breakTournament.firstFinalPlayedAt,
+        firstFinalPlayedAtPrecision: "exact",
+        lastFinalPlayedAt: nico.breakTournament.lastFinalPlayedAt,
+        lastFinalPlayedAtPrecision: "exact",
     })
+    // Nico perdió la final de 2022 tras ganar la semi 13.
+    assert.ok(nico.breakTournament.lastSemifinalPlayedAt)
+    assert.ok(nico.breakTournament.firstFinalPlayedAt)
+    assert.ok(
+        nico.breakTournament.lastSemifinalPlayedAt <
+            nico.breakTournament.firstFinalPlayedAt
+    )
     assert.equal(nico.isActive, false)
     assert.deepEqual(nico.startDate, yearDate(2020))
     assert.deepEqual(nico.endDate, yearDate(2021))
@@ -1025,6 +1056,100 @@ test("tournament streak holders and summaries have the documented shape", async 
     assert.equal(finals.count, 3)
     assert.equal(finals.players[0].id, NICO.id)
     assert.equal(finals.players[0].breakTournament, null)
+})
+
+test("tournament summaries carry the player's first and last listed playoff match", () => {
+    const t = tournament(2020)
+    const at = (day) => new Date(Date.UTC(2020, 4, day, 12))
+    const all = [
+        // Regular y play-in no son playoff: no cuentan aunque sean extremos.
+        regular(t, NICO, SANTI),
+        game(t, "playin", 1, NICO, 1, PEDRO, 0, { playedAt: at(1) }),
+        ko(t, 9, NICO, 2, PEDRO, 0, {
+            playedAt: at(3),
+            playedAtPrecision: "day",
+        }),
+        ko(t, 13, NICO, 2, JUAN, 0, { playedAt: at(10) }),
+        ko(t, 15, NICO, 1, SANTI, 0, { playedAt: at(20) }),
+        // /matches no lista los `valid: false` ni los slots sin jugar.
+        ko(t, 10, NICO, 3, LUCAS, 0, { valid: false, playedAt: at(28) }),
+        slot(t, 14, MATI, FEDE),
+    ]
+
+    const streaks = streaksFor([t], all)
+    const nico = best(streaks.Nico, "T4").startTournament
+    assert.deepEqual(nico.firstPlayoffPlayedAt, at(3))
+    assert.equal(nico.firstPlayoffPlayedAtPrecision, "day")
+    assert.deepEqual(nico.lastPlayoffPlayedAt, at(20))
+    assert.equal(nico.lastPlayoffPlayedAtPrecision, "exact")
+
+    // Por ronda: la semi del 10 y la final del 20.
+    assert.deepEqual(nico.firstSemifinalPlayedAt, at(10))
+    assert.deepEqual(nico.lastSemifinalPlayedAt, at(10))
+    assert.equal(nico.lastSemifinalPlayedAtPrecision, "exact")
+    assert.deepEqual(nico.firstFinalPlayedAt, at(20))
+    assert.deepEqual(nico.lastFinalPlayedAt, at(20))
+
+    const santi = best(streaks.Santi, "T4").startTournament
+    assert.deepEqual(santi.firstPlayoffPlayedAt, at(20))
+    assert.deepEqual(santi.lastPlayoffPlayedAt, at(20))
+    // Llegó a la final sin semi registrada: sin fechas de semis.
+    assert.equal(santi.firstSemifinalPlayedAt, null)
+    assert.equal(santi.lastSemifinalPlayedAt, null)
+    assert.deepEqual(santi.firstFinalPlayedAt, at(20))
+
+    // Llegó a semis sólo por un slot asignado sin jugar.
+    const mati = best(streaks.Mati, "T4").startTournament
+    assert.equal(mati.phaseReached, "semifinal")
+    assert.equal(mati.firstPlayoffPlayedAt, null)
+    assert.equal(mati.firstPlayoffPlayedAtPrecision, null)
+    assert.equal(mati.lastPlayoffPlayedAt, null)
+    assert.equal(mati.lastPlayoffPlayedAtPrecision, null)
+    assert.equal(mati.firstSemifinalPlayedAt, null)
+    assert.equal(mati.firstFinalPlayedAt, null)
+})
+
+test("round dates follow each format's bracket: legacy CL legs and two-legged ties", () => {
+    const at = (day) => new Date(Date.UTC(2021, 3, day, 12))
+
+    // CL legacy: semis 25-28 (ida y vuelta en ids consecutivos), final 29.
+    const cl = tournament(2021, { format: "champions_league" })
+    const clStreaks = streaksFor(
+        [cl],
+        [
+            ko(cl, 24, NICO, 2, PEDRO, 0, { playedAt: at(1) }),
+            ko(cl, 25, NICO, 1, JUAN, 0, { playedAt: at(5) }),
+            ko(cl, 26, JUAN, 0, NICO, 0, { playedAt: at(12) }),
+            ko(cl, 29, NICO, 2, SANTI, 1, { playedAt: at(20) }),
+        ]
+    )
+    const clNico = best(clStreaks.Nico, "T1").startTournament
+    assert.equal(clNico.phaseReached, "champion")
+    assert.deepEqual(clNico.firstPlayoffPlayedAt, at(1))
+    assert.deepEqual(clNico.firstSemifinalPlayedAt, at(5))
+    assert.deepEqual(clNico.lastSemifinalPlayedAt, at(12))
+    assert.deepEqual(clNico.firstFinalPlayedAt, at(20))
+    assert.deepEqual(clNico.lastFinalPlayedAt, at(20))
+
+    // Ida y vuelta con `leg`: las dos piernas comparten `playoff_id`.
+    const twoLegged = tournament(2022, {
+        format: "playoff",
+        playoffMode: "two_legged",
+    })
+    const legStreaks = streaksFor(
+        [twoLegged],
+        [
+            ko(twoLegged, 29, NICO, 1, JUAN, 0, { leg: 1, playedAt: at(3) }),
+            ko(twoLegged, 29, JUAN, 1, NICO, 1, { leg: 2, playedAt: at(9) }),
+            ko(twoLegged, 31, NICO, 0, SANTI, 0, { leg: 1, playedAt: at(15) }),
+            ko(twoLegged, 31, SANTI, 0, NICO, 2, { leg: 2, playedAt: at(22) }),
+        ]
+    )
+    const legNico = best(legStreaks.Nico, "T4").startTournament
+    assert.deepEqual(legNico.firstSemifinalPlayedAt, at(3))
+    assert.deepEqual(legNico.lastSemifinalPlayedAt, at(9))
+    assert.deepEqual(legNico.firstFinalPlayedAt, at(15))
+    assert.deepEqual(legNico.lastFinalPlayedAt, at(22))
 })
 
 test("tournament active streaks are null below 2", async () => {
