@@ -635,6 +635,37 @@ test("findAllMatches orders mixed playedAt/updatedAt matches in JS", async (t) =
         MIXED_ORDER
     )
     assert.match(calls[0][1], /\bplayedAt playedAtPrecision\b/)
+    // Sin opciones el filtro es el de siempre: sólo jugados y válidos.
+    assert.deepEqual(calls[0][0], {
+        played: { $ne: false },
+        valid: { $ne: false },
+    })
+    const fields = calls[0][1].split(" ")
+    assert.equal(fields.includes("played"), false)
+    assert.equal(fields.includes("valid"), false)
+})
+
+test("findAllMatches with includeAllPlayoffs adds every playoff match in the same query", async (t) => {
+    const findAllMatches = require("../dao/findAllMatches")
+    const { result, calls } = await withStubbedFind(t, () =>
+        findAllMatches({ includeAllPlayoffs: true })
+    )
+
+    assert.equal(calls.length, 1)
+    assert.deepEqual(calls[0][0], {
+        $or: [
+            { played: { $ne: false }, valid: { $ne: false } },
+            { type: "playoff" },
+        ],
+    })
+    const fields = calls[0][1].split(" ")
+    assert.ok(fields.includes("played"))
+    assert.ok(fields.includes("valid"))
+    assert.ok(fields.includes("playoff_id"))
+    assert.deepEqual(
+        result.map(({ _id }) => _id),
+        MIXED_ORDER
+    )
 })
 
 test("sortMatchesFromTournamentById orders mixed matches with and without group", async (t) => {

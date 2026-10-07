@@ -27,6 +27,7 @@ const retrieveTeamRemainingMatchesByTournamentId = require("./retrieveTeamRemain
 const retrieveTournamentById = require("./retrieveTournamentById")
 const retrieveTournamentPlayersByTournamentId = require("./retrieveTournamentPlayersByTournamentId")
 const retrieveTournaments = require("./retrieveTournaments")
+const retrieveTournamentsForStatistics = require("./retrieveTournamentsForStatistics")
 const retrieveUserByUserName = require("./retrieveUserByUserName")
 const processPlayoffSeriesResult = require("./processPlayoffSeriesResult")
 const removePlayoffSeriesResult = require("./removePlayoffSeriesResult")
@@ -62,6 +63,7 @@ module.exports = {
     retrieveTournamentById,
     retrieveTournamentPlayersByTournamentId,
     retrieveTournaments,
+    retrieveTournamentsForStatistics,
     retrieveUserByUserName,
     processPlayoffSeriesResult,
     removePlayoffSeriesResult,

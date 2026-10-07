@@ -69,6 +69,7 @@ const runStatistics = async (matchesNewestFirst) => {
     const controller = createGetStatistics({
         retrieveAllUsers: async () => USERS,
         retrieveAllMatches: async () => matchesNewestFirst,
+        retrieveTournamentsForStatistics: async () => [],
     })
     const response = createResponse()
 

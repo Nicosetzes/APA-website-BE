@@ -1,7 +1,7 @@
 const { findAllMatches } = require("./../../dao")
 
-const retrieveAllMatches = async () => {
-    return await findAllMatches()
+const retrieveAllMatches = async (options) => {
+    return await findAllMatches(options)
 }
 
 module.exports = retrieveAllMatches

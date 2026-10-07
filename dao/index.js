@@ -17,6 +17,7 @@ const findTeamRemainingMatchesByTournamentId = require("./findTeamRemainingMatch
 const findTournamentById = require("./findTournamentById")
 const findTournamentPlayersByTournamentId = require("./findTournamentPlayersByTournamentId")
 const findTournaments = require("./findTournaments")
+const findTournamentsForStatistics = require("./findTournamentsForStatistics")
 const findUserByUserName = require("./findUserByUserName")
 const sortMatchesFromTournamentById = require("./sortMatchesFromTournamentById")
 const updateMatchResult = require("./updateMatchResult")
@@ -50,6 +51,7 @@ module.exports = {
     findTournamentById,
     findTournamentPlayersByTournamentId,
     findTournaments,
+    findTournamentsForStatistics,
     findUserByUserName,
     sortMatchesFromTournamentById,
     updateMatchResult,

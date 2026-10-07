@@ -54,10 +54,33 @@ const createMatches = () => [
     },
 ]
 
+// Rachas de partidos: las 8 originales y la de tandas de penales.
+const MATCH_STREAK_KEYS = [
+    "most_clean_sheets_in_a_row",
+    "most_consecutive_matches_scoring_1_plus_goals",
+    "most_consecutive_matches_scoring_2_plus_goals",
+    "most_consecutive_matches_scoring_3_plus_goals",
+    "most_wins_in_a_row",
+    "most_draws_in_a_row",
+    "most_losses_in_a_row",
+    "most_unbeaten_in_a_row",
+    "most_penalty_shootout_wins_in_a_row",
+]
+
+// Rachas de mata-mata y por torneo, en orden, después de las de partidos.
+const NEW_STREAK_KEYS = [
+    "most_knockout_wins_in_a_row",
+    "most_knockout_unbeaten_in_a_row",
+    "most_consecutive_semifinals",
+    "most_consecutive_finals",
+    "most_consecutive_titles",
+]
+
 const createGlobalController = () =>
     createGetStatistics({
         retrieveAllUsers: async () => [NICO, SANTI],
         retrieveAllMatches: async () => createMatches(),
+        retrieveTournamentsForStatistics: async () => [],
         retrieveTournamentById: async () => {
             throw new Error("no debe consultarse el torneo en modo global")
         },
@@ -98,25 +121,13 @@ test("statistics keeps its top level contract in global scope", async () => {
     assert.deepEqual(Object.keys(response.body.records), [
         "highest_scoring_difference_match",
         "highest_total_goals_match",
-        "most_clean_sheets_in_a_row",
-        "most_consecutive_matches_scoring_1_plus_goals",
-        "most_consecutive_matches_scoring_2_plus_goals",
-        "most_consecutive_matches_scoring_3_plus_goals",
-        "most_wins_in_a_row",
-        "most_draws_in_a_row",
-        "most_losses_in_a_row",
-        "most_unbeaten_in_a_row",
+        ...MATCH_STREAK_KEYS,
+        ...NEW_STREAK_KEYS,
     ])
     assert.ok(response.body.activeStreaks)
     assert.deepEqual(Object.keys(response.body.activeStreaks), [
-        "most_clean_sheets_in_a_row",
-        "most_consecutive_matches_scoring_1_plus_goals",
-        "most_consecutive_matches_scoring_2_plus_goals",
-        "most_consecutive_matches_scoring_3_plus_goals",
-        "most_wins_in_a_row",
-        "most_draws_in_a_row",
-        "most_losses_in_a_row",
-        "most_unbeaten_in_a_row",
+        ...MATCH_STREAK_KEYS,
+        ...NEW_STREAK_KEYS,
     ])
 
     const holderKeys = [
@@ -145,6 +156,16 @@ test("statistics keeps its top level contract in global scope", async () => {
     assert.deepEqual(Object.keys(unbeaten), holderKeys)
     assert.equal(response.body.activeStreaks.most_unbeaten_in_a_row.count, 2)
     assert.equal(unbeaten.breakMatch, null)
+
+    // Una sola tanda: récord de 1 con el mismo shape, sin vigente.
+    const shootouts = response.body.records.most_penalty_shootout_wins_in_a_row
+    assert.equal(shootouts.count, 1)
+    assert.deepEqual(Object.keys(shootouts.players[0]), holderKeys)
+    assert.equal(shootouts.players[0].id, SANTI.id)
+    assert.equal(
+        response.body.activeStreaks.most_penalty_shootout_wins_in_a_row,
+        null
+    )
 })
 
 test("statistics aggregates per player without a tournament scope", async () => {
@@ -234,6 +255,12 @@ test("statistics scoped to a tournament only counts its players and adds longest
         type: "W",
         length: 1,
     })
+
+    // Scoped sólo ve partidos regulares: las rachas nuevas van en null.
+    for (const key of NEW_STREAK_KEYS) {
+        assert.equal(response.body.records[key], null, key)
+        assert.equal(response.body.activeStreaks[key], null, key)
+    }
 })
 
 test("statistics answers 404 when the scoped tournament does not exist", async () => {
@@ -262,6 +289,8 @@ test("statistics propagates persistence failures", async () => {
         retrieveAllUsers: async () => {
             throw expectedError
         },
+        retrieveAllMatches: async () => [],
+        retrieveTournamentsForStatistics: async () => [],
     })
 
     await assert.rejects(

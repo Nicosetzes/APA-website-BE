@@ -461,6 +461,77 @@ paths:
                 tiene, por tipo, la racha vigente más larga entre jugadores;
                 es `null` si esa racha tiene menos de 2 partidos. En `records`
                 se mantienen las rachas de 1 partido por compatibilidad.
+
+                Después de las 8 rachas de partidos, `records` y
+                `activeStreaks` traen, en este orden,
+                `most_penalty_shootout_wins_in_a_row`,
+                `most_knockout_wins_in_a_row`,
+                `most_knockout_unbeaten_in_a_row`,
+                `most_consecutive_semifinals`, `most_consecutive_finals` y
+                `most_consecutive_titles`, con el mismo `{ count, players }`,
+                el mismo orden de poseedores y el mismo mínimo de 2 en
+                `activeStreaks`.
+
+                Rachas mata-mata (`most_knockout_*`): sólo cuentan los
+                partidos `playin` y `playoff`; los regulares no las extienden
+                ni las cortan. Una tanda de penales es victoria para
+                `outcome.playerThatWon` y derrota para el otro; una ida
+                empatada sin penales es empate. Las rachas generales siguen
+                tratando los penales como empate. El poseedor tiene el mismo
+                shape que el de partidos y `result` es el resultado
+                mata-mata. Está activa si incluye el último partido mata-mata
+                del jugador; `breakMatch` es su siguiente partido mata-mata.
+
+                Tandas ganadas seguidas
+                (`most_penalty_shootout_wins_in_a_row`): sólo cuentan los
+                partidos definidos por penales (`outcome.penalties: true`)
+                con ganador registrado, de cualquier `type`; el resto no la
+                extiende ni la corta. Ganar la tanda la extiende y perderla
+                la corta. El poseedor tiene el mismo shape que el de partidos
+                y `result` es el de la tanda (`W`/`L`). Está activa si incluye
+                la última tanda del jugador; `breakMatch` es su siguiente
+                tanda (la que perdió).
+
+                Rachas por torneo (`most_consecutive_semifinals` = top 4,
+                `most_consecutive_finals` = top 2, `most_consecutive_titles` =
+                campeón): sólo cuenta el bracket de playoff; el play-in no es
+                una fase. La fase alcanzada es la ronda más alta (por rango de
+                `playoff_id` del formato) entre los partidos del jugador en el
+                torneo, válidos o no, jugados o no: estar asignado a un slot
+                es haber llegado a esa ronda. Campeón: el ganador de la única
+                final jugada (penales incluidos, vía `playerThatWon`); si la
+                final enfrenta dos equipos del mismo jugador, ese jugador.
+                Sólo en torneos cerrados, sin final resuelta, se usa
+                `tournament.outcome.champion`/`finalist`. Participó quien está
+                en `tournament.players`, en un partido válido o asignado a un
+                partido de playoff; un torneo sin participación no corta ni
+                extiende, y participar sin llegar (aunque no haya
+                clasificado) corta. Se saltean para todos los torneos
+                `valid: false` y los que no tienen partidos de playoff. Un
+                torneo cerrado (`ongoing: false`) cuenta siempre. Uno en
+                curso cuenta sólo si el logro ya está asegurado (llegó a
+                semis, está en la final, o ganó la final jugada) o si el
+                fracaso ya es seguro (cuadro de semis completo, final asignada
+                o final jugada sin el jugador); si no, se saltea. Orden: los
+                en curso son los más nuevos (por último partido jugado), y
+                los cerrados van por `closedAt`; desempate por `startedAt` y
+                `_id`. Está activa si incluye el torneo contado más reciente
+                del jugador.
+
+                Poseedor de torneo: `id`, `name`, `date`, `datePrecision`,
+                `isActive`, `startDate`, `startDatePrecision`, `endDate`,
+                `endDatePrecision`, `startTournament`, `endTournament` y
+                `breakTournament` (`null` si está activa). Cada resumen de
+                torneo trae `id`, `name`, `phaseReached` (`regular`, `playin`,
+                `round_of_32`, `round_of_16`, `quarterfinal`, `semifinal`,
+                `final` = perdió la final, o `champion`), `ongoing`,
+                `closedAt`, `closedAtPrecision`, `lastPlayedAt` y
+                `lastPlayedAtPrecision`. Las fechas del poseedor salen de
+                `closedAt` (o de `lastPlayedAt` si el torneo sigue en curso).
+
+                Con `tournament` las 5 claves van en `null`. Sin `tournament`,
+                si falla la lectura de torneos, las 3 rachas por torneo se
+                omiten de `records` y `activeStreaks`.
             parameters:
                 - in: query
                   name: tournament
