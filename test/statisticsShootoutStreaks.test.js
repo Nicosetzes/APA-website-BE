@@ -40,7 +40,8 @@ const match = (p1, scoreP1, p2, scoreP2, date, extra = {}) => ({
     },
     tournament: TOURNAMENT,
     type: "regular",
-    updatedAt: date,
+    playedAt: date,
+    playedAtPrecision: "exact",
     ...extra,
 })
 

@@ -92,6 +92,7 @@ test("result, final outcome and playoff progression share one transaction", asyn
     let committed = false
 
     const controller = createPutMatchByTournamentId({
+        modifyTournamentStartedAt: async () => null,
         modifyMatchResult: async (...args) => {
             calls.push(["match", args.at(-1)])
             return updatedMatch
@@ -143,6 +144,7 @@ test("a late playoff failure rejects before sending a response", async () => {
     const expectedError = new Error("playoff update failed")
     let aborted = false
     const controller = createPutMatchByTournamentId({
+        modifyTournamentStartedAt: async () => null,
         modifyMatchResult: async () => ({
             type: "playoff",
             tournament: { id: "tournament" },
@@ -179,6 +181,7 @@ const createFinalDetectionController = ({ match, format }) => {
     const outcomeCalls = []
     const playoffCalls = []
     const controller = createPutMatchByTournamentId({
+        modifyTournamentStartedAt: async () => null,
         modifyMatchResult: async () => match,
         modifyTournamentOutcome: async (tournament, champion, finalist) => {
             outcomeCalls.push({ tournament, champion, finalist })
@@ -302,6 +305,7 @@ test("a play-in match never closes the tournament nor touches the playoff", asyn
     const outcomeCalls = []
     const playoffCalls = []
     const controller = createPutMatchByTournamentId({
+        modifyTournamentStartedAt: async () => null,
         modifyMatchResult: async () => ({
             _id: "match",
             type: "playin",
@@ -342,6 +346,7 @@ test("a play-in result advances the play-in inside the same transaction", async 
     let committed = false
 
     const controller = createPutMatchByTournamentId({
+        modifyTournamentStartedAt: async () => null,
         modifyMatchResult: async (...args) => {
             calls.push(["match", args.at(-1)])
             return updatedMatch
@@ -391,6 +396,7 @@ test("a late play-in failure rejects before sending a response", async () => {
     const expectedError = new Error("play-in update failed")
     let aborted = false
     const controller = createPutMatchByTournamentId({
+        modifyTournamentStartedAt: async () => null,
         modifyMatchResult: async () => ({
             type: "playin",
             playoff_id: 2,
@@ -420,6 +426,7 @@ test("a late play-in failure rejects before sending a response", async () => {
 test("regular matches never trigger bracket progression", async () => {
     const calls = []
     const controller = createPutMatchByTournamentId({
+        modifyTournamentStartedAt: async () => null,
         modifyMatchResult: async () => ({
             type: "regular",
             tournament: { id: "tournament", name: "Tournament" },
@@ -452,6 +459,7 @@ test("an undecidable final leaves a warning instead of failing silently", async 
     const warnings = []
     const createController = ({ match, format }) =>
         createPutMatchByTournamentId({
+            modifyTournamentStartedAt: async () => null,
             modifyMatchResult: async () => match,
             modifyTournamentOutcome: async () => {},
             retrieveTournamentById: async () => ({
@@ -530,7 +538,8 @@ test("the loaded match is forwarded as previous only to the result update", asyn
         _id: "match",
         type: "playoff",
         played: true,
-        updatedAt: new Date("2023-05-10T12:00:00.000Z"),
+        playedAt: new Date("2023-05-10T12:00:00.000Z"),
+        playedAtPrecision: "exact",
     }
     const updatedMatch = {
         _id: "match",
@@ -540,6 +549,7 @@ test("the loaded match is forwarded as previous only to the result update", asyn
     }
     const options = []
     const controller = createPutMatchByTournamentId({
+        modifyTournamentStartedAt: async () => null,
         modifyMatchResult: async (...args) => {
             options.push(["match", args.at(-1)])
             return updatedMatch
@@ -601,6 +611,7 @@ test("the legacy result uses the persisted participants, not the body ones", asy
     const received = []
     const warnings = []
     const controller = createPutMatchByTournamentId({
+        modifyTournamentStartedAt: async () => null,
         modifyMatchResult: async (matchId, scoreP1, scoreP2, outcome) => {
             received.push(outcome)
             return { ...persisted, played: true, outcome }
@@ -657,6 +668,7 @@ test("matching body participants do not log a mismatch", async () => {
         tournament: { id: "tournament", name: "Tournament" },
     }
     const controller = createPutMatchByTournamentId({
+        modifyTournamentStartedAt: async () => null,
         modifyMatchResult: async () => ({ ...persisted, played: true }),
         withTransaction: async (work) => work({ id: "session" }),
         logger: { warn: (event, fields) => warnings.push({ event, fields }) },
@@ -684,6 +696,7 @@ test("the legacy final closes the tournament with the final's playedAt", async (
     const closures = []
     const createController = (updatedMatch) =>
         createPutMatchByTournamentId({
+            modifyTournamentStartedAt: async () => null,
             modifyMatchResult: async () => updatedMatch,
             modifyTournamentOutcome: async (...args) => {
                 closures.push(args[4])
@@ -709,14 +722,11 @@ test("the legacy final closes the tournament with the final's playedAt", async (
         playedAt,
         playedAtPrecision: "day",
     })(createRequest(), createResponse())
-    const before = Date.now()
-    await createController(final)(createRequest(), createResponse())
 
-    assert.deepEqual(closures[0], {
-        closedAt: playedAt,
-        closedAtPrecision: "day",
-    })
-    assert.equal(closures[1].closedAtPrecision, "exact")
-    assert.ok(closures[1].closedAt instanceof Date)
-    assert.ok(closures[1].closedAt.getTime() >= before)
+    assert.deepEqual(closures, [
+        {
+            closedAt: playedAt,
+            closedAtPrecision: "day",
+        },
+    ])
 })

@@ -15,7 +15,7 @@ const {
     validateSeriesResultRequest,
 } = require("../service/playoffSeries")
 
-const team = (id) => ({ id: String(id), name: `Team ${id}` })
+const team = (id) => ({ id, name: `Team ${id}` })
 const player = (id) => ({ id: String(id), name: `Player ${id}` })
 const unit = (id, seed) => ({ team: team(id), player: player(id), seed })
 
@@ -70,8 +70,8 @@ test("aggregate follows team identity and excludes penalty outcome", () => {
     assert.deepEqual(calculateSeriesState([second, first]), {
         status: "decided",
         aggregate: [
-            { teamId: "1", score: 2 },
-            { teamId: "2", score: 4 },
+            { teamId: 1, score: 2 },
+            { teamId: 2, score: 4 },
         ],
         winner: unit(2, "1B"),
     })

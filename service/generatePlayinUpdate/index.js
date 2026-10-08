@@ -2,7 +2,8 @@ const {
     createPlayinByTournamentId,
     updatePlayinMatchTeams,
 } = require("./../../dao")
-// Un destino ya jugado recalcula su outcome al cambiar participantes (D6).
+// Un destino ya jugado recalcula su outcome al cambiar participantes, así el
+// ganador nunca queda apuntando a un equipo que ya no juega el partido.
 const { withRecomputedOutcome } = require("../../utils/matchOutcome")
 
 const PLAYIN_PROGRESSION = [
@@ -37,9 +38,7 @@ const sideFields = (side, suffix) => ({
 })
 
 const generatePlayinUpdate = async (tournament, matches, options = {}) => {
-    const matchById = new Map(
-        matches.map((match) => [Number(match.playoff_id), match])
-    )
+    const matchById = new Map(matches.map((match) => [match.playoff_id, match]))
 
     const toCreate = []
     const toUpdate = []

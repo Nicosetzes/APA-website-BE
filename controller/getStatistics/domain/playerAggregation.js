@@ -1,5 +1,4 @@
 const { createStreakState, updateStreaks } = require("./streaks")
-const { getPlayedAt, getPlayedAtPrecision } = require("../../../utils/playedAt")
 
 const createAccumulator = ({ id, name }) => ({
     id,
@@ -77,8 +76,8 @@ const aggregatePlayers = ({
             accumulator.wins += 1
             result = "W"
             if (goalsFor >= 3) accumulator.matchesScoring3PlusGoals += 1
-            const teamId = String(team?.id || team?.name || "")
-            if (teamId) accumulator._uniqueTeamsWon.add(teamId)
+            const teamKey = team?.id ?? team?.name ?? null
+            if (teamKey !== null) accumulator._uniqueTeamsWon.add(teamKey)
         } else {
             accumulator.losses += 1
             result = "L"
@@ -101,8 +100,8 @@ const aggregatePlayers = ({
                 playerP2: match.playerP2,
                 teamP2: match.teamP2,
                 scoreP2: match.scoreP2,
-                date: getPlayedAt(match) || null,
-                datePrecision: getPlayedAtPrecision(match),
+                date: match?.playedAt ?? null,
+                datePrecision: match?.playedAtPrecision ?? null,
                 tournament: match.tournament?.name || null,
             })
         }

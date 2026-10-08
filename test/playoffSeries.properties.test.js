@@ -10,7 +10,7 @@ const {
 
 const ref = (id, label) => ({ id: String(id), name: `${label} ${id}` })
 const unit = (id, seed) => ({
-    team: ref(id, "Team"),
+    team: { id, name: `Team ${id}` },
     player: ref((id % 4) + 1, "Player"),
     seed,
 })

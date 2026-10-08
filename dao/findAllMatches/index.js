@@ -2,7 +2,7 @@ const matchesModel = require("./../models/matches.js")
 const { comparePlayedAtDesc } = require("../../utils/playedAt")
 
 const PROJECTION =
-    "playerP1 teamP1 scoreP1 playerP2 teamP2 scoreP2 outcome tournament type playoff_id updatedAt playedAt playedAtPrecision"
+    "playerP1 teamP1 scoreP1 playerP2 teamP2 scoreP2 outcome tournament type playoff_id playedAt playedAtPrecision"
 
 // `includeAllPlayoffs` suma, en la misma query, los partidos de playoff sin
 // jugar o `valid: false` que necesitan las rachas por torneo. El caller tiene
@@ -21,7 +21,7 @@ const findAllMatches = async ({ includeAllPlayoffs = false } = {}) => {
 
     const matches = await matchesModel.find(filter, projection)
 
-    // Orden `playedAt ?? updatedAt` desc en JS: no hay índice para esa clave.
+    // Orden `playedAt` desc en JS (desempate `_id` desc).
     return Array.from(matches).sort(comparePlayedAtDesc)
 }
 

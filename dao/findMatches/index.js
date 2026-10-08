@@ -1,11 +1,8 @@
+const { PLAYED_AT_SORT } = require("../../utils/playedAt")
 const { escapeRegExp } = require("es-toolkit")
+const { getPlayoffRoundIdRange } = require("../../config/playoffFormats")
 const matchesModel = require("./../models/matches.js")
 const tournamentsModel = require("./../models/tournaments.js")
-const { getPlayoffRoundIdRange } = require("../../config/playoffFormats")
-const {
-    PLAYED_AT_SORT_STAGES,
-    playedAtRangeCondition,
-} = require("../../utils/playedAt")
 
 const MONGO_COMPARISON_OPS = { gte: "$gte", lte: "$lte", eq: "$eq" }
 
@@ -102,14 +99,10 @@ const playoffRoundCondition = async (round) => {
 
     return {
         type: "playoff",
-        $or: [...branchesByRange.values()].map(({ range, tournamentIds }) => {
-            const ids = idsInRange(range)
-            return {
-                "tournament.id": { $in: tournamentIds },
-                // Tolera playoff_id legacy guardados como texto.
-                playoff_id: { $in: [...ids, ...ids.map(String)] },
-            }
-        }),
+        $or: [...branchesByRange.values()].map(({ range, tournamentIds }) => ({
+            "tournament.id": { $in: tournamentIds },
+            playoff_id: { $in: idsInRange(range) },
+        })),
     }
 }
 
@@ -273,28 +266,24 @@ const findMatches = async (filters) => {
             )
         }
 
-        queryConditions.push(playedAtRangeCondition(dateFilter))
+        queryConditions.push({ playedAt: dateFilter })
     }
 
     const finalFilter = { $and: queryConditions }
     const currentPage = Math.max(1, Number(page) || 1)
-    const sortStages =
+    const sort =
         type === "playoff" && tournamentId && tournamentId !== "all"
-            ? [{ $sort: { playoff_id: 1, leg: 1, _id: 1 } }]
-            : PLAYED_AT_SORT_STAGES
+            ? { playoff_id: 1, leg: 1, _id: 1 }
+            : PLAYED_AT_SORT
 
-    // Aggregate para ordenar por `playedAt ?? updatedAt`; hydrate conserva el
-    // shape de documento que devolvía `find`.
-    const [documents, amountOfTotalMatches] = await Promise.all([
-        matchesModel.aggregate([
-            { $match: finalFilter },
-            ...sortStages,
-            { $skip: (currentPage - 1) * limit },
-            { $limit: limit },
-        ]),
+    const [matches, amountOfTotalMatches] = await Promise.all([
+        matchesModel
+            .find(finalFilter)
+            .sort(sort)
+            .skip((currentPage - 1) * limit)
+            .limit(limit),
         matchesModel.countDocuments(finalFilter),
     ])
-    const matches = documents.map((document) => matchesModel.hydrate(document))
 
     return {
         matches,

@@ -28,7 +28,7 @@ const TEAMS = new Map([
 
 const day = (n) => `2026-01-${String(n).padStart(2, "0")}T12:00:00.000Z`
 
-// `date` null simula los partidos históricos sin timestamps.
+// `date` null simula un partido sin `playedAt`.
 const match = (p1, scoreP1, p2, scoreP2, date, extra = {}) => ({
     playerP1: p1,
     teamP1: TEAMS.get(p1.id),
@@ -43,7 +43,7 @@ const match = (p1, scoreP1, p2, scoreP2, date, extra = {}) => ({
     },
     tournament: TOURNAMENT,
     type: "regular",
-    ...(date ? { updatedAt: date } : {}),
+    ...(date ? { playedAt: date, playedAtPrecision: "exact" } : {}),
     ...extra,
 })
 
@@ -286,7 +286,7 @@ test("active streaks have no break match", async () => {
     }
 })
 
-test("break matches without updatedAt keep a null date", async () => {
+test("break matches without playedAt keep a null date", async () => {
     const body = await runStatistics([loss(null), win(day(2)), win(day(1))])
 
     const nico = body.records.most_wins_in_a_row.players[0]
@@ -312,7 +312,7 @@ test("active streaks need at least two matches", async () => {
     assert.equal(longer.activeStreaks.most_losses_in_a_row.count, 2)
 })
 
-test("streaks touching matches without updatedAt have a null start date", async () => {
+test("streaks touching matches without playedAt have a null start date", async () => {
     const body = await runStatistics([win(day(3)), win(null), win(null)])
 
     const nico = body.records.most_wins_in_a_row.players[0]
@@ -462,35 +462,27 @@ test("streak matches are summarized from the holder perspective", () => {
     assert.equal(regular.penalties, null)
 })
 
-test("legacy penalty matches without shootout scores keep only who won", () => {
-    const withoutScores = formatStreakMatch(
-        match(SANTI, 1, NICO, 1, day(1), {
-            outcome: { draw: true, penalties: true, playerThatWon: NICO },
-        }),
-        NICO.id
-    )
-    assert.deepEqual(withoutScores.penalties, {
-        won: true,
-        goalsFor: null,
-        goalsAgainst: null,
+test("penalty matches always expose the numeric shootout score", () => {
+    const shootout = match(SANTI, 1, NICO, 1, day(1), {
+        outcome: {
+            draw: true,
+            penalties: true,
+            playerThatWon: NICO,
+            playerThatLost: SANTI,
+            scoreFromTeamThatWon: 5,
+            scoreFromTeamThatLost: 4,
+        },
     })
 
-    const nonNumeric = formatStreakMatch(
-        match(SANTI, 1, NICO, 1, day(1), {
-            outcome: {
-                draw: true,
-                penalties: true,
-                playerThatWon: NICO,
-                scoreFromTeamThatWon: "abc",
-                scoreFromTeamThatLost: 3,
-            },
-        }),
-        SANTI.id
-    )
-    assert.deepEqual(nonNumeric.penalties, {
+    assert.deepEqual(formatStreakMatch(shootout, NICO.id).penalties, {
+        won: true,
+        goalsFor: 5,
+        goalsAgainst: 4,
+    })
+    assert.deepEqual(formatStreakMatch(shootout, SANTI.id).penalties, {
         won: false,
-        goalsFor: null,
-        goalsAgainst: null,
+        goalsFor: 4,
+        goalsAgainst: 5,
     })
 })
 
@@ -589,19 +581,19 @@ test("max W/D/L and longest_streak match the previous implementation", () => {
     }
 })
 
-test("streaks, records and recent use playedAt with its precision over updatedAt", async () => {
+test("streaks, records and recent use playedAt with its precision and ignore updatedAt", async () => {
     const year2019 = "2019-06-01T00:00:00.000Z"
     const approx2022 = "2022-11-15T00:00:00.000Z"
     // updatedAt de la recarga manual: no debe aparecer en la respuesta.
     const reloadedAt = day(20)
     const body = await runStatistics([
         win(day(3)),
-        win(reloadedAt, {
+        win(approx2022, {
             scoreP1: 5,
-            playedAt: approx2022,
             playedAtPrecision: "approx",
+            updatedAt: reloadedAt,
         }),
-        win(reloadedAt, { playedAt: year2019, playedAtPrecision: "year" }),
+        win(year2019, { playedAtPrecision: "year", updatedAt: reloadedAt }),
     ])
 
     const nico = holderOf(body.records.most_wins_in_a_row, NICO.id)

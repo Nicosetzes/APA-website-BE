@@ -313,18 +313,7 @@ test("legacy champions_league legs on {2k-1, 2k} fall in the same round", () => 
     })
 })
 
-test("string playoff ids are coerced and out of range ids are not a bracket", () => {
-    const t = tournament(2020)
-    const [fact] = factsFor(
-        [t],
-        [ko(t, "13", NICO, 1, SANTI, 0), ko(t, "15", NICO, 1, JUAN, 0)]
-    )
-    assert.deepEqual(phasesOf(fact), {
-        Nico: "champion",
-        Santi: "semifinal",
-        Juan: "final",
-    })
-
+test("out of range playoff ids are not a bracket", () => {
     const outOfRange = tournament(2021)
     assert.deepEqual(
         factsFor([outOfRange], [ko(outOfRange, 40, NICO, 1, SANTI, 0)]),

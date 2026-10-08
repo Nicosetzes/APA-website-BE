@@ -26,26 +26,26 @@ const team = (id, name, group) => ({
     group,
 })
 
-// Ocho equipos por grupo, como exige el formato.
+// Ocho equipos por grupo, como exige el formato: A = 1..8, B = 11..18.
 const createTeams = () => [
     ...Array.from({ length: 8 }, (_, index) =>
-        team(`a${index + 1}`, `A${index + 1}`, "A")
+        team(index + 1, `A${index + 1}`, "A")
     ),
     ...Array.from({ length: 8 }, (_, index) =>
-        team(`b${index + 1}`, `B${index + 1}`, "B")
+        team(index + 11, `B${index + 1}`, "B")
     ),
 ]
 
 // A1 gana su partido, así queda arriba de todos por puntos.
 const createMatches = () => [
     {
-        playerP1: { id: "pa1", name: "Player a1" },
-        teamP1: { id: "a1", name: "A1" },
+        playerP1: { id: "p1", name: "Player 1" },
+        teamP1: { id: 1, name: "A1" },
         scoreP1: 2,
-        playerP2: { id: "pa2", name: "Player a2" },
-        teamP2: { id: "a2", name: "A2" },
+        playerP2: { id: "p2", name: "Player 2" },
+        teamP2: { id: 2, name: "A2" },
         scoreP2: 0,
-        outcome: { draw: false, teamThatWon: { id: "a1" } },
+        outcome: { draw: false, teamThatWon: { id: 1 } },
     },
 ]
 
@@ -68,44 +68,44 @@ test("playoffs table returns the six best teams of each group", async () => {
 
     assert.equal(response.statusCode, 200)
     assert.equal(response.body.standings.length, 12)
-    assert.equal(response.body.standings[0].team.id, "a1")
+    assert.equal(response.body.standings[0].team.id, 1)
     assert.equal(response.body.standings[0].points, 3)
     assert.equal(response.body.standings[0].scoringDifference, 2)
 
     // A2 perdió, así que no entra entre los seis mejores de su grupo.
     const ids = response.body.standings.map((row) => row.team.id)
-    assert.equal(ids.includes("a2"), false)
+    assert.equal(ids.includes(2), false)
 })
 
 test("playoffs table appends play-in qualifiers after the direct ones", async () => {
     const controller = createController({
         // Sin partidos jugados el orden de cada grupo es el de carga, así los
-        // seeds 7 y 8 caen sobre a7/a8 y b7/b8.
+        // seeds 7 y 8 caen sobre A7/A8 (7/8) y B7/B8 (17/18).
         orderMatchesFromTournamentById: async () => [],
         retrievePlayinMatchesByTournamentId: async () => [
             // Ronda 1: ganan los séptimos de cada grupo.
             {
                 played: true,
-                playoff_id: "1",
+                playoff_id: 1,
                 outcome: { seedFromTeamThatWon: "7" },
             },
             {
                 played: true,
-                playoff_id: "3",
+                playoff_id: 3,
                 outcome: { seedFromTeamThatWon: "7" },
             },
             // Ronda 2: ganan los octavos.
             {
                 played: true,
-                playoff_id: "5",
+                playoff_id: 5,
                 outcome: { seedFromTeamThatWon: "8" },
             },
             {
                 played: true,
-                playoff_id: "6",
+                playoff_id: 6,
                 outcome: { seedFromTeamThatWon: "8" },
             },
-            { played: false, playoff_id: "2", outcome: {} },
+            { played: false, playoff_id: 2, outcome: {} },
         ],
     })
     const response = createResponse()
@@ -116,33 +116,20 @@ test("playoffs table appends play-in qualifiers after the direct ones", async ()
 
     assert.equal(ids.length, 16)
     // Los clasificados de la primera ronda quedan antes que los de la segunda.
-    assert.deepEqual(ids.slice(12), ["a7", "b7", "a8", "b8"])
+    assert.deepEqual(ids.slice(12), [7, 17, 8, 18])
 })
 
-test("playoffs table matches team ids stored as string and number", async () => {
-    // Torneo con ids string (antes de M4) y partido generado con ids number.
-    const numericTeams = [
-        ...Array.from({ length: 8 }, (_, index) =>
-            team(String(10 + index), `A${index + 1}`, "A")
-        ),
-        ...Array.from({ length: 8 }, (_, index) =>
-            team(String(20 + index), `B${index + 1}`, "B")
-        ),
-    ]
+test("playoffs table ignores match sides whose team id is not in a group", async () => {
     const controller = createController({
-        retrieveTournamentById: async () => ({
-            format: "league_playin_playoff",
-            teams: numericTeams,
-        }),
         orderMatchesFromTournamentById: async () => [
             {
-                playerP1: { id: "p10", name: "Player 10" },
-                teamP1: { id: 10, name: "A1" },
-                scoreP1: 2,
-                playerP2: { id: "p11", name: "Player 11" },
-                teamP2: { id: 11, name: "A2" },
+                playerP1: { id: "p11", name: "Player 11" },
+                teamP1: { id: 11, name: "B1" },
+                scoreP1: 3,
+                playerP2: { id: "p99", name: "Player 99" },
+                teamP2: { id: 99, name: "Ajeno" },
                 scoreP2: 0,
-                outcome: { draw: false, teamThatWon: { id: 10 } },
+                outcome: { draw: false, teamThatWon: { id: 11 } },
             },
         ],
     })
@@ -151,11 +138,11 @@ test("playoffs table matches team ids stored as string and number", async () => 
     await controller({ params: { tournament: TOURNAMENT_ID } }, response)
 
     assert.equal(response.body.standings.length, 12)
-    assert.equal(String(response.body.standings[0].team.id), "10")
+    assert.equal(response.body.standings[0].team.id, 11)
     assert.equal(response.body.standings[0].points, 3)
     assert.equal(response.body.standings[0].played, 1)
-    const ids = response.body.standings.map((row) => String(row.team.id))
-    assert.equal(ids.includes("11"), false)
+    const ids = response.body.standings.map((row) => row.team.id)
+    assert.equal(ids.includes(99), false)
 })
 
 test("playoffs table stays empty for other formats", async () => {
@@ -183,7 +170,7 @@ test("playoffs table tolerates historical tournaments with incomplete groups", a
     const controller = createController({
         retrieveTournamentById: async () => ({
             format: "league_playin_playoff",
-            teams: [team("a1", "A1", "A"), team("b1", "B1", "B")],
+            teams: [team(1, "A1", "A"), team(11, "B1", "B")],
         }),
         orderMatchesFromTournamentById: async () => [],
     })
@@ -193,10 +180,10 @@ test("playoffs table tolerates historical tournaments with incomplete groups", a
 
     assert.equal(response.statusCode, 200)
     assert.equal(response.body.standings.length, 2)
-    assert.deepEqual(response.body.standings.map((row) => row.team.id).sort(), [
-        "a1",
-        "b1",
-    ])
+    assert.deepEqual(
+        response.body.standings.map((row) => row.team.id).sort((a, b) => a - b),
+        [1, 11]
+    )
 })
 
 test("playoffs table answers 404 for a missing tournament", async () => {

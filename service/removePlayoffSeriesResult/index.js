@@ -3,6 +3,7 @@ const deletePendingPlayoffTiebreak = require("../../dao/deletePendingPlayoffTieb
 const logger = require("../../utils/logger")
 const findPlayoffSeriesByTie = require("../../dao/findPlayoffSeriesByTie")
 const matchesModel = require("../../dao/models/matches")
+const recomputeTournamentStartedAt = require("../../dao/recomputeTournamentStartedAt")
 const tournamentsModel = require("../../dao/models/tournaments")
 const withTransaction = require("../../utils/withTransaction")
 const { HttpError } = require("../../middleware/httpErrors")
@@ -31,6 +32,9 @@ const createRemovePlayoffSeriesResult = (dependencies = {}) => {
     const deleteTiebreak =
         dependencies.deletePendingPlayoffTiebreak ||
         deletePendingPlayoffTiebreak
+    const recomputeStartedAt =
+        dependencies.recomputeTournamentStartedAt ||
+        recomputeTournamentStartedAt
     const runInTransaction = dependencies.withTransaction || withTransaction
     const log = dependencies.logger || logger
 
@@ -135,6 +139,8 @@ const createRemovePlayoffSeriesResult = (dependencies = {}) => {
                         "La serie fue modificada por otra solicitud"
                     )
 
+                // Fecha del resultado que se borra, leída antes del $unset.
+                const removedPlayedAt = match.playedAt
                 const cleaned = await Match.findOneAndUpdate(
                     { _id: matchId, played: true },
                     {
@@ -155,6 +161,12 @@ const createRemovePlayoffSeriesResult = (dependencies = {}) => {
                         "PLAYOFF_STATE_CONFLICT",
                         "El resultado fue modificado por otra solicitud"
                     )
+
+                // Borrar el primer resultado recalcula `startedAt`.
+                if (removedPlayedAt)
+                    await recomputeStartedAt(tournament._id, removedPlayedAt, {
+                        session,
+                    })
 
                 if (match.leg < 3) {
                     await deleteTiebreak(tournament._id, match.playoff_id, {

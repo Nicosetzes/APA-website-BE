@@ -121,10 +121,12 @@ test("legacy result update resolves playedAt from the previous match", async (t)
             updatedAt,
         },
     })
-    await updateMatchResult("backlog", 0, 0, { draw: true }, true, {
+    const beforeUndated = Date.now()
+    await updateMatchResult("undated", 0, 0, { draw: true }, true, {
         session,
-        previous: { _id: "backlog", played: true, updatedAt },
+        previous: { _id: "undated", played: true, updatedAt },
     })
+    const afterUndated = Date.now()
 
     // Primera carga: ahora, exacto.
     const [, firstUpdate, firstOptions] = calls[0]
@@ -139,8 +141,10 @@ test("legacy result update resolves playedAt from the previous match", async (t)
     assert.equal("playedAt" in calls[1][1], false)
     assert.equal("playedAtPrecision" in calls[1][1], false)
 
-    // Jugado antes del backfill: conserva su updatedAt previo.
-    assert.equal(calls[2][1].playedAt, updatedAt)
+    // Jugado sin playedAt: ahora, exacto (updatedAt no se usa).
+    assert.ok(calls[2][1].playedAt instanceof Date)
+    assert.ok(calls[2][1].playedAt.getTime() >= beforeUndated)
+    assert.ok(calls[2][1].playedAt.getTime() <= afterUndated)
     assert.equal(calls[2][1].playedAtPrecision, "exact")
 })
 

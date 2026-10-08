@@ -40,19 +40,17 @@ const createGetPlayoffsTableByTournamentId = (dependencies = {}) => {
             const teamsFromGroupB = teams.filter(({ group }) => group == "B")
 
             // Build a quick lookup for team IDs per group
-            // Claves String: el torneo y sus partidos pueden traer el mismo
-            // equipo con id string o number hasta que corra la migración M4.
             const groupAIds = new Set(
-                teamsFromGroupA.map(({ team }) => String(team.id))
+                teamsFromGroupA.map(({ team }) => team.id)
             )
             const groupBIds = new Set(
-                teamsFromGroupB.map(({ team }) => String(team.id))
+                teamsFromGroupB.map(({ team }) => team.id)
             )
 
             // Single-pass aggregation across all matches
             const statsMap = new Map()
             const ensure = (teamObj, playerObj) => {
-                const key = String(teamObj.id)
+                const key = teamObj.id
                 if (!statsMap.has(key)) {
                     statsMap.set(key, {
                         team: teamObj,
@@ -83,11 +81,9 @@ const createGetPlayoffsTableByTournamentId = (dependencies = {}) => {
 
                 // Update only if the team belongs to either group A or B
                 const includeT1 =
-                    groupAIds.has(String(teamP1.id)) ||
-                    groupBIds.has(String(teamP1.id))
+                    groupAIds.has(teamP1.id) || groupBIds.has(teamP1.id)
                 const includeT2 =
-                    groupAIds.has(String(teamP2.id)) ||
-                    groupBIds.has(String(teamP2.id))
+                    groupAIds.has(teamP2.id) || groupBIds.has(teamP2.id)
 
                 const t1 = includeT1 ? ensure(teamP1, playerP1) : null
                 const t2 = includeT2 ? ensure(teamP2, playerP2) : null
@@ -142,7 +138,7 @@ const createGetPlayoffsTableByTournamentId = (dependencies = {}) => {
             // Build standings arrays from statsMap for each group, finalize derived fields
             const standingsFromGroupA = teamsFromGroupA.map(
                 ({ team, player }) => {
-                    const s = statsMap.get(String(team.id)) || {
+                    const s = statsMap.get(team.id) || {
                         team,
                         player,
                         played: 0,
@@ -161,7 +157,7 @@ const createGetPlayoffsTableByTournamentId = (dependencies = {}) => {
 
             const standingsFromGroupB = teamsFromGroupB.map(
                 ({ team, player }) => {
-                    const s = statsMap.get(String(team.id)) || {
+                    const s = statsMap.get(team.id) || {
                         team,
                         player,
                         played: 0,
@@ -214,26 +210,26 @@ const createGetPlayoffsTableByTournamentId = (dependencies = {}) => {
                         outcome: { seedFromTeamThatWon: winnerSeed },
                         playoff_id,
                     }) => {
-                        if (playoff_id == "1")
+                        if (playoff_id === 1)
                             higherPlayinTeams.push(
                                 sortedStandingsFromGroupA.at(
                                     Number(winnerSeed) - 1
                                 )
                             )
-                        if (playoff_id == "3")
+                        if (playoff_id === 3)
                             higherPlayinTeams.push(
                                 sortedStandingsFromGroupB.at(
                                     Number(winnerSeed) - 1
                                 )
                             )
-                        if (playoff_id == "5")
+                        if (playoff_id === 5)
                             lowerPlayinTeams.push(
                                 sortedStandingsFromGroupA.at(
                                     Number(winnerSeed) - 1
                                 )
                             )
 
-                        if (playoff_id == "6")
+                        if (playoff_id === 6)
                             lowerPlayinTeams.push(
                                 sortedStandingsFromGroupB.at(
                                     Number(winnerSeed) - 1

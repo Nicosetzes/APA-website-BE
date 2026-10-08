@@ -73,14 +73,14 @@ const classifySeriesMatch = ({ tournament, match } = {}) => {
     if (
         !PLAYOFF_MODES.includes(tournament.playoffMode) ||
         !VALID_LEGS.includes(match.leg) ||
-        (Number(match.playoff_id) === 31 && match.leg !== 1)
+        (match.playoff_id === 31 && match.leg !== 1)
     ) {
         return "invalid"
     }
 
     if (
         tournament.playoffMode === "two_legged" &&
-        Number(match.playoff_id) !== 31 &&
+        match.playoff_id !== 31 &&
         match.leg < 3
     ) {
         return "series_leg"
@@ -156,7 +156,7 @@ const assertSeriesStructure = (tournament, tieMatches = []) => {
 
     const ordered = [...tieMatches].sort((left, right) => left.leg - right.leg)
     const legs = ordered.map(({ leg }) => leg)
-    const playoffId = Number(ordered[0]?.playoff_id)
+    const playoffId = ordered[0]?.playoff_id
     const finalId = getFinalPlayoffId("playoff")
     const expectedBaseLegs =
         tournament.playoffMode === "two_legged" && playoffId !== finalId
@@ -176,8 +176,7 @@ const assertSeriesStructure = (tournament, tieMatches = []) => {
         (!validLegs && !validLegsWithTiebreak) ||
         ordered.some(
             (match) =>
-                match.type !== "playoff" ||
-                Number(match.playoff_id) !== playoffId
+                match.type !== "playoff" || match.playoff_id !== playoffId
         )
     ) {
         throw createDomainError(
@@ -412,26 +411,24 @@ const calculateSeriesState = (matches = []) => {
         units.every((unit) => isEntityReference(unit.team))
     if (!unitsComplete) return { status: "awaiting_leg1", aggregate: [] }
 
-    const aggregateByTeam = new Map(
-        units.map((unit) => [String(unit.team.id), 0])
-    )
+    const aggregateByTeam = new Map(units.map((unit) => [unit.team.id, 0]))
 
     for (const match of [firstLeg, secondLeg]) {
         if (!match?.played) continue
         for (const side of ["P1", "P2"]) {
             const teamId = match[`team${side}`]?.id
             if (teamId === undefined) continue
-            const key = String(teamId)
             aggregateByTeam.set(
-                key,
-                (aggregateByTeam.get(key) || 0) + Number(match[`score${side}`])
+                teamId,
+                (aggregateByTeam.get(teamId) || 0) +
+                    Number(match[`score${side}`])
             )
         }
     }
 
     const aggregate = units.map((unit) => ({
-        teamId: String(unit.team.id),
-        score: aggregateByTeam.get(String(unit.team.id)) || 0,
+        teamId: unit.team.id,
+        score: aggregateByTeam.get(unit.team.id) || 0,
     }))
 
     if (!firstLeg?.played) return { status: "awaiting_leg1", aggregate }
@@ -471,8 +468,7 @@ const calculateSeriesState = (matches = []) => {
     }
 }
 
-const getSuccessorDescriptor = (playoffId) => {
-    const id = Number(playoffId)
+const getSuccessorDescriptor = (id) => {
     if (!Number.isInteger(id) || id < 1 || id > 31) return null
     if (id === 31) return null
 
@@ -505,7 +501,7 @@ const buildLegsForTie = ({
         type: "playoff",
         tournament: tournamentRef,
         played: false,
-        playoff_id: Number(playoffId),
+        playoff_id: playoffId,
     }
     const first = placeCompetitorUnit(
         placeCompetitorUnit({ ...base, leg: 1, seriesRevision }, "P1", unitA),
@@ -515,7 +511,7 @@ const buildLegsForTie = ({
 
     if (
         normalizePlayoffMode(tournament) !== "two_legged" ||
-        Number(playoffId) === getFinalPlayoffId("playoff")
+        playoffId === getFinalPlayoffId("playoff")
     ) {
         return [first]
     }
@@ -585,7 +581,7 @@ const assertDirectPlayoffGeometry = (teams, players) => {
         ) {
             fail("Cada slot debe tener equipo, jugador y playoff_id válidos")
         }
-        const teamId = String(entry.team.id)
+        const teamId = entry.team.id
         if (teamIds.has(teamId)) fail("Cada equipo puede aparecer una sola vez")
         teamIds.add(teamId)
         counts.set(entry.playoff_id, (counts.get(entry.playoff_id) || 0) + 1)
@@ -611,7 +607,7 @@ const decoratePlayoffSeriesMatches = (tournament, matches = []) => {
     for (const match of plainMatches) {
         const classification = classifySeriesMatch({ tournament, match })
         if (classification === "legacy") continue
-        const key = Number(match.playoff_id)
+        const key = match.playoff_id
         if (!groups.has(key)) groups.set(key, [])
         groups.get(key).push(match)
         if (classification === "invalid") invalidIds.add(key)
@@ -647,9 +643,7 @@ const decoratePlayoffSeriesMatches = (tournament, matches = []) => {
                         revision,
                         status: state.status,
                         aggregate: showAggregate ? state.aggregate : [],
-                        winnerTeamId: state.winner?.team?.id
-                            ? String(state.winner.team.id)
-                            : null,
+                        winnerTeamId: state.winner?.team?.id ?? null,
                     },
                     mutation: deriveMutationPolicy({
                         match,

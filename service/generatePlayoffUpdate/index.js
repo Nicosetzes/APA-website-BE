@@ -2,7 +2,8 @@ const {
     createPlayoffByTournamentId,
     updatePlayoffMatchTeams,
 } = require("./../../dao")
-// Un destino ya jugado recalcula su outcome al cambiar participantes (D6).
+// Un destino ya jugado recalcula su outcome al cambiar participantes, así el
+// ganador nunca queda apuntando a un equipo que ya no juega el partido.
 const { withRecomputedOutcome } = require("../../utils/matchOutcome")
 
 // idStart(r) = startSize * (1 - 1/2^(r-1)) + 1,  matchCount(r) = startSize / 2^r

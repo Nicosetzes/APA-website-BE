@@ -7,6 +7,9 @@ const {
     createPutRemoveMatchByTournamentId,
 } = require("../controller/putRemoveMatchByTournamentId")
 
+// Transacción falsa: la real abre una sesión de Mongoose.
+const fakeTransaction = async (work) => work({ id: "session" })
+
 const createResponse = () => ({
     statusCode: null,
     body: null,
@@ -24,6 +27,7 @@ test("remove result controller returns the match without result", async () => {
     let receivedMatchId
     const matchWithoutResult = { _id: "match", played: false }
     const controller = createPutRemoveMatchByTournamentId({
+        withTransaction: fakeTransaction,
         modifyMatchResultToRemoveIt: async (matchId) => {
             receivedMatchId = matchId
             return matchWithoutResult
@@ -48,6 +52,7 @@ test("remove result controller returns the match without result", async () => {
 
 test("remove result controller answers 404 when the match disappeared", async () => {
     const controller = createPutRemoveMatchByTournamentId({
+        withTransaction: fakeTransaction,
         modifyMatchResultToRemoveIt: async () => null,
     })
     const response = createResponse()
@@ -74,6 +79,7 @@ test("remove result controller answers 404 when the match disappeared", async ()
 test("remove result controller propagates persistence failures", async () => {
     const expectedError = new Error("Mongo failed")
     const controller = createPutRemoveMatchByTournamentId({
+        withTransaction: fakeTransaction,
         modifyMatchResultToRemoveIt: async () => {
             throw expectedError
         },

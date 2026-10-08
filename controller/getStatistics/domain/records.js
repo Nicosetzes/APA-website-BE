@@ -1,5 +1,4 @@
 const { getKnockoutResult } = require("./streaks")
-const { getPlayedAt, getPlayedAtPrecision } = require("../../../utils/playedAt")
 
 const selectMatchRecords = (matchesNewestFirst) => {
     let highestDiffMatch = null
@@ -29,8 +28,8 @@ const formatMatch = (match) => ({
     team2: match.teamP2?.name || null,
     score: `${match.scoreP1}-${match.scoreP2}`,
     tournament: match.tournament?.name || null,
-    date: getPlayedAt(match) || null,
-    datePrecision: getPlayedAtPrecision(match),
+    date: match?.playedAt ?? null,
+    datePrecision: match?.playedAtPrecision ?? null,
 })
 
 const toReference = (entity) =>
@@ -44,26 +43,17 @@ const toPlayerReference = (player) =>
           }
         : null
 
-const toShootoutScore = (value) => {
-    if (value === null || value === undefined || value === "") return null
-    const score = Number(value)
-    return Number.isFinite(score) ? score : null
-}
-
-// Definición por penales en la perspectiva de `playerId`. Partidos viejos
-// pueden no traer el resultado de la tanda: ahí los goles quedan en null.
 const formatPenalties = (outcome, playerId) => {
     if (!outcome?.penalties) return null
 
     const won = String(outcome.playerThatWon?.id || "") === playerId
-    const winnerScore = toShootoutScore(outcome.scoreFromTeamThatWon)
-    const loserScore = toShootoutScore(outcome.scoreFromTeamThatLost)
-    const hasScores = winnerScore !== null && loserScore !== null
+    const winnerScore = outcome.scoreFromTeamThatWon
+    const loserScore = outcome.scoreFromTeamThatLost
 
     return {
         won,
-        goalsFor: hasScores ? (won ? winnerScore : loserScore) : null,
-        goalsAgainst: hasScores ? (won ? loserScore : winnerScore) : null,
+        goalsFor: won ? winnerScore : loserScore,
+        goalsAgainst: won ? loserScore : winnerScore,
     }
 }
 
@@ -85,8 +75,8 @@ const formatStreakMatch = (match, playerId, resolveResult) => {
     if (resolveResult) result = resolveResult(result, match, playerId)
 
     return {
-        date: getPlayedAt(match) || null,
-        datePrecision: getPlayedAtPrecision(match),
+        date: match?.playedAt ?? null,
+        datePrecision: match?.playedAtPrecision ?? null,
         tournament: toReference(match.tournament),
         type: match.type || null,
         team: toReference(isP1 ? match.teamP1 : match.teamP2),
@@ -102,8 +92,8 @@ const formatStreakMatch = (match, playerId, resolveResult) => {
 const formatStreakHolder = (entry, prefix, isActive, resolveResult) => {
     const startMatch = entry[`${prefix}Start`]
     const endMatch = entry[`${prefix}End`]
-    const endDate = getPlayedAt(endMatch) || null
-    const endDatePrecision = getPlayedAtPrecision(endMatch)
+    const endDate = endMatch?.playedAt ?? null
+    const endDatePrecision = endMatch?.playedAtPrecision ?? null
 
     return {
         id: entry.id,
@@ -111,8 +101,8 @@ const formatStreakHolder = (entry, prefix, isActive, resolveResult) => {
         date: endDate,
         datePrecision: endDatePrecision,
         isActive,
-        startDate: getPlayedAt(startMatch) || null,
-        startDatePrecision: getPlayedAtPrecision(startMatch),
+        startDate: startMatch?.playedAt ?? null,
+        startDatePrecision: startMatch?.playedAtPrecision ?? null,
         endDate,
         endDatePrecision,
         startMatch: formatStreakMatch(startMatch, entry.id, resolveResult),

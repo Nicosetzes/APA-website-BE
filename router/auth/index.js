@@ -175,7 +175,7 @@ const requireMatchInTournament = async (req, res, next) => {
         const match = await matchesModel
             .findById(matchId)
             .select(
-                "_id tournament type group playoff_id leg seriesRevision played playerP1 teamP1 seedP1 scoreP1 playerP2 teamP2 seedP2 scoreP2 outcome valid playedAt playedAtPrecision updatedAt"
+                "_id tournament type group playoff_id leg seriesRevision played playerP1 teamP1 seedP1 scoreP1 playerP2 teamP2 seedP2 scoreP2 outcome valid playedAt playedAtPrecision"
             )
             .lean()
 

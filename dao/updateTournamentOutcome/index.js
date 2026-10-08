@@ -1,6 +1,6 @@
 const tournamentsModel = require("./../models/tournaments.js")
 
-// `closure` trae la fecha de cierre (D3); sin ella se cierra con `now`.
+// `closure` trae la fecha del partido que cierra el torneo; sin ella, `now`.
 const updateTournamentOutcome = async (
     tournament,
     champion,

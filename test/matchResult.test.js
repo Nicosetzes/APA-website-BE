@@ -35,6 +35,24 @@ test("regular matches reject client-provided seeds and penalties", () => {
     assert.equal(result.error.code, "INVALID_MATCH_RESULT")
 })
 
+test("a regular match with persisted seeds follows the regular rules", () => {
+    const match = { type: "regular", seedP1: "A1", seedP2: "B2" }
+
+    // Empate sin penales: válido en fase regular.
+    const draw = runValidation(match, { scoreP1: 1, scoreP2: 1 })
+    assert.equal(draw.allowed, true)
+    assert.equal(draw.body.seedP1, undefined)
+
+    const withPenalties = runValidation(match, {
+        scoreP1: 1,
+        scoreP2: 1,
+        penaltyScoreP1: 5,
+        penaltyScoreP2: 4,
+    })
+    assert.equal(withPenalties.allowed, false)
+    assert.equal(withPenalties.error.code, "INVALID_MATCH_RESULT")
+})
+
 test("knockout matches derive seeds from persistence", () => {
     const result = runValidation(
         { type: "playoff", seedP1: "A1", seedP2: "B2" },

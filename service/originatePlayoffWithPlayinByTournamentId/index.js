@@ -84,19 +84,19 @@ const originatePlayoffWithPlayinByTournamentId = async (
     // playoff_id 1 & 3 are round-1 winners (seeded above round-2 winners 5 & 6)
     playinMatches.forEach(
         ({ outcome: { seedFromTeamThatWon: winnerSeed }, playoff_id }) => {
-            if (playoff_id == "1")
+            if (playoff_id === 1)
                 higherPlayinTeams.push(
                     sortedStandingsFromGroupA.at(Number(winnerSeed) - 1)
                 )
-            if (playoff_id == "3")
+            if (playoff_id === 3)
                 higherPlayinTeams.push(
                     sortedStandingsFromGroupB.at(Number(winnerSeed) - 1)
                 )
-            if (playoff_id == "5")
+            if (playoff_id === 5)
                 lowerPlayinTeams.push(
                     sortedStandingsFromGroupA.at(Number(winnerSeed) - 1)
                 )
-            if (playoff_id == "6")
+            if (playoff_id === 6)
                 lowerPlayinTeams.push(
                     sortedStandingsFromGroupB.at(Number(winnerSeed) - 1)
                 )

@@ -1,6 +1,6 @@
 const matchesModel = require("./../models/matches.js")
 
-const updateMatchResultToRemoveIt = async (matchId) => {
+const updateMatchResultToRemoveIt = async (matchId, options = {}) => {
     const removedMatchResult = await matchesModel.findByIdAndUpdate(
         matchId,
         {
@@ -13,7 +13,7 @@ const updateMatchResultToRemoveIt = async (matchId) => {
             },
             played: false,
         },
-        { new: true } // Returns the updated document, not the original
+        { ...options, new: true } // Returns the updated document, not the original
     )
     return removedMatchResult
 }

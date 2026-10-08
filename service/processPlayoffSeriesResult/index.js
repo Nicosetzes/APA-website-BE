@@ -7,6 +7,7 @@ const matchesModel = require("../../dao/models/matches")
 const tournamentsModel = require("../../dao/models/tournaments")
 const updatePlayoffSeriesMatchResult = require("../../dao/updatePlayoffSeriesMatchResult")
 const updatePlayoffSeriesSlots = require("../../dao/updatePlayoffSeriesSlots")
+const updateTournamentStartedAt = require("../../dao/updateTournamentStartedAt")
 const withTransaction = require("../../utils/withTransaction")
 const { resolvePlayedAtOnResult } = require("../../utils/playedAt")
 const {
@@ -118,6 +119,8 @@ const createProcessPlayoffSeriesResult = (dependencies = {}) => {
         updatePlayoffSeriesMatchResult
     const updateSlots =
         dependencies.updatePlayoffSeriesSlots || updatePlayoffSeriesSlots
+    const startTournament =
+        dependencies.updateTournamentStartedAt || updateTournamentStartedAt
     const deleteTiebreak =
         dependencies.deletePendingPlayoffTiebreak ||
         deletePendingPlayoffTiebreak
@@ -279,6 +282,10 @@ const createProcessPlayoffSeriesResult = (dependencies = {}) => {
                         "El resultado fue modificado por otra solicitud"
                     )
 
+                // El primer resultado cargado fija `startedAt`; si ya tiene, no se toca.
+                if (!tournament.startedAt)
+                    await startTournament(tournament._id, updated, { session })
+
                 tieMatches = tieMatches.map((item) =>
                     String(item._id) === String(matchId) ? updated : item
                 )
@@ -337,11 +344,10 @@ const createProcessPlayoffSeriesResult = (dependencies = {}) => {
                                         },
                                     },
                                     // El cierre toma la fecha del partido
-                                    // que decidió la final (D3).
-                                    closedAt: updated.playedAt ?? new Date(),
-                                    closedAtPrecision: updated.playedAt
-                                        ? updated.playedAtPrecision ?? "exact"
-                                        : "exact",
+                                    // que decidió la final.
+                                    closedAt: updated.playedAt,
+                                    closedAtPrecision:
+                                        updated.playedAtPrecision,
                                 },
                             },
                             { session }

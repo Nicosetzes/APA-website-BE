@@ -1,8 +1,7 @@
-const { getPlayedAt } = require("../../utils/playedAt")
 const { retrieveAllUsers, retrieveAllMatches } = require("./../../service")
 
 const toPlayedAtTime = (match) => {
-    const time = new Date(getPlayedAt(match) ?? 0).getTime()
+    const time = new Date(match.playedAt ?? 0).getTime()
     return Number.isNaN(time) ? 0 : time
 }
 
@@ -64,13 +63,13 @@ const createGetAllTimeFaceToFace = (dependencies = {}) => {
                         return 1
 
                     if (
-                        Number(a.outcome.scoreFromTeamThatWon) >
-                        Number(b.outcome.scoreFromTeamThatWon)
+                        a.outcome.scoreFromTeamThatWon >
+                        b.outcome.scoreFromTeamThatWon
                     )
                         return -1
                     if (
-                        Number(a.outcome.scoreFromTeamThatWon) <
-                        Number(b.outcome.scoreFromTeamThatWon)
+                        a.outcome.scoreFromTeamThatWon <
+                        b.outcome.scoreFromTeamThatWon
                     )
                         return 1
 
@@ -105,13 +104,13 @@ const createGetAllTimeFaceToFace = (dependencies = {}) => {
                         return 1
 
                     if (
-                        Number(a.outcome.scoreFromTeamThatLost) >
-                        Number(b.outcome.scoreFromTeamThatLost)
+                        a.outcome.scoreFromTeamThatLost >
+                        b.outcome.scoreFromTeamThatLost
                     )
                         return -1
                     if (
-                        Number(a.outcome.scoreFromTeamThatLost) <
-                        Number(b.outcome.scoreFromTeamThatLost)
+                        a.outcome.scoreFromTeamThatLost <
+                        b.outcome.scoreFromTeamThatLost
                     )
                         return 1
 

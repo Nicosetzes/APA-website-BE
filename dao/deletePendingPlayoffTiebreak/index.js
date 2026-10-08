@@ -9,7 +9,7 @@ const deletePendingPlayoffTiebreak = async (
         {
             "tournament.id": String(tournamentId),
             type: "playoff",
-            playoff_id: Number(playoffId),
+            playoff_id: playoffId,
             leg: 3,
             played: false,
         },

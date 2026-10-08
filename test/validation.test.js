@@ -271,6 +271,7 @@ test("fixture GET parses active FE filters and rejects malformed players/page", 
         undefined
     )
     assert.equal(validRequest.query.page, 2)
+    assert.equal(validRequest.query.team, 10)
     assert.equal(validRequest.query.group, "A")
     assert.deepEqual(validRequest.query.players, ["player-1", "player-2"])
 
@@ -279,6 +280,18 @@ test("fixture GET parses active FE filters and rejects malformed players/page", 
         undefined
     )
     assert.deepEqual(singlePlayerRequest.query.players, ["player-1"])
+
+    for (const team of ["abc", "-1", "1.5"]) {
+        const invalidTeamRequest = {
+            params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
+            query: { team },
+            body: {},
+        }
+        assert.equal(
+            (await runValidation(schemas.getFixture, invalidTeamRequest)).code,
+            "VALIDATION_ERROR"
+        )
+    }
 
     assert.equal(
         (await runValidation(schemas.getFixture, invalidRequest)).code,
@@ -295,6 +308,32 @@ test("fixture GET parses active FE filters and rejects malformed players/page", 
     )
 })
 
+test("calculator GET converts repeated team ids to numbers and rejects non-numeric ones", async () => {
+    const request = (teams) => ({
+        params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
+        query: { teams },
+        body: {},
+    })
+
+    const repeated = request(["5", "7"])
+    assert.equal(
+        await runValidation(schemas.getCalculator, repeated),
+        undefined
+    )
+    assert.deepEqual(repeated.query.teams, [5, 7])
+
+    const single = request("5")
+    assert.equal(await runValidation(schemas.getCalculator, single), undefined)
+    assert.deepEqual(single.query.teams, [5])
+
+    for (const teams of ["abc", ["5", "abc"], ["5", "5"], "-1"]) {
+        assert.equal(
+            (await runValidation(schemas.getCalculator, request(teams))).code,
+            "VALIDATION_ERROR"
+        )
+    }
+})
+
 test("serialized JSON arrays still work while the deployed FE catches up", async () => {
     const legacyFixtureRequest = {
         params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
@@ -303,7 +342,7 @@ test("serialized JSON arrays still work while the deployed FE catches up", async
     }
     const legacyCalculatorRequest = {
         params: { tournament: "aaaaaaaaaaaaaaaaaaaaaaaa" },
-        query: { teams: '["team-1","team-2"]' },
+        query: { teams: '["5","7"]' },
         body: {},
     }
     const legacyTooManyPlayersRequest = {
@@ -325,7 +364,7 @@ test("serialized JSON arrays still work while the deployed FE catches up", async
         await runValidation(schemas.getCalculator, legacyCalculatorRequest),
         undefined
     )
-    assert.deepEqual(legacyCalculatorRequest.query.teams, ["team-1", "team-2"])
+    assert.deepEqual(legacyCalculatorRequest.query.teams, [5, 7])
 
     assert.equal(
         (await runValidation(schemas.getFixture, legacyTooManyPlayersRequest))

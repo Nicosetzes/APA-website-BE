@@ -4,6 +4,8 @@ const generatePlayoffUpdate = require("./generatePlayoffUpdate")
 const modifyMatchResult = require("./modifyMatchResult")
 const modifyMatchResultToRemoveIt = require("./modifyMatchResultToRemoveIt")
 const modifyTournamentOutcome = require("./modifyTournamentOutcome")
+const modifyTournamentStartedAt = require("./modifyTournamentStartedAt")
+const modifyTournamentStartedAtAfterRemoval = require("./modifyTournamentStartedAtAfterRemoval")
 const orderMatchesFromTournamentById = require("./orderMatchesFromTournamentById")
 const originateChampionsLeaguePlayoffByTournamentId = require("./originateChampionsLeaguePlayoffByTournamentId")
 const originateFixtureByTournamentId = require("./originateFixtureByTournamentId")
@@ -40,6 +42,8 @@ module.exports = {
     modifyMatchResult,
     modifyMatchResultToRemoveIt,
     modifyTournamentOutcome,
+    modifyTournamentStartedAt,
+    modifyTournamentStartedAtAfterRemoval,
     orderMatchesFromTournamentById,
     originateChampionsLeaguePlayoffByTournamentId,
     originateFixtureByTournamentId,

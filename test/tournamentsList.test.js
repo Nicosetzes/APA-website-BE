@@ -74,79 +74,87 @@ test("legacy=false boolean keeps precedence over status in DAO", async (t) => {
     })
     assert.equal(
         receivedProjection,
-        "cloudinary_id name ongoing outcome updatedAt format playoffMode createdAt startedAt startedAtPrecision closedAt closedAtPrecision"
+        "cloudinary_id name ongoing outcome format playoffMode startedAt startedAtPrecision closedAt closedAtPrecision"
     )
 })
 
 const datedTournaments = () => [
-    // Sólo createdAt (sin backfill).
-    { _id: "a1", createdAt: new Date("2023-01-01T00:00:00Z") },
-    // startedAt manda sobre createdAt (legacy con createdAt inventado).
+    // No empezado con createdAt viejo: createdAt ya no influye.
+    { _id: "a1", createdAt: new Date("2019-01-01T00:00:00Z") },
     {
         _id: "b2",
-        createdAt: new Date("2024-06-01T00:00:00Z"),
+        // createdAt más nuevo que startedAt tampoco influye.
+        createdAt: new Date("2027-06-01T00:00:00Z"),
         startedAt: new Date("2019-03-01T00:00:00Z"),
         startedAtPrecision: "year",
     },
-    { _id: "c3", createdAt: new Date("2025-01-01T00:00:00Z") },
-    // Mismo instante que c3: desempate por _id desc.
-    { _id: "c4", createdAt: new Date("2025-01-01T00:00:00Z") },
-    // Sin ninguna fecha: al final.
-    { _id: "z9" },
+    {
+        _id: "c3",
+        startedAt: new Date("2025-01-01T00:00:00Z"),
+        startedAtPrecision: "exact",
+    },
+    // Mismo inicio que c3: desempate por _id desc.
+    {
+        _id: "c4",
+        startedAt: new Date("2025-01-01T00:00:00Z"),
+        startedAtPrecision: "exact",
+    },
+    { _id: "d5", startedAt: new Date("2023-07-01T00:00:00Z") },
+    // Otro no empezado: entre ellos, _id desc.
+    { _id: "z9", createdAt: new Date("2026-01-01T00:00:00Z") },
 ]
 
-test("tournament lists are ordered by startedAt ?? createdAt in JS", async (t) => {
+const withDatedTournaments = (t) => {
     const originalFind = tournamentsModel.find
+    const projections = []
     t.after(() => {
         tournamentsModel.find = originalFind
     })
-    const projections = []
     tournamentsModel.find = async (filter, projection) => {
         projections.push(projection)
         return datedTournaments()
     }
+    return projections
+}
 
-    const ids = (list) => list.map(({ _id }) => _id)
+const ids = (list) => list.map(({ _id }) => _id)
 
-    assert.deepEqual(ids(await findTournaments(false)), [
-        "c4",
-        "c3",
-        "a1",
-        "b2",
-        "z9",
-    ])
-    assert.deepEqual(ids(await findTournaments(undefined, "active")), [
-        "c4",
-        "c3",
-        "a1",
-        "b2",
-        "z9",
-    ])
-    assert.deepEqual(ids(await findTournaments(undefined)), [
-        "c4",
-        "c3",
-        "a1",
-        "b2",
-        "z9",
-    ])
-    // Finalizados: del más viejo al más nuevo.
-    assert.deepEqual(ids(await findTournaments(undefined, "finalized")), [
-        "b2",
-        "a1",
-        "c4",
-        "c3",
-        "z9",
-    ])
+test("desc lists put not-started tournaments first, then startedAt desc", async (t) => {
+    const projections = withDatedTournaments(t)
+    const expected = ["z9", "a1", "c4", "c3", "d5", "b2"]
+
+    assert.deepEqual(ids(await findTournaments(false)), expected)
+    assert.deepEqual(ids(await findTournaments(undefined, "active")), expected)
+    assert.deepEqual(ids(await findTournaments(undefined)), expected)
 
     for (const projection of projections) {
+        const fields = projection.split(" ")
         for (const field of [
-            "createdAt",
             "startedAt",
             "startedAtPrecision",
             "closedAt",
             "closedAtPrecision",
         ]) {
-            assert.ok(projection.split(" ").includes(field), field)
+            assert.ok(fields.includes(field), field)
         }
+        assert.equal(fields.includes("createdAt"), false)
+        assert.equal(fields.includes("updatedAt"), false)
     }
+})
+
+test("finalized lists go by startedAt asc, ties by _id desc, not-started last", async (t) => {
+    const projections = withDatedTournaments(t)
+
+    assert.deepEqual(ids(await findTournaments(undefined, "finalized")), [
+        "b2",
+        "d5",
+        "c4",
+        "c3",
+        "z9",
+        "a1",
+    ])
+    assert.equal(
+        projections[0],
+        "name cloudinary_id outcome startedAt startedAtPrecision closedAt closedAtPrecision"
+    )
 })

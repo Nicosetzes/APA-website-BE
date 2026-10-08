@@ -10,7 +10,7 @@ const claimPlayoffSeriesRevision = async (
         {
             "tournament.id": String(tournamentId),
             type: "playoff",
-            playoff_id: Number(playoffId),
+            playoff_id: playoffId,
             leg: 1,
             seriesRevision: expectedRevision,
         },

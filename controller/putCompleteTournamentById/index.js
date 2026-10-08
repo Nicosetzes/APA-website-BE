@@ -1,11 +1,9 @@
+const { HttpError } = require("../../middleware/httpErrors")
 const {
     retrieveTournamentById,
     retrieveAllPlayedMatchesByTournamentId,
     modifyTournamentOutcome,
 } = require("./../../service")
-const { HttpError } = require("../../middleware/httpErrors")
-const { getPlayedAt, getPlayedAtPrecision } = require("../../utils/playedAt")
-const { sameTeamId } = require("../../utils/teamRef")
 
 const toTime = (value) => {
     if (value === null || value === undefined) return null
@@ -13,12 +11,12 @@ const toTime = (value) => {
     return Number.isNaN(time) ? null : time
 }
 
-// Cierre de liga (D3): el último partido jugado, con su precisión.
+// Una liga cierra con la fecha del último partido jugado, con su precisión.
 const computeLeagueClosure = (matches) => {
     let latest = null
     let latestTime = null
     for (const match of matches) {
-        const time = toTime(getPlayedAt(match))
+        const time = toTime(match.playedAt)
         if (time !== null && (latestTime === null || time > latestTime)) {
             latest = match
             latestTime = time
@@ -29,7 +27,7 @@ const computeLeagueClosure = (matches) => {
 
     return {
         closedAt: new Date(latestTime),
-        closedAtPrecision: getPlayedAtPrecision(latest) ?? "exact",
+        closedAtPrecision: latest.playedAtPrecision,
     }
 }
 
@@ -37,9 +35,8 @@ const computeLeagueClosure = (matches) => {
 const computeLeagueOutcome = (matches, teams) => {
     const statsMap = new Map()
 
-    // Claves String: el mismo equipo puede venir con id string o number.
     const ensureTeam = (teamObj, playerObj) => {
-        const key = String(teamObj.id)
+        const key = teamObj.id
         if (!statsMap.has(key)) {
             statsMap.set(key, {
                 id: teamObj.id,
@@ -82,7 +79,7 @@ const computeLeagueOutcome = (matches, teams) => {
             t1.points += 1
             t2.points += 1
         } else if (
-            sameTeamId(outcome?.teamThatWon?.id, teamP1.id) ||
+            outcome?.teamThatWon?.id === teamP1.id ||
             scoreP1 > scoreP2
         ) {
             t1.wins += 1

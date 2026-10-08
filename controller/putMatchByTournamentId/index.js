@@ -3,8 +3,14 @@ const { classifySeriesMatch } = require("../../service/playoffSeries")
 const logger = require("../../utils/logger")
 const withTransaction = require("../../utils/withTransaction")
 const {
+    getPlayoffStartSize,
+    hasTabulatedFinalPlayoffId,
+    isFinalPlayoffMatch,
+} = require("../../config/playoffFormats")
+const {
     modifyMatchResult,
     modifyTournamentOutcome,
+    modifyTournamentStartedAt,
     retrieveTournamentById,
     retrievePlayoffMatchesByTournamentId,
     retrievePlayinMatchesByTournamentId,
@@ -12,11 +18,6 @@ const {
     generatePlayinUpdate,
     processPlayoffSeriesResult,
 } = require("./../../service")
-const {
-    getPlayoffStartSize,
-    hasTabulatedFinalPlayoffId,
-    isFinalPlayoffMatch,
-} = require("../../config/playoffFormats")
 
 const calculateOutcome = ({
     playerP1,
@@ -104,6 +105,8 @@ const createPutMatchByTournamentId = (dependencies = {}) => {
     const updateMatch = dependencies.modifyMatchResult || modifyMatchResult
     const updateTournament =
         dependencies.modifyTournamentOutcome || modifyTournamentOutcome
+    const startTournament =
+        dependencies.modifyTournamentStartedAt || modifyTournamentStartedAt
     const getTournament =
         dependencies.retrieveTournamentById || retrieveTournamentById
     const getPlayoffMatches =
@@ -165,7 +168,7 @@ const createPutMatchByTournamentId = (dependencies = {}) => {
 
         // Los participantes salen del partido guardado: el body puede venir
         // de una vista desactualizada y dejaría un ganador que no juega el
-        // partido (D6). El body sólo se usa si no hay partido cargado.
+        // partido. El body sólo se usa si no hay partido cargado.
         const bodyParticipants = {
             playerP1,
             teamP1,
@@ -218,6 +221,15 @@ const createPutMatchByTournamentId = (dependencies = {}) => {
                 )
             }
 
+            // El primer resultado cargado fija `startedAt`; si ya tiene, no se toca.
+            if (updatedMatch.tournament?.id) {
+                await startTournament(
+                    updatedMatch.tournament.id,
+                    updatedMatch,
+                    options
+                )
+            }
+
             if (
                 updatedMatch.type === "playoff" &&
                 updatedMatch.tournament?.id
@@ -240,7 +252,7 @@ const createPutMatchByTournamentId = (dependencies = {}) => {
                 // un dato anómalo y no una ronda intermedia quedan logueados,
                 // porque desde HTTP la respuesta sigue siendo 200.
                 if (
-                    !Number.isInteger(Number(updatedMatch.playoff_id)) ||
+                    !Number.isInteger(updatedMatch.playoff_id) ||
                     !hasTabulatedFinalPlayoffId(tournamentData.format)
                 ) {
                     log.warn("playoff_final_not_derivable", {
@@ -268,17 +280,15 @@ const createPutMatchByTournamentId = (dependencies = {}) => {
                         team: outcome.teamThatLost,
                         player: outcome.playerThatLost,
                     }
-                    // El torneo cierra con la fecha de la final (D3).
+                    // El torneo cierra con la fecha de la final.
                     await updateTournament(
                         tournament,
                         champion,
                         finalist,
                         options,
                         {
-                            closedAt: updatedMatch.playedAt ?? new Date(),
-                            closedAtPrecision: updatedMatch.playedAt
-                                ? updatedMatch.playedAtPrecision ?? "exact"
-                                : "exact",
+                            closedAt: updatedMatch.playedAt,
+                            closedAtPrecision: updatedMatch.playedAtPrecision,
                         }
                     )
                 }

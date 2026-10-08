@@ -24,7 +24,7 @@ const createResponse = () => ({
 const createTeams = (group = "A") =>
     Array.from({ length: 10 }, (_, index) => ({
         group,
-        team: { id: `team-${index + 1}`, name: `Team ${index + 1}` },
+        team: { id: index + 1, name: `Team ${index + 1}` },
         player: { id: `player-${index + 1}`, name: `Player ${index + 1}` },
     }))
 

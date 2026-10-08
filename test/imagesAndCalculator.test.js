@@ -9,6 +9,8 @@ const {
 const {
     createGetCalculatorByTournamentId,
 } = require("../controller/getCalculatorByTournamentId")
+const matchesModel = require("../dao/models/matches")
+const findTeamRemainingMatchesByTournamentId = require("../dao/findTeamRemainingMatchesByTournamentId")
 
 const createResponse = () => ({
     statusCode: null,
@@ -105,11 +107,11 @@ test("calculator forwards parsed team ids and preserves the response", async () 
     const controller = createGetCalculatorByTournamentId({
         retrieveTeamRemainingMatchesByTournamentId: async (...args) => {
             receivedTeamsArgs = args
-            return [{ team: { id: "10" }, matches: [] }]
+            return [{ team: { id: 10 }, matches: [] }]
         },
         retrieveStandingsForCalculatorByTournamentId: async (tournament) => {
             receivedStandingsTournament = tournament
-            return [{ team: { id: "10" }, points: 3 }]
+            return [{ team: { id: 10 }, points: 3 }]
         },
     })
     const response = createResponse()
@@ -117,17 +119,42 @@ test("calculator forwards parsed team ids and preserves the response", async () 
     await controller(
         {
             params: { tournament: TOURNAMENT_ID },
-            query: { teams: ["10", "20"] },
+            query: { teams: [10, 20] },
         },
         response
     )
 
-    assert.deepEqual(receivedTeamsArgs, [TOURNAMENT_ID, ["10", "20"]])
+    assert.deepEqual(receivedTeamsArgs, [TOURNAMENT_ID, [10, 20]])
     assert.equal(receivedStandingsTournament, TOURNAMENT_ID)
     assert.equal(response.statusCode, 200)
     assert.deepEqual(Object.keys(response.body), ["teams", "standings"])
-    assert.equal(response.body.teams[0].team.id, "10")
+    assert.equal(response.body.teams[0].team.id, 10)
     assert.equal(response.body.standings[0].points, 3)
+})
+
+test("remaining matches filter the numeric team id on either side", async (t) => {
+    const originalFind = matchesModel.find
+    const filters = []
+    t.after(() => {
+        matchesModel.find = originalFind
+    })
+    matchesModel.find = async (filter) => {
+        filters.push(filter)
+        return []
+    }
+
+    const result = await findTeamRemainingMatchesByTournamentId(
+        "tournament",
+        10
+    )
+
+    assert.deepEqual(result, { team: { id: 10 }, matches: [] })
+    assert.deepEqual(filters[0], {
+        played: { $ne: true },
+        valid: { $ne: false },
+        "tournament.id": "tournament",
+        $or: [{ "teamP1.id": 10 }, { "teamP2.id": 10 }],
+    })
 })
 
 test("calculator propagates persistence failures", async () => {
@@ -141,7 +168,7 @@ test("calculator propagates persistence failures", async () => {
 
     await assert.rejects(
         controller(
-            { params: { tournament: TOURNAMENT_ID }, query: { teams: ["10"] } },
+            { params: { tournament: TOURNAMENT_ID }, query: { teams: [10] } },
             createResponse()
         ),
         expectedError
@@ -188,19 +215,19 @@ test("calculator validation parses bounded repeated team ids", async () => {
     }
 
     assert.equal(await runValidation(schemas.getCalculator, request), undefined)
-    assert.deepEqual(request.query.teams, ["10", "20"])
+    assert.deepEqual(request.query.teams, [10, 20])
 
     assert.equal(
         await runValidation(schemas.getCalculator, singleTeamRequest),
         undefined
     )
-    assert.deepEqual(singleTeamRequest.query.teams, ["10"])
+    assert.deepEqual(singleTeamRequest.query.teams, [10])
 
     assert.equal(
         await runValidation(schemas.getCalculator, legacyRequest),
         undefined
     )
-    assert.deepEqual(legacyRequest.query.teams, ["10", "20"])
+    assert.deepEqual(legacyRequest.query.teams, [10, 20])
 
     const invalidRequests = [
         // Antes cada uno de estos casos terminaba en un 500.

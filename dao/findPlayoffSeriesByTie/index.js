@@ -9,7 +9,7 @@ const findPlayoffSeriesByTie = async (
         .find({
             "tournament.id": String(tournamentId),
             type: "playoff",
-            playoff_id: Number(playoffId),
+            playoff_id: playoffId,
             leg: { $in: [1, 2, 3] },
         })
         .sort({ leg: 1, _id: 1 })

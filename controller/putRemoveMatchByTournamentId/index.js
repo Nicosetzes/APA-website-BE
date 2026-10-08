@@ -1,15 +1,21 @@
+const { HttpError } = require("../../middleware/httpErrors")
+const { classifySeriesMatch } = require("../../service/playoffSeries")
+const withTransaction = require("../../utils/withTransaction")
 const {
     modifyMatchResultToRemoveIt,
+    modifyTournamentStartedAtAfterRemoval,
     removePlayoffSeriesResult,
 } = require("./../../service")
-const { classifySeriesMatch } = require("../../service/playoffSeries")
-const { HttpError } = require("../../middleware/httpErrors")
 
 const createPutRemoveMatchByTournamentId = (dependencies = {}) => {
     const removeLegacyResult =
         dependencies.modifyMatchResultToRemoveIt || modifyMatchResultToRemoveIt
     const removeSeriesResult =
         dependencies.removePlayoffSeriesResult || removePlayoffSeriesResult
+    const recomputeStartedAt =
+        dependencies.modifyTournamentStartedAtAfterRemoval ||
+        modifyTournamentStartedAtAfterRemoval
+    const runInTransaction = dependencies.withTransaction || withTransaction
 
     return async (req, res) => {
         const { tournament, match } = req.params
@@ -17,6 +23,7 @@ const createPutRemoveMatchByTournamentId = (dependencies = {}) => {
             tournament: req.tournament || {},
             match: req.match || {},
         })
+
         if (classification === "invalid") {
             throw new HttpError(
                 409,
@@ -24,9 +31,24 @@ const createPutRemoveMatchByTournamentId = (dependencies = {}) => {
                 "La configuración de la serie de playoff es inválida"
             )
         }
+
+        // Borrar el primer resultado recalcula `startedAt` en la misma
+        // transacción.
         const matchWithoutResult =
             classification === "legacy"
-                ? await removeLegacyResult(match)
+                ? await runInTransaction(async (session) => {
+                      const cleaned = await removeLegacyResult(match, {
+                          session,
+                      })
+                      if (cleaned?.tournament?.id && req.match?.playedAt) {
+                          await recomputeStartedAt(
+                              cleaned.tournament.id,
+                              req.match.playedAt,
+                              { session }
+                          )
+                      }
+                      return cleaned
+                  })
                 : await removeSeriesResult({
                       tournamentId: tournament,
                       matchId: match,

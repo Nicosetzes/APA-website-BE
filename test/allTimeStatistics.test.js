@@ -27,8 +27,8 @@ const NICO = { id: "1", name: "Nico", nickname: "Nico" }
 const SANTI = { id: "2", name: "Santi", nickname: "Santi" }
 const LEO = { id: "3", name: "Leo", nickname: "Leo" }
 
-const RACING = { id: "10", name: "Racing" }
-const BOCA = { id: "20", name: "Boca" }
+const RACING = { id: 10, name: "Racing" }
+const BOCA = { id: 20, name: "Boca" }
 
 const LIGA = { id: "t1", name: "Liga" }
 
@@ -130,7 +130,7 @@ test("face to face reports one row per pair with mirrored totals", async () => {
     const controller = createGetAllTimeFaceToFace({
         retrieveAllUsers: async () => [NICO, SANTI],
         retrieveAllMatches: async () => [
-            { ...win(NICO, RACING, SANTI, BOCA), updatedAt: "2026-09-20" },
+            { ...win(NICO, RACING, SANTI, BOCA), playedAt: "2026-09-20" },
         ],
     })
     const response = createResponse()
@@ -166,7 +166,7 @@ test("face to face does not leak one pair's record into the next", async () => {
         retrieveAllUsers: async () => [NICO, SANTI, LEO],
         // Sólo Nico y Santi jugaron entre sí; los cruces con Leo están vacíos.
         retrieveAllMatches: async () => [
-            { ...win(NICO, RACING, SANTI, BOCA), updatedAt: "2026-09-20" },
+            { ...win(NICO, RACING, SANTI, BOCA), playedAt: "2026-09-20" },
         ],
     })
     const response = createResponse()
@@ -210,7 +210,7 @@ test("face to face counts draws for both sides", async () => {
                 scoreP2: 2,
                 tournament: LIGA,
                 outcome: { draw: true },
-                updatedAt: "2026-09-20",
+                playedAt: "2026-09-20",
             },
         ],
     })
@@ -239,7 +239,7 @@ test("face to face propagates persistence failures", async () => {
     await assert.rejects(controller({}, createResponse()), expectedError)
 })
 
-test("face to face compares string scores as numbers and ties by playedAt", async () => {
+test("face to face picks the highest score and ties by playedAt", async () => {
     const santiWin = (extra, match = {}) => ({
         ...win(SANTI, BOCA, NICO, RACING, { scoringDifference: 2, ...extra }),
         ...match,
@@ -248,12 +248,12 @@ test("face to face compares string scores as numbers and ties by playedAt", asyn
         retrieveAllUsers: async () => [NICO, SANTI],
         retrieveAllMatches: async () => [
             santiWin(
-                { scoreFromTeamThatWon: "9", marker: "nine" },
-                { updatedAt: "2018-01-01T00:00:00.000Z" }
+                { scoreFromTeamThatWon: 9, marker: "nine" },
+                { playedAt: "2018-01-01T00:00:00.000Z" }
             ),
             santiWin(
-                { scoreFromTeamThatWon: "12", marker: "twelve" },
-                { updatedAt: "2026-12-01T00:00:00.000Z" }
+                { scoreFromTeamThatWon: 12, marker: "twelve" },
+                { playedAt: "2026-12-01T00:00:00.000Z" }
             ),
             // Mismo marcador: gana el jugado antes, aunque se editó después.
             santiWin(
@@ -265,7 +265,11 @@ test("face to face compares string scores as numbers and ties by playedAt", asyn
             ),
             santiWin(
                 { scoreFromTeamThatWon: 12, marker: "newer" },
-                { updatedAt: "2026-01-01T00:00:00.000Z" }
+                {
+                    playedAt: "2026-01-01T00:00:00.000Z",
+                    // updatedAt más viejo no cuenta.
+                    updatedAt: "2010-01-01T00:00:00.000Z",
+                }
             ),
         ],
     })
@@ -279,16 +283,17 @@ test("face to face compares string scores as numbers and ties by playedAt", asyn
     assert.equal(santi.bestWin.marker, "older")
 })
 
-test("all-time teams does not split a team stored with string and number ids", async () => {
-    const racingAsNumber = { id: 10, name: "Racing" }
-    const bocaAsNumber = { id: 20, name: "Boca" }
+test("all-time teams groups every match of a team under its numeric id", async () => {
+    // Mismo id en otro objeto: sigue siendo un solo equipo.
+    const racingCopy = { id: 10, name: "Racing" }
+    const bocaCopy = { id: 20, name: "Boca" }
     const controller = createGetAllTimeTeams({
         retrieveAllMatches: async () => [
             win(NICO, RACING, SANTI, BOCA),
-            win(NICO, racingAsNumber, SANTI, bocaAsNumber),
+            win(NICO, racingCopy, SANTI, bocaCopy),
             ...Array.from({ length: 5 }, () => win(NICO, RACING, SANTI, BOCA)),
             ...Array.from({ length: 5 }, () =>
-                win(NICO, racingAsNumber, SANTI, bocaAsNumber)
+                win(NICO, racingCopy, SANTI, bocaCopy)
             ),
         ],
     })

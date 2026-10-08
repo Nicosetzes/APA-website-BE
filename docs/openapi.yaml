@@ -293,9 +293,9 @@ paths:
                                     matches:
                                         type: array
                                         description: >-
-                                            Ordenados por `playedAt` (con
-                                            fallback a `updatedAt`) y `_id`
-                                            desc; en el historial de playoff de
+                                            Ordenados por `playedAt` y `_id`
+                                            desc (los no jugados, sin fecha,
+                                            al final); en el historial de playoff de
                                             un torneo, por llave y pierna.
                                             `dateFrom`/`dateTo` filtran sobre
                                             la misma fecha.
@@ -447,12 +447,10 @@ paths:
                 `endDate`, por compatibilidad), `datePrecision`, `isActive`,
                 `startDate`, `startDatePrecision`, `endDate`,
                 `endDatePrecision`, `startMatch`, `endMatch` y `breakMatch`.
-                Las fechas salen de `playedAt`, con fallback a `updatedAt`
-                mientras falte el backfill, y son `null` en partidos sin
-                ninguna de las dos. Cada `*Precision` (y `datePrecision` de
-                los partidos) es `exact`, `day`, `month`, `year` o `approx`
-                (`null` si no hay fecha); clientes viejos sin precisión la
-                tratan como `exact`. Los partidos de
+                Las fechas salen de `playedAt` y son `null` en partidos no
+                jugados. Cada `*Precision` (y `datePrecision` de los
+                partidos) es `exact`, `day`, `month`, `year` o `approx`
+                (`null` si no hay fecha). Los partidos de
                 `highest_scoring_difference_match` y
                 `highest_total_goals_match` y los `recent` de cada jugador
                 también traen `date` + `datePrecision`.
@@ -466,7 +464,7 @@ paths:
                 de un partido, `startMatch` y `endMatch` son el mismo.
                 `penalties` es `null` si el partido no se definió por penales;
                 si no, `{ won, goalsFor, goalsAgainst }` con los goles de la
-                tanda (ambos `null` en partidos sin ese resultado registrado).
+                tanda (siempre numéricos).
                 Entre empatados se ordena primero la activa y después por
                 `startDate` ascendente (sin fecha al final). `activeStreaks`
                 tiene, por tipo, la racha vigente más larga entre jugadores;
@@ -544,8 +542,8 @@ paths:
                 `closedAt` (o de `lastPlayedAt` si el torneo sigue en curso).
                 `firstPlayoffPlayedAt`/`lastPlayoffPlayedAt` son el primer y
                 el último partido `type: playoff` jugado y válido del jugador
-                en ese torneo (los que lista `/api/matches`; `playedAt` con
-                fallback a `updatedAt`), o `null` si no jugó ninguno. Los de
+                en ese torneo (los que lista `/api/matches`, por `playedAt`),
+                o `null` si no jugó ninguno. Los de
                 `Semifinal` y `Final` son lo mismo restringido a esa ronda
                 (por rango de `playoff_id` del formato, como
                 `/api/matches?playoffRound=`); las dos piernas de una llave de
@@ -615,10 +613,12 @@ paths:
             tags: [Tournaments]
             summary: Lista torneos
             description: >-
-                Ordenados por `startedAt` (con fallback a `createdAt`) y `_id`
-                desc; `status=finalized` va del más viejo al más nuevo. Cada
-                torneo trae `createdAt`, `startedAt`, `closedAt` y sus
-                precisiones.
+                Ordenados por `startedAt` desc; un torneo sin `startedAt` (no
+                empezado) cuenta como el más nuevo y va primero.
+                `status=finalized` va del más viejo al más nuevo, con los no
+                empezados al final. Desempate siempre por `_id` desc. Cada
+                torneo trae `startedAt`, `closedAt` y sus precisiones (sin
+                `createdAt` ni `updatedAt`).
             parameters:
                 - in: query
                   name: status
@@ -696,10 +696,8 @@ paths:
             tags: [Tournaments]
             summary: Obtiene resumen, recientes y estadísticas de participantes
             description: |
-                `matches.recent` (hasta 6) va ordenado por `playedAt` con
-                fallback a `updatedAt` y `_id` desc. Cada partido trae
-                `updatedAt` (última edición), `playedAt` (ya resuelto con el
-                fallback) y `playedAtPrecision`.
+                `matches.recent` (hasta 6) va ordenado por `playedAt` y `_id`
+                desc. Cada partido trae `playedAt` y `playedAtPrecision`.
             parameters:
                 - $ref: "#/components/parameters/TournamentId"
             responses:
@@ -736,10 +734,10 @@ paths:
                       default: 1
                 - in: query
                   name: team
+                  description: Id del equipo; un string numérico se convierte.
                   schema:
-                      type: string
-                      minLength: 1
-                      maxLength: 100
+                      type: integer
+                      minimum: 0
                 - in: query
                   name: group
                   schema:
@@ -749,10 +747,10 @@ paths:
                   name: players
                   description: >-
                       Uno o dos IDs únicos de jugadores, como parámetro repetido
-                      (`?players=a&players=b`). Todavía se acepta el array
-                      serializado en JSON que mandaban los clientes viejos: un
-                      valor que empieza con `[` se interpreta como ese formato
-                      deprecado, así que un ID no puede empezar con `[`.
+                      (`?players=a&players=b`). Todavía se acepta el formato
+                      deprecado de array serializado en JSON: un valor que
+                      empieza con `[` se interpreta como ese formato, así que
+                      un ID no puede empezar con `[`.
                   explode: true
                   style: form
                   schema:
@@ -938,11 +936,11 @@ paths:
                   name: teams
                   required: true
                   description: >-
-                      De 1 a 40 IDs de equipo sin repetidos, como parámetro
-                      repetido (`?teams=a&teams=b`). Todavía se acepta el array
-                      serializado en JSON que mandaban los clientes viejos: un
-                      valor que empieza con `[` se interpreta como ese formato
-                      deprecado, así que un ID no puede empezar con `[`.
+                      De 1 a 40 IDs de equipo (enteros, sin repetidos), como
+                      parámetro repetido (`?teams=5&teams=7`); los strings
+                      numéricos se convierten. Todavía se acepta el formato
+                      deprecado de array serializado en JSON: un valor que
+                      empieza con `[` se interpreta como ese formato.
                   explode: true
                   style: form
                   schema:
@@ -951,9 +949,8 @@ paths:
                       maxItems: 40
                       uniqueItems: true
                       items:
-                          type: string
-                          minLength: 1
-                          maxLength: 100
+                          type: integer
+                          minimum: 0
             responses:
                 "200":
                     description: Datos para la calculadora
@@ -1033,9 +1030,8 @@ paths:
                 sola entrada con `group` ausente. En formato `league` agrega
                 `eliminated`, y en `league_playin_playoff` además
                 `directlyQualified` y `playinQualified`. Cada entrada de
-                `streak` trae `date` (texto legacy formateado en el server),
-                `playedAt` (ISO, de `playedAt` con fallback a `updatedAt`) y
-                `datePrecision` (`exact`, `day`, `month`, `year` o `approx`).
+                `streak` trae `playedAt` (ISO) y `datePrecision` (`exact`,
+                `day`, `month`, `year` o `approx`).
             parameters:
                 - $ref: "#/components/parameters/TournamentId"
                 - in: query
@@ -1708,8 +1704,9 @@ components:
                     type: string
                     format: date-time
                     description: >-
-                        Inicio del torneo. Ausente en torneos sin backfill: las
-                        listas caen a `createdAt`.
+                        Fecha del primer partido jugado del torneo (se fija al
+                        cargar el primer resultado y se recalcula si se borra).
+                        Ausente = torneo no empezado.
                 startedAtPrecision:
                     $ref: "#/components/schemas/PlayedAtPrecision"
                 closedAt:
@@ -1717,8 +1714,8 @@ components:
                     format: date-time
                     description: >-
                         Cierre del torneo: fecha del partido que decidió la final
-                        o del último partido de la liga. Ausente en torneos sin
-                        backfill: los clientes caen a `updatedAt`.
+                        o del último partido de la liga. Presente en todo
+                        torneo cerrado.
                 closedAtPrecision:
                     $ref: "#/components/schemas/PlayedAtPrecision"
             additionalProperties: true
@@ -1727,7 +1724,7 @@ components:
             required: [teamId, score]
             properties:
                 teamId:
-                    type: string
+                    type: integer
                 score:
                     type: integer
                     minimum: 0
@@ -1754,7 +1751,7 @@ components:
                     items:
                         $ref: "#/components/schemas/PlayoffSeriesAggregate"
                 winnerTeamId:
-                    type: string
+                    type: integer
                     nullable: true
         PlayoffMutationMetadata:
             type: object
@@ -1785,14 +1782,13 @@ components:
             description: >-
                 Fecha en la que se jugó el partido. Se fija al cargar el
                 primer resultado, no cambia al editarlo y se borra al quitar el
-                resultado. Partidos jugados antes del backfill no la tienen:
-                los clientes caen a `updatedAt`.
+                resultado. Todo partido jugado la tiene; un no jugado no.
         PlayedAtPrecision:
             type: string
             enum: [exact, day, month, year, approx]
             description: >-
-                Qué parte de `playedAt` es conocida. Ausente equivale a
-                `exact`.
+                Qué parte de `playedAt` es conocida. Presente siempre que hay
+                fecha.
         PlayoffMatch:
             type: object
             properties:
@@ -1862,8 +1858,8 @@ components:
                     description: >-
                         Ignorado. El backend deriva si el partido es la final a
                         partir del formato del torneo y del `playoff_id`
-                        persistido. Se sigue aceptando para compatibilidad con
-                        clientes viejos y se retirará del contrato.
+                        persistido. Se sigue aceptando por compatibilidad y se
+                        retirará del contrato.
         ErrorDetail:
             type: object
             required: [source, path, code]

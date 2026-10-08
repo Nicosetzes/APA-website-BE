@@ -24,12 +24,12 @@ const createResponse = () => ({
 const teams = [
     {
         group: "A",
-        team: { id: "team-1", name: "Team 1" },
+        team: { id: 1, name: "Team 1" },
         player: { id: "player-1", name: "Player 1" },
     },
     {
         group: "A",
-        team: { id: "team-2", name: "Team 2" },
+        team: { id: 2, name: "Team 2" },
         player: { id: "player-2", name: "Player 2" },
     },
 ]
@@ -204,7 +204,7 @@ test("group-stage calculation must produce a non-empty bracket", async () => {
     assert.equal(error.code, "PLAYOFF_DATA_INVALID")
 })
 
-test("POST playoff copies numeric team ids into the generated bracket", async () => {
+test("POST playoff copies the tournament team ids into the generated bracket", async () => {
     let received
     const controller = createPostPlayoffByTournamentId(
         createDependencies({
@@ -215,7 +215,7 @@ test("POST playoff copies numeric team ids into the generated bracket", async ()
                 teams: [
                     {
                         group: "A",
-                        team: { id: "10", name: "Team 10" },
+                        team: { id: 10, name: "Team 10" },
                         player: { id: "player-1", name: "Player 1" },
                     },
                     {
@@ -225,7 +225,7 @@ test("POST playoff copies numeric team ids into the generated bracket", async ()
                     },
                     {
                         group: "A",
-                        team: { id: "legacy-id", name: "Legacy" },
+                        team: { id: 30, name: "Team 30" },
                         player: { id: "player-3", name: "Player 3" },
                     },
                 ],
@@ -244,7 +244,7 @@ test("POST playoff copies numeric team ids into the generated bracket", async ()
 
     assert.deepEqual(
         received[1].A.map(({ team }) => team.id),
-        [10, 20, "legacy-id"]
+        [10, 20, 30]
     )
     assert.equal(received[1].A[0].player.id, "player-1")
 })

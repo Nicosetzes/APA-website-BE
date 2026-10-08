@@ -108,8 +108,8 @@ const createGetPlayerInfoByTournamentId = (dependencies = {}) => {
                     else entry.stats.draws += 1
                     if (ga1 === 0) entry.stats.cleanSheets += 1
                     entry._results.push(res1)
-                    const tk1 = String(m.teamP1?.id)
-                    if (tk1) {
+                    const tk1 = m.teamP1?.id
+                    if (tk1 != null) {
                         if (!entry._teamStats.has(tk1))
                             entry._teamStats.set(tk1, {
                                 team: m.teamP1,
@@ -140,8 +140,8 @@ const createGetPlayerInfoByTournamentId = (dependencies = {}) => {
                     else entry.stats.draws += 1
                     if (ga2 === 0) entry.stats.cleanSheets += 1
                     entry._results.push(res2)
-                    const tk2 = String(m.teamP2?.id)
-                    if (tk2) {
+                    const tk2 = m.teamP2?.id
+                    if (tk2 != null) {
                         if (!entry._teamStats.has(tk2))
                             entry._teamStats.set(tk2, {
                                 team: m.teamP2,
@@ -255,8 +255,8 @@ const createGetPlayerInfoByTournamentId = (dependencies = {}) => {
             results.push(res)
 
             const team = isP1 ? m.teamP1 : m.teamP2
-            const tk = String(team?.id)
-            if (tk) {
+            const tk = team?.id
+            if (tk != null) {
                 if (!teamStatsMap.has(tk))
                     teamStatsMap.set(tk, {
                         team,

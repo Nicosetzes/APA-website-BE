@@ -45,16 +45,38 @@ test("GET fixture passes parsed filters and preserves response", async () => {
             query: {
                 page: 2,
                 players: ["one", "two"],
-                team: "team",
+                team: 10,
                 group: "A",
             },
         },
         response
     )
 
-    assert.deepEqual(received, ["tournament", 2, ["one", "two"], "team", "A"])
+    assert.deepEqual(received, ["tournament", 2, ["one", "two"], 10, "A"])
     assert.equal(response.statusCode, 200)
     assert.equal(response.body, fixture)
+})
+
+test("fixture DAO filters the numeric team id on either side", async (t) => {
+    const matchesModel = require("../dao/models/matches")
+    const findFixtureByTournamentId = require("../dao/findFixtureByTournamentId")
+    const originalAggregate = matchesModel.aggregate
+    const pipelines = []
+    t.after(() => {
+        matchesModel.aggregate = originalAggregate
+    })
+    matchesModel.aggregate = (received) => {
+        pipelines.push(received)
+        return { option: async () => [{ data: [], totals: [], teamStats: [] }] }
+    }
+
+    await findFixtureByTournamentId("tournament", 1, undefined, 0)
+    await findFixtureByTournamentId("tournament", 1)
+
+    assert.deepEqual(pipelines[0][0].$match.$and, [
+        { $or: [{ "teamP1.id": 0 }, { "teamP2.id": 0 }] },
+    ])
+    assert.equal(pipelines[1][0].$match.$and, undefined)
 })
 
 test("GET fixture propagates persistence failures", async () => {
@@ -90,12 +112,12 @@ test("POST fixture builds grouped generation inputs", async () => {
             teams: [
                 {
                     group: "A",
-                    team: { id: "team-1", name: "Team 1" },
+                    team: { id: 1, name: "Team 1" },
                     player: { id: "player-1", name: "Player 1" },
                 },
                 {
                     group: "B",
-                    team: { id: "team-2", name: "Team 2" },
+                    team: { id: 2, name: "Team 2" },
                     player: { id: "player-2", name: "Player 2" },
                 },
             ],
@@ -149,7 +171,7 @@ test("POST fixture rejects broken player assignments before generation", async (
             teams: [
                 {
                     group: "A",
-                    team: { id: "team", name: "Team" },
+                    team: { id: 3, name: "Team" },
                     player: { id: "missing", name: "Missing" },
                 },
             ],
@@ -174,7 +196,7 @@ test("fixture generation failures become canonical 422 errors", () => {
     )
 })
 
-test("POST fixture copies numeric team ids into the generated matches", async () => {
+test("POST fixture copies the tournament team ids into the generated matches", async () => {
     let received
     const controller = createPostFixtureByTournamentId({
         retrieveTournamentById: async () => ({
@@ -184,7 +206,7 @@ test("POST fixture copies numeric team ids into the generated matches", async ()
             players: [{ id: "player-1", name: "Player 1" }],
             teams: [
                 {
-                    team: { id: "10", name: "Team 10" },
+                    team: { id: 10, name: "Team 10" },
                     player: { id: "player-1", name: "Player 1" },
                 },
                 {

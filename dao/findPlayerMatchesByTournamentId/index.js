@@ -8,10 +8,9 @@ const findPlayerMatchesByTournamentId = async (tournament, player) => {
             played: true,
             $or: [{ "playerP1.id": player }, { "playerP2.id": player }],
         },
-        "playerP1 playerP2 teamP1 teamP2 scoreP1 scoreP2 outcome valid updatedAt playedAt playedAtPrecision"
+        "playerP1 playerP2 teamP1 teamP2 scoreP1 scoreP2 outcome valid playedAt playedAtPrecision"
     )
 
-    // Orden `playedAt ?? updatedAt` desc en JS: no hay índice para esa clave.
     return Array.from(matches).sort(comparePlayedAtDesc)
 }
 

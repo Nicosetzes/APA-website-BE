@@ -69,7 +69,8 @@ test("tournament summary keeps recent ordering and participant statistics", () =
             teamP2: { id: "t2" },
             scoreP2: 1,
             type: "regular",
-            updatedAt: new Date("2026-01-01"),
+            playedAt: new Date("2026-01-01"),
+            playedAtPrecision: "exact",
         },
         {
             _id: "newer",
@@ -80,7 +81,8 @@ test("tournament summary keeps recent ordering and participant statistics", () =
             teamP2: { id: "t2" },
             scoreP2: 1,
             type: "regular",
-            updatedAt: new Date("2026-02-01"),
+            playedAt: new Date("2026-02-01"),
+            playedAtPrecision: "exact",
         },
     ]
 
@@ -160,7 +162,7 @@ test("summary controller preserves dependency arguments and response", async () 
     assert.equal(response.body.matches.totalPlayed, 0)
 })
 
-test("tournament summary orders recent by playedAt ?? updatedAt and exposes precision", () => {
+test("tournament summary orders recent by playedAt, exposes precision and no updatedAt", () => {
     const base = {
         playerP1: { id: "p1" },
         teamP1: { id: "t1" },
@@ -179,38 +181,31 @@ test("tournament summary orders recent by playedAt ?? updatedAt and exposes prec
                 _id: "reloaded",
                 playedAt: new Date("2019-06-01T00:00:00.000Z"),
                 playedAtPrecision: "approx",
+                // La recarga manual movió updatedAt: no cuenta para el orden.
                 updatedAt: reloadedAt,
             },
             {
                 ...base,
                 _id: "regular",
-                updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+                playedAt: new Date("2026-01-01T00:00:00.000Z"),
+                playedAtPrecision: "exact",
+                updatedAt: new Date("2018-01-01T00:00:00.000Z"),
             },
         ]
     )
 
     assert.deepEqual(
-        summary.matches.recent.map(
-            ({ id, playedAt, playedAtPrecision, updatedAt }) => [
-                id,
-                playedAt.toISOString(),
-                playedAtPrecision,
-                updatedAt.toISOString(),
-            ]
-        ),
+        summary.matches.recent.map(({ id, playedAt, playedAtPrecision }) => [
+            id,
+            playedAt.toISOString(),
+            playedAtPrecision,
+        ]),
         [
-            [
-                "regular",
-                "2026-01-01T00:00:00.000Z",
-                "exact",
-                "2026-01-01T00:00:00.000Z",
-            ],
-            [
-                "reloaded",
-                "2019-06-01T00:00:00.000Z",
-                "approx",
-                reloadedAt.toISOString(),
-            ],
+            ["regular", "2026-01-01T00:00:00.000Z", "exact"],
+            ["reloaded", "2019-06-01T00:00:00.000Z", "approx"],
         ]
     )
+    for (const match of summary.matches.recent) {
+        assert.equal("updatedAt" in match, false)
+    }
 })

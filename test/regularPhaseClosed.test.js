@@ -130,17 +130,21 @@ test("knockout matches are never blocked and skip the lookup", async () => {
         format: "world_cup",
         match: regularMatch({ type: "playoff" }),
     })
-    // Partido histórico sin `type`: los seeds persistidos lo marcan como
-    // eliminatoria, igual que en `validateMatchResult`.
-    const legacyKnockout = await run(middleware, {
-        format: "world_cup",
-        match: regularMatch({ type: undefined, seedP1: "1A", seedP2: "2B" }),
-    })
-
     assert.equal(playin, undefined)
     assert.equal(playoff, undefined)
-    assert.equal(legacyKnockout, undefined)
     assert.deepEqual(queries, [])
+})
+
+test("a regular match with seeds is still regular: type decides the phase", async () => {
+    const { middleware, queries } = createMiddleware([{ type: "playoff" }])
+
+    const error = await run(middleware, {
+        format: "world_cup",
+        match: regularMatch({ seedP1: "1A", seedP2: "2B" }),
+    })
+
+    assert.equal(error.code, "REGULAR_PHASE_CLOSED")
+    assert.deepEqual(queries[0].filter, { type: "playoff" })
 })
 
 test("a failed lookup answers 500 instead of letting the result through", async () => {

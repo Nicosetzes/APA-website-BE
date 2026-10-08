@@ -11,7 +11,6 @@ const sortMatchesFromTournamentById = async (tournamentId, group) => {
 
     const matches = await matchesModel.find(filter)
 
-    // Orden `playedAt ?? updatedAt` desc en JS: no hay índice para esa clave.
     return Array.from(matches).sort(comparePlayedAtDesc)
 }
 

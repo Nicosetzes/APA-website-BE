@@ -1,6 +1,6 @@
+const { HttpError } = require("../../middleware/httpErrors")
 const { createPlayoffByTournamentId } = require("./../../dao")
 const { groupBy } = require("es-toolkit/array")
-
 const {
     calculateGroupStagePlayoff,
     orderMatchesFromTournamentById,
@@ -11,8 +11,6 @@ const {
     retrievePlayoffMatchesByTournamentId,
     retrieveTournamentById,
 } = require("./../../service")
-const { HttpError } = require("../../middleware/httpErrors")
-const { normalizeTeamEntries } = require("../../utils/teamRef")
 
 const MANUAL_PLAYOFF_FORMATS = new Set([
     "champions_league",
@@ -92,8 +90,7 @@ const createPostPlayoffByTournamentId = (dependencies = {}) => {
             )
         }
 
-        const { id, name, format } = tournamentData
-        const teams = normalizeTeamEntries(tournamentData.teams)
+        const { id, name, format, teams } = tournamentData
         if (!MANUAL_PLAYOFF_FORMATS.has(format)) {
             throw new HttpError(
                 422,

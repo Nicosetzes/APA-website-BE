@@ -25,9 +25,8 @@ const createGetAllTimeTeams = (dependencies = {}) => {
             const isPenalty = outcome?.penalties || false
 
             // Helper to update team stats (for total points leaderboard)
-            // Claves String: el mismo equipo puede tener id string o number.
             const updateTeamStats = (team, result) => {
-                const key = String(team.id)
+                const key = team.id
                 if (!teamStats.has(key)) {
                     teamStats.set(key, {
                         team: { id: team.id, name: team.name },
@@ -52,9 +51,7 @@ const createGetAllTimeTeams = (dependencies = {}) => {
                 result
             ) => {
                 if (!tournamentData?.id) return
-                const key = `${player.id}|${String(team.id)}|${
-                    tournamentData.id
-                }`
+                const key = `${player.id}|${team.id}|${tournamentData.id}`
                 if (!playerTeamStats.has(key)) {
                     playerTeamStats.set(key, {
                         player: { id: player.id, name: player.name },

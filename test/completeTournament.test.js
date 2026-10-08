@@ -25,9 +25,9 @@ const NICO = { id: "1", name: "Nico" }
 const SANTI = { id: "2", name: "Santi" }
 const LEO = { id: "3", name: "Leo" }
 
-const RACING = { id: "10", name: "Racing" }
-const BOCA = { id: "20", name: "Boca" }
-const RIVER = { id: "30", name: "River" }
+const RACING = { id: 10, name: "Racing" }
+const BOCA = { id: 20, name: "Boca" }
+const RIVER = { id: 30, name: "River" }
 
 const createTeams = () => [
     { team: RACING, player: NICO },
@@ -261,8 +261,10 @@ test("complete tournament closes on the last played match and its precision", as
     const matches = createMatches()
     matches[0].playedAt = new Date("2024-03-10T20:00:00.000Z")
     matches[0].playedAtPrecision = "day"
-    // Sin playedAt: cae a updatedAt, exacto.
-    matches[1].updatedAt = new Date("2024-03-01T20:00:00.000Z")
+    matches[1].playedAt = new Date("2024-03-01T20:00:00.000Z")
+    matches[1].playedAtPrecision = "exact"
+    // updatedAt más nuevo no cuenta para el cierre.
+    matches[1].updatedAt = new Date("2024-04-01T20:00:00.000Z")
     const controller = createController({
         retrieveAllPlayedMatchesByTournamentId: async () => matches,
         modifyTournamentOutcome: async (...args) => {
@@ -301,16 +303,16 @@ test("complete tournament closes now when no played match has a date", async () 
     assert.ok(closure.closedAt.getTime() >= before)
 })
 
-test("league outcome does not split a team stored with string and number ids", () => {
+test("league outcome groups each team under its numeric id", () => {
     const teamA = { id: 10, name: "Team A" }
-    const teamB = { id: "20", name: "Team B" }
+    const teamB = { id: 20, name: "Team B" }
     const teamC = { id: 30, name: "Team C" }
     const playerA = { id: "a", name: "Player A" }
     const playerB = { id: "b", name: "Player B" }
     const playerC = { id: "c", name: "Player C" }
     const matches = [
         {
-            teamP1: { id: "10", name: "Team A" },
+            teamP1: { id: 10, name: "Team A" },
             playerP1: playerA,
             scoreP1: 1,
             teamP2: teamB,
@@ -325,7 +327,7 @@ test("league outcome does not split a team stored with string and number ids", (
             teamP2: teamC,
             playerP2: playerC,
             scoreP2: 0,
-            outcome: { draw: false, teamThatWon: { id: "10", name: "Team A" } },
+            outcome: { draw: false, teamThatWon: { id: 10, name: "Team A" } },
         },
         {
             teamP1: { id: 20, name: "Team B" },

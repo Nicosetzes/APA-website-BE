@@ -15,7 +15,7 @@ const {
 
 const ref = (id, name = `Reference ${id}`) => ({ id: String(id), name })
 const unit = (id, seed) => ({
-    team: ref(`team-${id}`, `Team ${id}`),
+    team: { id, name: `Team ${id}` },
     player: ref(`player-${id}`, `Player ${id}`),
     seed,
 })
@@ -186,6 +186,28 @@ const createEnvironment = ({ playoffId = 1 } = {}) => {
             throw error
         }
     }
+    // Writer y recompute de `startedAt` en memoria; registran sus llamadas.
+    const startedAtCalls = { start: [], recompute: [] }
+    const startTournament = async (tournamentId, match, options) => {
+        startedAtCalls.start.push({ tournamentId, match, options })
+        if (tournament.startedAt == null && match?.playedAt) {
+            tournament.startedAt = match.playedAt
+            tournament.startedAtPrecision = match.playedAtPrecision ?? "exact"
+        }
+        return null
+    }
+    const recomputeStartedAt = async (
+        tournamentId,
+        removedPlayedAt,
+        options
+    ) => {
+        startedAtCalls.recompute.push({
+            tournamentId,
+            removedPlayedAt,
+            options,
+        })
+        return null
+    }
     const dependencies = {
         matchesModel: Match,
         tournamentsModel: Tournament,
@@ -194,6 +216,8 @@ const createEnvironment = ({ playoffId = 1 } = {}) => {
         updatePlayoffSeriesMatchResult: updateResult,
         updatePlayoffSeriesSlots: updateSlots,
         deletePendingPlayoffTiebreak: deleteTiebreak,
+        updateTournamentStartedAt: startTournament,
+        recomputeTournamentStartedAt: recomputeStartedAt,
         withTransaction: runInTransaction,
         logger: { warn() {} },
     }
@@ -202,6 +226,7 @@ const createEnvironment = ({ playoffId = 1 } = {}) => {
         dependencies,
         matches,
         tournament,
+        startedAtCalls,
         Match,
         claimRevision,
         findSeries,
@@ -284,6 +309,7 @@ test("first feeder creates a complete TBD successor and returns decorated state"
     assert.equal(successor[1].teamP2.id, first.teamP1.id)
     assert.equal(result.series.status, "decided")
     assert.equal(result.series.winnerTeamId, first.teamP1.id)
+    assert.equal(typeof result.series.winnerTeamId, "number")
 })
 
 test("equivalent replay preserves revision, successor and full valid state", async () => {
@@ -759,28 +785,6 @@ test("removing the return leg does not move the first leg updatedAt", async (t) 
     assert.equal("playedAtPrecision" in second, false)
 })
 
-test("editing a leg played before the backfill keeps its previous updatedAt as playedAt", async (t) => {
-    const environment = createEnvironment()
-    useRealSeriesDaos(t, environment)
-    const [first, second] = environment.matches
-    markPlayed(first, 1, 0)
-    const service = createProcessPlayoffSeriesResult(environment.dependencies)
-
-    await service({
-        tournamentId: "tournament",
-        matchId: first._id,
-        body: bodyFor(first, 2, 0, { expectedSeriesRevision: 0 }),
-    })
-
-    assert.equal(first.scoreP1, 2)
-    assert.equal(
-        new Date(first.playedAt).toISOString(),
-        new Date(INITIAL_UPDATED_AT).toISOString()
-    )
-    assert.equal(first.playedAtPrecision, "exact")
-    assert.equal(second.playedAt, undefined)
-})
-
 test("advancing a winner keeps bookkeeping without moving sibling updatedAt", async (t) => {
     const environment = createEnvironment({ playoffId: 2 })
     useRealSeriesDaos(t, environment)
@@ -828,4 +832,91 @@ test("team-identified aggregate remains stable when the return leg swaps sides",
         toCompetitorUnit(first, "P1"),
         toCompetitorUnit(second, "P2")
     )
+})
+
+test("a series result starts a not-started tournament with the loaded leg", async () => {
+    const environment = createEnvironment()
+    const [first] = environment.matches
+    const process = createProcessPlayoffSeriesResult(environment.dependencies)
+
+    await process({
+        tournamentId: "tournament",
+        matchId: first._id,
+        body: bodyFor(first, 1, 0),
+    })
+
+    assert.equal(environment.startedAtCalls.start.length, 1)
+    const [call] = environment.startedAtCalls.start
+    assert.equal(call.tournamentId, "tournament")
+    assert.equal(call.match, first)
+    assert.ok(first.playedAt)
+    assert.deepEqual(call.options, { session: { id: "session" } })
+    assert.equal(
+        new Date(environment.tournament.startedAt).getTime(),
+        new Date(first.playedAt).getTime()
+    )
+    assert.equal(environment.tournament.startedAtPrecision, "exact")
+})
+
+test("a series result does not call the writer when the tournament already started", async () => {
+    const environment = createEnvironment()
+    const startedAt = "2026-01-01T00:00:00.000Z"
+    environment.tournament.startedAt = startedAt
+    environment.tournament.startedAtPrecision = "day"
+    const [first] = environment.matches
+    const process = createProcessPlayoffSeriesResult(environment.dependencies)
+
+    await process({
+        tournamentId: "tournament",
+        matchId: first._id,
+        body: bodyFor(first, 1, 0),
+    })
+
+    assert.equal(environment.startedAtCalls.start.length, 0)
+    assert.equal(environment.tournament.startedAt, startedAt)
+    assert.equal(environment.tournament.startedAtPrecision, "day")
+})
+
+test("removing a series leg recomputes startedAt with its playedAt", async () => {
+    const environment = createEnvironment()
+    const [first] = environment.matches
+    const process = createProcessPlayoffSeriesResult(environment.dependencies)
+    await process({
+        tournamentId: "tournament",
+        matchId: first._id,
+        body: bodyFor(first, 1, 0),
+    })
+    const removedPlayedAt = first.playedAt
+
+    const remove = createRemovePlayoffSeriesResult(environment.dependencies)
+    await remove({
+        tournamentId: "tournament",
+        matchId: first._id,
+        expectedSeriesRevision: 1,
+    })
+
+    assert.deepEqual(environment.startedAtCalls.recompute, [
+        {
+            tournamentId: "tournament",
+            removedPlayedAt,
+            options: { session: { id: "session" } },
+        },
+    ])
+})
+
+test("removing a series leg without playedAt does not recompute startedAt", async () => {
+    const environment = createEnvironment()
+    const [first] = environment.matches
+    markPlayed(first, 1, 0)
+    first.seriesRevision = 1
+
+    const remove = createRemovePlayoffSeriesResult(environment.dependencies)
+    await remove({
+        tournamentId: "tournament",
+        matchId: first._id,
+        expectedSeriesRevision: 1,
+    })
+
+    assert.equal(first.played, false)
+    assert.deepEqual(environment.startedAtCalls.recompute, [])
 })

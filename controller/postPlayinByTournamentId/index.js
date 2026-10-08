@@ -1,13 +1,11 @@
+const { HttpError } = require("../../middleware/httpErrors")
 const {
     orderMatchesFromTournamentById,
     originatePlayinByTournamentId,
     retrievePlayinMatchesByTournamentId,
     retrieveTournamentById,
 } = require("./../../service")
-const { HttpError } = require("../../middleware/httpErrors")
-const { normalizeTeamEntries } = require("../../utils/teamRef")
 
-const sameId = (left, right) => String(left) === String(right)
 const hasReference = (value) =>
     value?.id !== undefined &&
     typeof value.name === "string" &&
@@ -45,29 +43,28 @@ const calculateStandings = (teams, matches) => {
 
     return teams
         .map(({ team, player }) => {
-            const wins = matches.filter(({ outcome }) =>
-                sameId(outcome?.teamThatWon?.id, team.id)
+            const wins = matches.filter(
+                ({ outcome }) => outcome?.teamThatWon?.id === team.id
             ).length
             const draws = matches.filter(
                 ({ teamP1, teamP2, outcome }) =>
-                    (sameId(teamP1.id, team.id) ||
-                        sameId(teamP2.id, team.id)) &&
+                    (teamP1.id === team.id || teamP2.id === team.id) &&
                     outcome?.draw
             ).length
             const goalsFor = matches.reduce((total, match) => {
-                if (sameId(match.teamP1.id, team.id)) {
+                if (match.teamP1.id === team.id) {
                     return total + match.scoreP1
                 }
-                if (sameId(match.teamP2.id, team.id)) {
+                if (match.teamP2.id === team.id) {
                     return total + match.scoreP2
                 }
                 return total
             }, 0)
             const goalsAgainst = matches.reduce((total, match) => {
-                if (sameId(match.teamP1.id, team.id)) {
+                if (match.teamP1.id === team.id) {
                     return total + match.scoreP2
                 }
-                if (sameId(match.teamP2.id, team.id)) {
+                if (match.teamP2.id === team.id) {
                     return total + match.scoreP1
                 }
                 return total
@@ -179,7 +176,7 @@ const createPostPlayinByTournamentId = (dependencies = {}) => {
             )
         }
 
-        const teams = normalizeTeamEntries(tournamentData.teams).filter(
+        const teams = tournamentData.teams.filter(
             (entry) => entry.group === group
         )
         const regularMatches = await orderMatches(tournament, group)

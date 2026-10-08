@@ -32,25 +32,27 @@ const SANTI = { id: "630abc35b2e0801cf544842a", name: "Santi" }
 const createMatches = () => [
     {
         playerP1: NICO,
-        teamP1: { id: "10", name: "Racing" },
+        teamP1: { id: 10, name: "Racing" },
         scoreP1: 4,
         playerP2: SANTI,
-        teamP2: { id: "20", name: "Boca" },
+        teamP2: { id: 20, name: "Boca" },
         scoreP2: 0,
         outcome: { draw: false, penalties: false, playerThatWon: NICO },
         tournament: { id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Liga" },
-        updatedAt: "2026-09-20T12:00:00.000Z",
+        playedAt: "2026-09-20T12:00:00.000Z",
+        playedAtPrecision: "exact",
     },
     {
         playerP1: SANTI,
-        teamP1: { id: "20", name: "Boca" },
+        teamP1: { id: 20, name: "Boca" },
         scoreP1: 1,
         playerP2: NICO,
-        teamP2: { id: "10", name: "Racing" },
+        teamP2: { id: 10, name: "Racing" },
         scoreP2: 1,
         outcome: { draw: true, penalties: true, playerThatWon: SANTI },
         tournament: { id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Liga" },
-        updatedAt: "2026-09-19T12:00:00.000Z",
+        playedAt: "2026-09-19T12:00:00.000Z",
+        playedAtPrecision: "exact",
     },
 ]
 

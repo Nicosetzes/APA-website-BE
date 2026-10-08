@@ -1,13 +1,9 @@
+const { HttpError } = require("../../middleware/httpErrors")
+const { comparePlayedAtDesc } = require("../../utils/playedAt")
 const {
     retrieveTournamentById,
     retrieveAllPlayedMatchesByTournamentId,
 } = require("./../../service")
-const { HttpError } = require("../../middleware/httpErrors")
-const {
-    comparePlayedAtDesc,
-    getPlayedAt,
-    getPlayedAtPrecision,
-} = require("../../utils/playedAt")
 
 const calculateParticipantStats = (players, matches) => {
     const statsByPlayer = new Map()
@@ -110,10 +106,8 @@ const buildTournamentSummary = (tournament, playedMatches) => {
         scoreP2: match.scoreP2,
         outcome: match.outcome,
         type: match.type,
-        updatedAt: match.updatedAt,
-        // Con fallback a updatedAt mientras falte el backfill.
-        playedAt: getPlayedAt(match),
-        playedAtPrecision: getPlayedAtPrecision(match),
+        playedAt: match.playedAt ?? null,
+        playedAtPrecision: match.playedAtPrecision ?? null,
     }))
     const players = Array.isArray(tournament.players) ? tournament.players : []
     const summary = {

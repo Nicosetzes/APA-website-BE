@@ -23,7 +23,6 @@ const {
     getFinalPlayoffId,
     getPlayoffRoundIdRange,
 } = require("../../../config/playoffFormats")
-const { getPlayedAt, getPlayedAtPrecision } = require("../../../utils/playedAt")
 const { TOURNAMENT_STREAK_TYPES, updateRun } = require("./streaks")
 
 const ROUND_RANK = {
@@ -79,8 +78,7 @@ const getRoundRanges = (format) =>
         getPlayoffRoundIdRange(format, round),
     ]).filter(([, range]) => range)
 
-const getPlayoffRound = (roundRanges, playoffId) => {
-    const id = Number(playoffId)
+const getPlayoffRound = (roundRanges, id) => {
     if (!Number.isInteger(id)) return null
 
     const found = roundRanges.find(([, [from, to]]) => id >= from && id <= to)
@@ -157,11 +155,11 @@ const widenRange = (ranges, scope, point) => {
 
 // Primer y último partido del jugador en el playoff y en cada ronda fechada.
 const collectPlayoffDate = (fact, playerId, match, round) => {
-    const value = getPlayedAt(match)
+    const value = match.playedAt ?? null
     const time = toTime(value)
     if (time === null) return
 
-    const point = { value, precision: getPlayedAtPrecision(match), time }
+    const point = { value, precision: match.playedAtPrecision ?? null, time }
     if (!fact.playoffDates.has(playerId)) fact.playoffDates.set(playerId, {})
     const ranges = fact.playoffDates.get(playerId)
 
@@ -182,10 +180,10 @@ const getMatchRank = (fact, match) => {
 
 const collectMatch = (fact, match) => {
     if (isPlayed(match)) {
-        const time = toTime(getPlayedAt(match))
+        const time = toTime(match.playedAt)
         if (time !== null && time > (toTime(fact.lastPlayedAt) ?? -Infinity)) {
-            fact.lastPlayedAt = getPlayedAt(match)
-            fact.lastPlayedAtPrecision = getPlayedAtPrecision(match)
+            fact.lastPlayedAt = match.playedAt
+            fact.lastPlayedAtPrecision = match.playedAtPrecision ?? null
         }
     }
 
@@ -205,7 +203,7 @@ const collectMatch = (fact, match) => {
 
     if (round === "semifinal" && p1 && p2) {
         fact.assignedSemiSlots.add(
-            getSemifinalSlot(fact.format, Number(match.playoff_id))
+            getSemifinalSlot(fact.format, match.playoff_id)
         )
     }
     if (round === "final") fact.finals.push(match)

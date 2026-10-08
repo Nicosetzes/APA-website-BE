@@ -33,9 +33,9 @@ const NICO = { id: "1", name: "Nico" }
 const SANTI = { id: "2", name: "Santi" }
 const LEO = { id: "3", name: "Leo" }
 
-const RACING = { id: "10", name: "Racing" }
-const BOCA = { id: "20", name: "Boca" }
-const RIVER = { id: "30", name: "River" }
+const RACING = { id: 10, name: "Racing" }
+const BOCA = { id: 20, name: "Boca" }
+const RIVER = { id: 30, name: "River" }
 
 const createLeagueTournament = () => ({
     id: TOURNAMENT_ID,
@@ -68,7 +68,8 @@ const createPlayedMatches = () => [
             playerThatLost: LEO,
             scoreFromTeamThatLost: 0,
         },
-        updatedAt: "2026-09-20T12:00:00.000Z",
+        playedAt: "2026-09-20T12:00:00.000Z",
+        playedAtPrecision: "exact",
     },
     {
         id: "match-1",
@@ -79,7 +80,8 @@ const createPlayedMatches = () => [
         teamP2: RACING,
         scoreP2: 1,
         outcome: { draw: true },
-        updatedAt: "2026-09-19T12:00:00.000Z",
+        playedAt: "2026-09-19T12:00:00.000Z",
+        playedAtPrecision: "exact",
     },
 ]
 
@@ -337,33 +339,30 @@ test("standings streak entries carry playedAt and its precision", async () => {
             ["2026-09-20T12:00:00.000Z", "exact"],
         ]
     )
-    // `date` sigue siendo el texto legacy, ahora desde playedAt.
-    assert.equal(
-        racing.streak[0].date,
-        new Date("2019-05-01T00:00:00.000Z").toLocaleString()
-    )
+    // Sin el texto legacy `date` del server.
+    assert.equal("date" in racing.streak[0], false)
 })
 
-test("standings table does not split teams stored with string and number ids", async () => {
-    const racingAsNumber = { id: 10, name: "Racing" }
-    const riverAsNumber = { id: 30, name: "River" }
+test("standings table matches teams by numeric id across separate objects", async () => {
+    // Copias con el mismo id: los partidos no comparten el objeto del torneo.
+    const racingCopy = { id: 10, name: "Racing" }
+    const riverCopy = { id: 30, name: "River" }
     const matches = createPlayedMatches()
-    // Mismo partido de Racing con ids number en lados y outcome.
     matches[0] = {
         ...matches[0],
-        teamP1: racingAsNumber,
-        teamP2: riverAsNumber,
+        teamP1: racingCopy,
+        teamP2: riverCopy,
         outcome: {
             ...matches[0].outcome,
-            teamThatWon: racingAsNumber,
-            teamThatLost: riverAsNumber,
+            teamThatWon: { ...racingCopy },
+            teamThatLost: { ...riverCopy },
         },
     }
     const controller = createGetStandingsTableByTournamentId({
         retrieveTournamentById: async () => createLeagueTournament(),
         orderMatchesFromTournamentById: async () => matches,
         retrieveAllNotPlayedMatchesByTournamentId: async () => [
-            { teamP1: { id: 20, name: "Boca" }, teamP2: riverAsNumber },
+            { teamP1: { id: 20, name: "Boca" }, teamP2: riverCopy },
         ],
     })
     const response = createResponse()
@@ -385,7 +384,7 @@ test("standings table does not split teams stored with string and number ids", a
     const river = rows.find((row) => row.team.name === "River")
     assert.equal(river.played, 1)
     assert.equal(river.eliminated, true)
-    // Boca suma la pendiente aunque el id llegue como number.
+    // Boca suma la pendiente por su id.
     assert.equal(
         rows.find((row) => row.team.name === "Boca").eliminated,
         undefined

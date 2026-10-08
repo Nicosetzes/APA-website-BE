@@ -19,7 +19,9 @@ const entityReference = Joi.object({
     name: Joi.string().trim().min(1).max(255).required(),
 }).unknown(true)
 
-// Los equipos de un torneo nuevo guardan `id` number (D5); "10" se convierte.
+// Los ids de equipo son number. Al crear el torneo Joi los convierte (`"5"` -> 5)
+// y en las consultas (`/fixture?team=`, `/calculator?teams=`) `teamId` los
+// valida como enteros, así el resto del código compara con `===`.
 const teamReference = Joi.object({
     id: Joi.number().integer().min(0).required(),
     name: Joi.string().trim().min(1).max(255).required(),
@@ -149,7 +151,10 @@ const isValidCalendarDate = (value, helpers) => {
 
 const fixturePlayerIds = Joi.array().items(externalId).min(1).max(2).unique()
 
-const calculatorTeamIds = Joi.array().items(externalId).min(1).max(40).unique()
+// Id de equipo en query: llega como texto y sale como entero (ver teamReference).
+const teamId = Joi.number().integer().min(0)
+
+const calculatorTeamIds = Joi.array().items(teamId).min(1).max(40).unique()
 
 // Contrato actual: params repetidos (`?teams=a&teams=b`), que Express ya parsea
 // como array; un solo valor llega como string y `single()` lo envuelve.
@@ -352,7 +357,7 @@ module.exports = {
         params: tournamentParams,
         query: Joi.object({
             page: Joi.number().integer().min(1).max(10000).default(1),
-            team: Joi.string().trim().min(1).max(100).optional(),
+            team: teamId.optional(),
             group: group.optional(),
             players: fixturePlayersQuery.optional(),
         }).unknown(false),

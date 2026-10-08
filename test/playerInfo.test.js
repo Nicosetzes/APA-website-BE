@@ -328,18 +328,21 @@ test("player info for every player orders natural-order matches newest first", a
         retrieveTournamentPlayersByTournamentId: async () => [
             { id: NICO_ID, nickname: "Nico" },
         ],
-        // Orden natural de Mongo (más viejo primero) con y sin playedAt.
+        // Orden natural de Mongo (más viejo primero); updatedAt no cuenta.
         retrieveAllPlayedMatchesByTournamentId: async () => [
             {
                 ...draw,
                 _id: "000000000000000000000001",
                 playedAt: new Date("2019-05-01T00:00:00.000Z"),
+                playedAtPrecision: "year",
                 updatedAt: new Date("2026-06-01T00:00:00.000Z"),
             },
             {
                 ...win,
                 _id: "000000000000000000000002",
-                updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+                playedAt: new Date("2026-01-01T00:00:00.000Z"),
+                playedAtPrecision: "exact",
+                updatedAt: new Date("2020-01-01T00:00:00.000Z"),
             },
         ],
     })

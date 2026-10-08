@@ -42,9 +42,7 @@ const getFinalPlayoffId = (format) =>
 // La final se deriva del formato del torneo y del `playoff_id` persistido del
 // partido. Nunca de un flag que manda el cliente.
 const isFinalPlayoffMatch = ({ format, type, playoffId }) =>
-    type === "playoff" &&
-    Number.isInteger(Number(playoffId)) &&
-    Number(playoffId) === getFinalPlayoffId(format)
+    type === "playoff" && playoffId === getFinalPlayoffId(format)
 
 // Rondas de playoff por cantidad de equipos que las disputan.
 const TEAMS_BY_PLAYOFF_ROUND = {

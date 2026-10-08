@@ -1,7 +1,6 @@
 const tournamentsModel = require("./../models/tournaments.js")
 
-const DATE_FIELDS =
-    "createdAt startedAt startedAtPrecision closedAt closedAtPrecision"
+const DATE_FIELDS = "startedAt startedAtPrecision closedAt closedAtPrecision"
 
 const toTime = (value) => {
     if (value === null || value === undefined) return null
@@ -9,18 +8,18 @@ const toTime = (value) => {
     return Number.isNaN(time) ? null : time
 }
 
-const startTime = (tournament) =>
-    toTime(tournament?.startedAt ?? tournament?.createdAt)
-
-// Orden en JS (D4): `startedAt ?? createdAt`, sin fecha al final y desempate
-// por `_id` desc. Son pocos documentos y no se declaran índices nuevos.
+// Orden por `startedAt`. Un torneo sin `startedAt` todavía no empezó y cuenta
+// como el más nuevo: en `desc` (por defecto, `legacy=false` y `active`) va
+// primero y después siguen los demás por `startedAt` desc; en `asc`
+// (finalizados) van por `startedAt` asc con los no empezados al final.
+// Empates por `_id` desc.
 const byStart = (direction) => (a, b) => {
-    const timeA = startTime(a)
-    const timeB = startTime(b)
+    const timeA = toTime(a?.startedAt)
+    const timeB = toTime(b?.startedAt)
 
     if (timeA !== timeB) {
-        if (timeA === null) return 1
-        if (timeB === null) return -1
+        if (timeA === null) return direction === "asc" ? 1 : -1
+        if (timeB === null) return direction === "asc" ? -1 : 1
         return direction === "asc" ? timeA - timeB : timeB - timeA
     }
 
@@ -37,11 +36,10 @@ const findTournaments = async (legacy, status) => {
 
     if (legacy === false) {
         filter = { legacy: { $ne: true }, valid: { $ne: false } }
-        projection =
-            "cloudinary_id name ongoing outcome updatedAt format playoffMode"
+        projection = "cloudinary_id name ongoing outcome format playoffMode"
     } else if (status === "finalized") {
         filter = { ongoing: false, valid: { $ne: false } }
-        projection = "name cloudinary_id outcome updatedAt"
+        projection = "name cloudinary_id outcome"
         direction = "asc"
     } else if (status === "active") {
         filter = { ongoing: true, valid: { $ne: false } }

@@ -28,7 +28,7 @@ test("series revision claim does not touch the first leg timestamps", async (t) 
     const calls = stubMatchesModel(t, "findOneAndUpdate", { _id: "leg-1" })
     const session = { id: "session" }
 
-    await claimPlayoffSeriesRevision("tournament", "7", 3, { session })
+    await claimPlayoffSeriesRevision("tournament", 7, 3, { session })
 
     const [[filter, update, options]] = calls
     assert.deepEqual(filter, {
