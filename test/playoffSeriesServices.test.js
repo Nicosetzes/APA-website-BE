@@ -637,17 +637,18 @@ test("removing a return result deletes only its pending derived tiebreak", async
 
 test("final closes fail-closed and later correction is rejected", async () => {
     const environment = createEnvironment({ playoffId: 31 })
-    const [final] = environment.matches
+    const [first, final] = environment.matches
+    markPlayed(first, 2, 1)
     const process = createProcessPlayoffSeriesResult(environment.dependencies)
     await process({
         tournamentId: "tournament",
         matchId: final._id,
-        body: bodyFor(final, 2, 1),
+        body: bodyFor(final, 0, 1, { expectedSeriesRevision: 0 }),
     })
     assert.equal(environment.tournament.ongoing, false)
     assert.equal(
         environment.tournament.outcome.champion.team.id,
-        final.teamP1.id
+        first.teamP1.id
     )
     // El cierre toma la fecha del partido que decidió la final.
     assert.ok(final.playedAt)
@@ -668,9 +669,37 @@ test("final closes fail-closed and later correction is rejected", async () => {
     )
 })
 
+test("tied final aggregate creates a tiebreak that closes the tournament", async () => {
+    const environment = createEnvironment({ playoffId: 31 })
+    const [first, second] = environment.matches
+    markPlayed(first, 1, 0)
+    const process = createProcessPlayoffSeriesResult(environment.dependencies)
+
+    await process({
+        tournamentId: "tournament",
+        matchId: second._id,
+        body: bodyFor(second, 1, 0, { expectedSeriesRevision: 0 }),
+    })
+    assert.equal(environment.tournament.ongoing, true)
+    const tiebreak = environment.matches.find(({ leg }) => leg === 3)
+    assert.ok(tiebreak)
+
+    await process({
+        tournamentId: "tournament",
+        matchId: tiebreak._id,
+        body: bodyFor(tiebreak, 0, 1, { expectedSeriesRevision: 1 }),
+    })
+    assert.equal(environment.tournament.ongoing, false)
+    assert.equal(
+        environment.tournament.outcome.champion.team.id,
+        tiebreak.teamP2.id
+    )
+})
+
 test("series final closure inherits the final's playedAt precision", async () => {
     const environment = createEnvironment({ playoffId: 31 })
-    const [final] = environment.matches
+    const [first, final] = environment.matches
+    markPlayed(first, 2, 1)
     const updateResult = environment.dependencies.updatePlayoffSeriesMatchResult
     environment.dependencies.updatePlayoffSeriesMatchResult = async (
         ...args
@@ -687,7 +716,7 @@ test("series final closure inherits the final's playedAt precision", async () =>
     await process({
         tournamentId: "tournament",
         matchId: final._id,
-        body: bodyFor(final, 2, 1),
+        body: bodyFor(final, 0, 1, { expectedSeriesRevision: 0 }),
     })
 
     assert.equal(environment.tournament.ongoing, false)

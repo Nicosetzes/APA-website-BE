@@ -1,7 +1,4 @@
-const {
-    getFinalPlayoffId,
-    getPlayoffRoundIdRange,
-} = require("../../config/playoffFormats")
+const { getPlayoffRoundIdRange } = require("../../config/playoffFormats")
 const { HttpError } = require("../../middleware/httpErrors")
 
 const PLAYOFF_MODES = ["single", "two_legged"]
@@ -72,17 +69,12 @@ const classifySeriesMatch = ({ tournament, match } = {}) => {
 
     if (
         !PLAYOFF_MODES.includes(tournament.playoffMode) ||
-        !VALID_LEGS.includes(match.leg) ||
-        (match.playoff_id === 31 && match.leg !== 1)
+        !VALID_LEGS.includes(match.leg)
     ) {
         return "invalid"
     }
 
-    if (
-        tournament.playoffMode === "two_legged" &&
-        match.playoff_id !== 31 &&
-        match.leg < 3
-    ) {
+    if (tournament.playoffMode === "two_legged" && match.leg < 3) {
         return "series_leg"
     }
 
@@ -157,11 +149,8 @@ const assertSeriesStructure = (tournament, tieMatches = []) => {
     const ordered = [...tieMatches].sort((left, right) => left.leg - right.leg)
     const legs = ordered.map(({ leg }) => leg)
     const playoffId = ordered[0]?.playoff_id
-    const finalId = getFinalPlayoffId("playoff")
     const expectedBaseLegs =
-        tournament.playoffMode === "two_legged" && playoffId !== finalId
-            ? [1, 2]
-            : [1]
+        tournament.playoffMode === "two_legged" ? [1, 2] : [1]
     const validLegs =
         legs.length === expectedBaseLegs.length &&
         legs.every((leg, index) => leg === expectedBaseLegs[index])
@@ -509,10 +498,7 @@ const buildLegsForTie = ({
         unitB
     )
 
-    if (
-        normalizePlayoffMode(tournament) !== "two_legged" ||
-        playoffId === getFinalPlayoffId("playoff")
-    ) {
+    if (normalizePlayoffMode(tournament) !== "two_legged") {
         return [first]
     }
 
@@ -632,8 +618,7 @@ const decoratePlayoffSeriesMatches = (tournament, matches = []) => {
             const successorMatches = descriptor
                 ? groups.get(descriptor.destinationPlayoffId) || []
                 : []
-            const showAggregate =
-                tournament.playoffMode === "two_legged" && playoffId !== 31
+            const showAggregate = tournament.playoffMode === "two_legged"
             for (const match of tieMatches) {
                 metadataById.set(String(match._id), {
                     series: {
