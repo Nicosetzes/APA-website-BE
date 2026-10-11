@@ -109,27 +109,39 @@ const calculateGroupStagePlayoff = (teams, regularMatches, format) => {
                 b.goalsFor - a.goalsFor
         )
 
-    const assignedThirds = {}
-    let availableThirds = [...bestThirds]
+    const assignWithoutSameGroup = (hostIndex, available, assigned) => {
+        if (hostIndex === hostsForThirdsList.length) return assigned
 
-    hostsForThirdsList.forEach((host) => {
-        let foundIndex = -1
-        for (let i = availableThirds.length - 1; i >= 0; i--) {
-            if (availableThirds[i].group !== host.group) {
-                foundIndex = i
-                break
-            }
-        }
+        const host = hostsForThirdsList[hostIndex]
+        for (let i = available.length - 1; i >= 0; i--) {
+            if (available[i].group === host.group) continue
 
-        if (foundIndex !== -1) {
-            assignedThirds[host.group] = availableThirds.splice(
-                foundIndex,
-                1
-            )[0]
-        } else {
-            assignedThirds[host.group] = availableThirds.pop()
+            const result = assignWithoutSameGroup(
+                hostIndex + 1,
+                available.filter((_, j) => j !== i),
+                { ...assigned, [host.group]: available[i] }
+            )
+            if (result) return result
         }
-    })
+        return null
+    }
+
+    let assignedThirds = assignWithoutSameGroup(0, [...bestThirds], {})
+
+    // Sin solución matemática posible: se asigna lo que quede, aun del mismo grupo
+    if (!assignedThirds) {
+        assignedThirds = {}
+        const availableThirds = [...bestThirds]
+        hostsForThirdsList.forEach((host) => {
+            const foundIndex = availableThirds.findLastIndex(
+                (t) => t.group !== host.group
+            )
+            assignedThirds[host.group] =
+                foundIndex !== -1
+                    ? availableThirds.splice(foundIndex, 1)[0]
+                    : availableThirds.pop()
+        })
+    }
 
     const bracketLayout = buildBracket(firsts, seconds, assignedThirds)
 

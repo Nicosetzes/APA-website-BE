@@ -33,8 +33,6 @@ const createGetPlayoffsPreviewByTournamentId = (dependencies = {}) => {
 
         const { format, teams = [] } = tournamentDoc
 
-        // Sólo los formatos con bracket de fase de grupos tienen preview.
-        // Antes, cualquier otro formato rompía al desestructurar la config.
         if (!supportedFormats[format]) {
             throw new HttpError(
                 422,
