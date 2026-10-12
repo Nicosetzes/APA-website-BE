@@ -31,6 +31,7 @@ const deleteEdit = require("./deleteEdit")
 const postRecaps = require("./postRecaps")
 const getRecap = require("./getRecap")
 const getRecapDates = require("./getRecapDates")
+const getRecapContext = require("./getRecapContext")
 
 module.exports = {
     getAllTimeFaceToFace,
@@ -66,5 +67,6 @@ module.exports = {
     postRecaps,
     getRecap,
     getRecapDates,
+    getRecapContext,
     putCompleteTournamentById,
 }

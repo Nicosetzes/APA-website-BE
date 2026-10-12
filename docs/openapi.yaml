@@ -1521,6 +1521,45 @@ paths:
                             schema:
                                 $ref: "#/components/schemas/ErrorResponse"
 
+    /api/recaps/context:
+        get:
+            tags: [Recaps]
+            summary: Contexto de formato y estado de los torneos que jugaron un día
+            description: >-
+                Pensado para el workflow de n8n: por cada torneo con partidos
+                jugados en `date` (día calendario de Argentina) devuelve las
+                reglas del formato (texto fijo), la tabla de posiciones, el
+                play-in y el cuadro de playoff. No incluye los partidos de ese
+                día (se piden con `/api/matches`) ni calcula consecuencias
+                (quién clasificó o necesita ganar), salvo los flags
+                `eliminated`, `directlyQualified` y `playinQualified` que ya
+                trae la tabla. Sin partidos ese día devuelve `data: []`.
+            parameters:
+                - in: query
+                  name: date
+                  required: true
+                  schema:
+                      type: string
+                      pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+                      example: "2026-10-11"
+            responses:
+                "200":
+                    description: Contexto por torneo
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                properties:
+                                    success:
+                                        type: boolean
+                                    date:
+                                        type: string
+                                    data:
+                                        type: array
+                                        items:
+                                            $ref: "#/components/schemas/RecapTournamentContext"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
     /api/recaps/dates:
         get:
             tags: [Recaps]
@@ -1658,6 +1697,143 @@ components:
                     schema:
                         $ref: "#/components/schemas/ErrorResponse"
     schemas:
+        RecapTournamentContext:
+            type: object
+            properties:
+                tournamentId:
+                    type: string
+                tournament:
+                    type: string
+                format:
+                    type: string
+                    enum:
+                        [
+                            champions_league,
+                            league,
+                            league_playin_playoff,
+                            playoff,
+                            super_cup,
+                            world_cup,
+                            world_cup_2026,
+                        ]
+                ongoing:
+                    type: boolean
+                rules:
+                    type: object
+                    description: Reglas fijas del formato, para citar y no inferir
+                    properties:
+                        stages:
+                            type: array
+                            items:
+                                type: string
+                                enum: [regular, playin, playoff]
+                        description:
+                            type: string
+                            nullable: true
+                        tableTiebreak:
+                            type: string
+                            nullable: true
+                        qualification:
+                            type: object
+                            nullable: true
+                            additionalProperties: true
+                        knockout:
+                            type: string
+                            nullable: true
+                standings:
+                    type: array
+                    description: Una entrada por grupo (`group` null si no hay grupos); vacío en formatos sin fase regular
+                    items:
+                        type: object
+                        properties:
+                            group:
+                                type: string
+                                nullable: true
+                            teams:
+                                type: array
+                                items:
+                                    type: object
+                                    description: Fila de la tabla con `position` (base 1); sin `streak`
+                                    additionalProperties: true
+                playin:
+                    type: array
+                    items:
+                        $ref: "#/components/schemas/RecapContextMatch"
+                bracket:
+                    type: array
+                    description: Cruces de playoff con al menos un equipo definido, por `playoffId`
+                    items:
+                        type: object
+                        properties:
+                            playoffId:
+                                type: integer
+                            round:
+                                type: string
+                                nullable: true
+                                enum:
+                                    [
+                                        round_of_32,
+                                        round_of_16,
+                                        quarterfinal,
+                                        semifinal,
+                                        final,
+                                    ]
+                            series:
+                                type: object
+                                nullable: true
+                                description: Estado de la serie (sólo formato `playoff`)
+                                additionalProperties: true
+                            matches:
+                                type: array
+                                items:
+                                    $ref: "#/components/schemas/RecapContextMatch"
+        RecapContextMatch:
+            type: object
+            properties:
+                playoffId:
+                    type: integer
+                    nullable: true
+                leg:
+                    type: integer
+                    nullable: true
+                played:
+                    type: boolean
+                playedAt:
+                    type: string
+                    format: date-time
+                    nullable: true
+                playerP1:
+                    type: object
+                    nullable: true
+                    additionalProperties: true
+                teamP1:
+                    type: object
+                    nullable: true
+                    additionalProperties: true
+                seedP1:
+                    type: string
+                    nullable: true
+                scoreP1:
+                    type: integer
+                    nullable: true
+                playerP2:
+                    type: object
+                    nullable: true
+                    additionalProperties: true
+                teamP2:
+                    type: object
+                    nullable: true
+                    additionalProperties: true
+                seedP2:
+                    type: string
+                    nullable: true
+                scoreP2:
+                    type: integer
+                    nullable: true
+                outcome:
+                    type: object
+                    nullable: true
+                    additionalProperties: true
         RecapResponse:
             type: object
             required: [success, data]

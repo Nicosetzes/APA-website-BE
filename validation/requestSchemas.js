@@ -276,6 +276,11 @@ module.exports = {
         query: emptyObject,
         body: emptyObject,
     },
+    getRecapContext: {
+        params: emptyObject,
+        query: Joi.object({ date: calendarDate.required() }).unknown(false),
+        body: emptyObject,
+    },
     getRecapDates: {
         params: emptyObject,
         query: emptyObject,

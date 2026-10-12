@@ -1,5 +1,11 @@
 const FORMAT_CONFIGS = require("./formats")
 
+const compareByStandings = (a, b) =>
+    b.points - a.points ||
+    b.scoringDifference - a.scoringDifference ||
+    b.goalsFor - a.goalsFor ||
+    a.goalsAgainst - b.goalsAgainst
+
 const calculateGroupStagePlayoff = (teams, regularMatches, format) => {
     const { numQualifyingThirds, hostsForThirdsGroups, buildBracket } =
         FORMAT_CONFIGS[format]
@@ -66,13 +72,7 @@ const calculateGroupStagePlayoff = (teams, regularMatches, format) => {
         group.forEach((team) => {
             team.scoringDifference = team.goalsFor - team.goalsAgainst
         })
-        group.sort(
-            (a, b) =>
-                b.points - a.points ||
-                b.scoringDifference - a.scoringDifference ||
-                b.goalsFor - a.goalsFor ||
-                a.goalsAgainst - b.goalsAgainst
-        )
+        group.sort(compareByStandings)
     })
 
     const firsts = {}
@@ -85,12 +85,7 @@ const calculateGroupStagePlayoff = (teams, regularMatches, format) => {
         allThirds.push(sortedTeams[2])
     })
 
-    allThirds.sort(
-        (a, b) =>
-            b.points - a.points ||
-            b.scoringDifference - a.scoringDifference ||
-            b.goalsFor - a.goalsFor
-    )
+    allThirds.sort(compareByStandings)
 
     const thirdsTable = allThirds.map((thirdTeam, index) => ({
         ...thirdTeam,
@@ -102,12 +97,7 @@ const calculateGroupStagePlayoff = (teams, regularMatches, format) => {
 
     const hostsForThirdsList = hostsForThirdsGroups
         .map((g) => firsts[g])
-        .sort(
-            (a, b) =>
-                b.points - a.points ||
-                b.scoringDifference - a.scoringDifference ||
-                b.goalsFor - a.goalsFor
-        )
+        .sort(compareByStandings)
 
     const assignWithoutSameGroup = (hostIndex, available, assigned) => {
         if (hostIndex === hostsForThirdsList.length) return assigned

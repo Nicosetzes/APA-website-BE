@@ -50,6 +50,7 @@ const {
     postRecaps,
     getRecap,
     getRecapDates,
+    getRecapContext,
     putCompleteTournamentById,
 } = controllers
 
@@ -104,6 +105,8 @@ root.post(
 )
 
 root.get("/recaps/dates", validate("getRecapDates"), getRecapDates)
+
+root.get("/recaps/context", validate("getRecapContext"), getRecapContext)
 
 root.get("/recaps/latest", validate("getLatestRecap"), getRecap)
 
