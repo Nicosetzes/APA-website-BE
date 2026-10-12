@@ -194,6 +194,8 @@ const fixturePlayersQuery = idListQuery(fixturePlayerIds, 500)
 
 const calculatorTeamsQuery = idListQuery(calculatorTeamIds, 1000)
 
+const stageCount = Joi.number().integer().min(0).max(10000)
+
 const calendarDate = Joi.string()
     .pattern(/^\d{4}-\d{2}-\d{2}$/)
     .custom(isValidCalendarDate)
@@ -273,6 +275,60 @@ module.exports = {
         params: emptyObject,
         query: emptyObject,
         body: emptyObject,
+    },
+    getRecapDates: {
+        params: emptyObject,
+        query: emptyObject,
+        body: emptyObject,
+    },
+    getLatestRecap: {
+        params: emptyObject,
+        query: emptyObject,
+        body: emptyObject,
+    },
+    getRecapByDate: {
+        params: Joi.object({ date: calendarDate.required() }).unknown(false),
+        query: emptyObject,
+        body: emptyObject,
+    },
+    postRecap: {
+        params: emptyObject,
+        query: emptyObject,
+        body: Joi.object({
+            date: calendarDate.required(),
+            matchCount: Joi.number().integer().min(0).max(10000).required(),
+            recap: Joi.string().trim().min(1).max(50000).required(),
+            tournaments: Joi.array()
+                .items(
+                    Joi.object({
+                        tournamentId: Joi.string()
+                            .trim()
+                            .min(1)
+                            .max(100)
+                            .required(),
+                        tournament: Joi.string()
+                            .trim()
+                            .min(1)
+                            .max(255)
+                            .required(),
+                        matchCount: Joi.number()
+                            .integer()
+                            .min(0)
+                            .max(10000)
+                            .required(),
+                        matchesByStage: Joi.object({
+                            playoff: stageCount.required(),
+                            playin: stageCount.required(),
+                            regular: stageCount.required(),
+                        })
+                            .unknown(false)
+                            .required(),
+                    }).unknown(false)
+                )
+                .max(100)
+                .required(),
+            createdAt: Joi.date().iso().required(),
+        }).unknown(false),
     },
     getStatistics: {
         query: Joi.object({

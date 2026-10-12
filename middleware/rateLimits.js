@@ -6,6 +6,7 @@ const LOGIN_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000
 const LOGIN_RATE_LIMIT_MAX_ATTEMPTS = 10
 const EDIT_UPLOAD_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000
 const EDIT_UPLOAD_RATE_LIMIT_MAX_REQUESTS = 20
+const RECAP_RATE_LIMIT_MAX_FAILURES = 10
 
 const loginRateLimit = rateLimit({
     windowMs: LOGIN_RATE_LIMIT_WINDOW_MS,
@@ -39,8 +40,27 @@ const editUploadRateLimit = rateLimit({
         ),
 })
 
+const recapRateLimit = rateLimit({
+    windowMs: LOGIN_RATE_LIMIT_WINDOW_MS,
+    limit: RECAP_RATE_LIMIT_MAX_FAILURES,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    skipSuccessfulRequests: true,
+    requestWasSuccessful: (req, res) => res.statusCode !== 401,
+    handler: (req, res, next) =>
+        next(
+            new HttpError(
+                429,
+                "TOO_MANY_RECAP_ATTEMPTS",
+                "Demasiados intentos fallidos. Intentá nuevamente más tarde"
+            )
+        ),
+})
+
 module.exports = {
     EDIT_UPLOAD_RATE_LIMIT_MAX_REQUESTS,
+    RECAP_RATE_LIMIT_MAX_FAILURES,
+    recapRateLimit,
     EDIT_UPLOAD_RATE_LIMIT_WINDOW_MS,
     LOGIN_RATE_LIMIT_MAX_ATTEMPTS,
     LOGIN_RATE_LIMIT_WINDOW_MS,

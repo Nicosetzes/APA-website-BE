@@ -47,6 +47,9 @@ const {
     postEditsUpload,
     getEdits,
     deleteEdit,
+    postRecaps,
+    getRecap,
+    getRecapDates,
     putCompleteTournamentById,
 } = controllers
 
@@ -54,9 +57,11 @@ const validateRequest = require("../middleware/validateRequest")
 const validateMatchResult = require("../middleware/validateMatchResult")
 const requireRegularPhaseOpen = require("../middleware/requireRegularPhaseOpen")
 const validateSeriesMutationRequest = require("../middleware/validateSeriesMutationRequest")
+const requireRecapSecret = require("../middleware/requireRecapSecret")
 const {
     editUploadRateLimit,
     loginRateLimit,
+    recapRateLimit,
 } = require("../middleware/rateLimits")
 const requestSchemas = require("../validation/requestSchemas")
 const validate = (schemaName) => validateRequest(requestSchemas[schemaName])
@@ -89,6 +94,20 @@ root.delete(
     requireEditOwnership,
     deleteEdit
 )
+
+root.post(
+    "/recaps",
+    recapRateLimit,
+    requireRecapSecret,
+    validate("postRecap"),
+    postRecaps
+)
+
+root.get("/recaps/dates", validate("getRecapDates"), getRecapDates)
+
+root.get("/recaps/latest", validate("getLatestRecap"), getRecap)
+
+root.get("/recaps/:date", validate("getRecapByDate"), getRecap)
 
 users.get("/me", isAuth, getCurrentUser)
 

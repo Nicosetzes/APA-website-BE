@@ -28,6 +28,9 @@ const putRemoveMatchByTournamentId = require("./putRemoveMatchByTournamentId")
 const { postEdits, postEditsUpload } = require("./postEdits")
 const getEdits = require("./getEdits")
 const deleteEdit = require("./deleteEdit")
+const postRecaps = require("./postRecaps")
+const getRecap = require("./getRecap")
+const getRecapDates = require("./getRecapDates")
 
 module.exports = {
     getAllTimeFaceToFace,
@@ -60,5 +63,8 @@ module.exports = {
     postEditsUpload,
     getEdits,
     deleteEdit,
+    postRecaps,
+    getRecap,
+    getRecapDates,
     putCompleteTournamentById,
 }
