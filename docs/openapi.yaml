@@ -1529,11 +1529,16 @@ paths:
                 Pensado para el workflow de n8n: por cada torneo con partidos
                 jugados en `date` (día calendario de Argentina) devuelve las
                 reglas del formato (texto fijo), la tabla de posiciones, el
-                play-in y el cuadro de playoff. No incluye los partidos de ese
-                día (se piden con `/api/matches`) ni calcula consecuencias
-                (quién clasificó o necesita ganar), salvo los flags
-                `eliminated`, `directlyQualified` y `playinQualified` que ya
-                trae la tabla. Sin partidos ese día devuelve `data: []`.
+                play-in y el cuadro de playoff. La tabla es la del cierre de
+                `date`: ignora lo jugado después y cada fila trae
+                `previousPosition`, la posición al inicio del día (`null` si
+                en ese grupo todavía no se había jugado). El play-in y el
+                cuadro muestran siempre el estado actual (`asOf`), por lo que
+                el endpoint es confiable para recaps del mismo día. No incluye
+                los partidos de ese día (se piden con `/api/matches`) ni
+                calcula consecuencias (quién clasificó o necesita ganar), salvo
+                los flags `eliminated`, `directlyQualified` y `playinQualified`
+                que ya trae la tabla. Sin partidos ese día devuelve `data: []`.
             parameters:
                 - in: query
                   name: date
@@ -1718,6 +1723,20 @@ components:
                         ]
                 ongoing:
                     type: boolean
+                    description: Valor actual, no el de `date`
+                asOf:
+                    type: object
+                    description: Momento al que corresponde cada parte de la respuesta
+                    properties:
+                        standings:
+                            type: string
+                            description: Fecha de cierre de la tabla (la de la consulta)
+                        playin:
+                            type: string
+                            enum: [current]
+                        bracket:
+                            type: string
+                            enum: [current]
                 rules:
                     type: object
                     description: Reglas fijas del formato, para citar y no inferir
@@ -1753,7 +1772,7 @@ components:
                                 type: array
                                 items:
                                     type: object
-                                    description: Fila de la tabla con `position` (base 1); sin `streak`
+                                    description: Fila de la tabla al cierre de `date`, con `position` y `previousPosition` (base 1; la de inicio del día, o null si nadie había jugado en el grupo); sin `streak`
                                     additionalProperties: true
                 playin:
                     type: array

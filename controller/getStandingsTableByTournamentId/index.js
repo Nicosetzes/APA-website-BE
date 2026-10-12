@@ -20,6 +20,7 @@ const createGetStandingsTableByTournamentId = (dependencies = {}) => {
     return async (req, res) => {
         const { tournament } = req.params
         const { group } = req.query
+        const { playedBefore } = req
 
         const tournamentDoc = await retrieveTournament(tournament)
 
@@ -38,10 +39,25 @@ const createGetStandingsTableByTournamentId = (dependencies = {}) => {
                 ? teams.filter((item) => item.group == targetGroup)
                 : teams
 
-            const [matches, notPlayedMatches] = await Promise.all([
+            const [playedMatches, unplayedMatches] = await Promise.all([
                 orderTournamentMatches(tournament, targetGroup),
                 retrieveNotPlayedMatches(tournament, targetGroup),
             ])
+
+            // Corte interno (lo usa el contexto de recaps; no es un query
+            // param): los partidos jugados desde `playedBefore` no cuentan en
+            // la tabla y pasan a ser partidos pendientes para los flags.
+            const isCounted = (match) =>
+                !playedBefore ||
+                !match.playedAt ||
+                new Date(match.playedAt) < playedBefore
+            const matches = playedMatches.filter(isCounted)
+            const notPlayedMatches = playedBefore
+                ? [
+                      ...unplayedMatches,
+                      ...playedMatches.filter((match) => !isCounted(match)),
+                  ]
+                : unplayedMatches
 
             const statsMap = new Map()
 

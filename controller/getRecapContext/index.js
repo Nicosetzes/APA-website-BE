@@ -14,8 +14,9 @@ const {
 const {
     createGetStandingsTableByTournamentId,
 } = require("../getStandingsTableByTournamentId")
+const { getArgentinaDayRange } = require("../../utils/argentinaDay")
 
-const fetchStandings = async (tournamentId) => {
+const fetchStandings = async (tournamentId, playedBefore) => {
     let body
     const res = {
         status() {
@@ -28,16 +29,32 @@ const fetchStandings = async (tournamentId) => {
     }
 
     await createGetStandingsTableByTournamentId()(
-        { params: { tournament: tournamentId }, query: {} },
+        { params: { tournament: tournamentId }, query: {}, playedBefore },
         res
     )
 
     return body
 }
 
-const slimStandingsRow = (row, index) => {
+const indexPreviousPositions = (previous) =>
+    new Map(
+        (previous?.standings ?? []).map(({ group, teams }) => {
+            const anyoneHadPlayed = teams.some(({ played }) => played > 0)
+            const positions = new Map(
+                teams.map(({ team }, index) => [team?.id, index + 1])
+            )
+
+            return [group ?? null, anyoneHadPlayed ? positions : null]
+        })
+    )
+
+const slimStandingsRow = (row, index, previousPositions) => {
     const { streak, ...rest } = row
-    return { position: index + 1, ...rest }
+    return {
+        position: index + 1,
+        previousPosition: previousPositions?.get(row.team?.id) ?? null,
+        ...rest,
+    }
 }
 
 const roundOf = (format, playoffId) =>
@@ -100,7 +117,7 @@ const createGetRecapContext = (dependencies = {}) => {
         dependencies.retrievePlayoffMatchesByTournamentId ||
         retrievePlayoffMatchesByTournamentId
 
-    const buildTournamentContext = async (tournamentId) => {
+    const buildTournamentContext = async (tournamentId, date, dayRange) => {
         const tournament = await retrieveTournament(tournamentId)
 
         if (!tournament) return null
@@ -109,23 +126,39 @@ const createGetRecapContext = (dependencies = {}) => {
         const rules = describeTournamentFormat(tournament)
         const hasTable = rules.stages.includes("regular")
 
-        const [standings, playinMatches, playoffMatches] = await Promise.all([
-            hasTable ? retrieveStandings(tournamentId) : null,
-            rules.stages.includes("playin") ? retrievePlayin(tournamentId) : [],
-            rules.stages.includes("playoff")
-                ? retrievePlayoff(tournamentId)
-                : [],
-        ])
+        const [standings, previousStandings, playinMatches, playoffMatches] =
+            await Promise.all([
+                hasTable ? retrieveStandings(tournamentId, dayRange.end) : null,
+                hasTable
+                    ? retrieveStandings(tournamentId, dayRange.start)
+                    : null,
+                rules.stages.includes("playin")
+                    ? retrievePlayin(tournamentId)
+                    : [],
+                rules.stages.includes("playoff")
+                    ? retrievePlayoff(tournamentId)
+                    : [],
+            ])
+        const previousPositions = indexPreviousPositions(previousStandings)
 
         return {
             tournamentId: String(tournamentId),
             tournament: name,
             format,
             ongoing: Boolean(ongoing),
+            // La tabla ignora lo jugado después de `date`; el play-in y el
+            // cuadro siempre muestran el estado actual.
+            asOf: { standings: date, playin: "current", bracket: "current" },
             rules,
             standings: (standings?.standings ?? []).map(({ group, teams }) => ({
                 group: group ?? null,
-                teams: teams.map(slimStandingsRow),
+                teams: teams.map((row, index) =>
+                    slimStandingsRow(
+                        row,
+                        index,
+                        previousPositions.get(group ?? null)
+                    )
+                ),
             })),
             playin: playinMatches.map((match) =>
                 slimMatch(
@@ -140,9 +173,12 @@ const createGetRecapContext = (dependencies = {}) => {
 
     return async (req, res) => {
         const { date } = req.query
+        const dayRange = getArgentinaDayRange(date)
         const tournamentIds = await retrieveTournamentIds(date)
         const contexts = await Promise.all(
-            tournamentIds.map(buildTournamentContext)
+            tournamentIds.map((tournamentId) =>
+                buildTournamentContext(tournamentId, date, dayRange)
+            )
         )
 
         return res.json({
