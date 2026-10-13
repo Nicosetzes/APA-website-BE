@@ -276,6 +276,28 @@ module.exports = {
         query: emptyObject,
         body: emptyObject,
     },
+    getRatings: {
+        params: emptyObject,
+        query: emptyObject,
+        body: emptyObject,
+    },
+    getRatingsPeriod: {
+        params: emptyObject,
+        query: Joi.object({
+            dateFrom: calendarDate.required(),
+            dateTo: calendarDate.required(),
+        })
+            .unknown(false)
+            .custom((value, helpers) =>
+                value.dateFrom <= value.dateTo
+                    ? value
+                    : helpers.error("date.range")
+            )
+            .messages({
+                "date.range": "La fecha hasta es anterior a la desde",
+            }),
+        body: emptyObject,
+    },
     getRecapContext: {
         params: emptyObject,
         query: Joi.object({ date: calendarDate.required() }).unknown(false),

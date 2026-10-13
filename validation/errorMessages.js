@@ -136,6 +136,9 @@ const describeValidationError = (detail) => {
     if (MATCH_RULE_MESSAGES[detail.type])
         return MATCH_RULE_MESSAGES[detail.type]
 
+    if (detail.type === "date.range")
+        return "La fecha hasta no puede ser anterior a la fecha desde"
+
     const context = detail.context || {}
 
     if (detail.type === "object.unknown" || detail.type === "any.unknown") {
