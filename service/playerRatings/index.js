@@ -62,6 +62,31 @@ const resultScore = (scoreA, scoreB) => {
 const marginMultiplier = (goalDifference, marginWeight) =>
     1 + marginWeight * Math.log(1 + Math.abs(goalDifference))
 
+// Puntaje esperado de P1 contra P2 con los ratings dados, incluido el término de
+// equipo de la 2.0 cuando `lookup` conoce el overall de ambos. Es el mismo cálculo
+// que usa el motor en cada partido y que reutiliza la predicción de duelos.
+// `teamAdjustment` son los puntos Elo a favor de P1 que sumó el equipo (0 si no
+// se aplicó) y `teamOverall*` es `null` cuando no hay término de equipo.
+const expectedForMatch = ({ rating1, rating2, match, config, lookup }) => {
+    const teams =
+        config.teamStrengthWeight !== 0 && lookup ? lookup(match) : null
+    const adjust1 = teams ? config.teamStrengthWeight * teams.t1 : 0
+    const adjust2 = teams ? config.teamStrengthWeight * teams.t2 : 0
+
+    const expectedP1 = expectedScore(
+        rating1 + adjust1,
+        rating2 + adjust2,
+        config.scale
+    )
+
+    return {
+        expectedP1,
+        teamAdjustment: adjust1 - adjust2,
+        teamOverall1: teams ? teams.t1 : null,
+        teamOverall2: teams ? teams.t2 : null,
+    }
+}
+
 const createPlayerState = (id, name, initialRating) => ({
     id,
     name,
@@ -123,16 +148,14 @@ const calculatePlayerRatings = (matches = [], options = {}) => {
         const games1 = p1.matches
         const games2 = p2.matches
 
-        const teams =
-            config.teamStrengthWeight !== 0 && lookup ? lookup(match) : null
-        const adjust1 = teams ? config.teamStrengthWeight * teams.t1 : 0
-        const adjust2 = teams ? config.teamStrengthWeight * teams.t2 : 0
-
-        const expectedP1 = expectedScore(
-            before1 + adjust1,
-            before2 + adjust2,
-            config.scale
-        )
+        const { expectedP1, teamAdjustment, teamOverall1, teamOverall2 } =
+            expectedForMatch({
+                rating1: before1,
+                rating2: before2,
+                match,
+                config,
+                lookup,
+            })
         const resultP1 = resultScore(match.scoreP1, match.scoreP2)
         const delta =
             config.kFactor *
@@ -172,14 +195,14 @@ const calculatePlayerRatings = (matches = [], options = {}) => {
             delta,
             // Puntos Elo a favor de P1 que el equipo sumó al diferencial (0 si no
             // se aplicó el término de equipo).
-            teamAdjustment: adjust1 - adjust2,
+            teamAdjustment,
             p1: {
                 id: p1.id,
                 name: p1.name,
                 before: before1,
                 games: games1,
                 team: teamName(match.teamP1),
-                teamOverall: teams ? teams.t1 : null,
+                teamOverall: teamOverall1,
             },
             p2: {
                 id: p2.id,
@@ -187,7 +210,7 @@ const calculatePlayerRatings = (matches = [], options = {}) => {
                 before: before2,
                 games: games2,
                 team: teamName(match.teamP2),
-                teamOverall: teams ? teams.t2 : null,
+                teamOverall: teamOverall2,
             },
         })
     }
@@ -253,6 +276,7 @@ const rankPlayers = (snapshot) =>
 module.exports = {
     calculatePlayerRatings,
     compareChronologically,
+    expectedForMatch,
     expectedScore,
     isRateable,
     marginMultiplier,

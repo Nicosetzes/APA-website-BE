@@ -128,9 +128,20 @@ Ranking de referencia con los 1.710 partidos (rating 2.0; entre paréntesis el q
 
 Los mismos de la 1.0 (`GET /api/ratings` y `GET /api/ratings/period`). `parameters` suma `teamStrengthWeight` y `parameters.version` pasa a `"2.0"`. El "esperaba" del mayor batacazo (`winnerExpectedScore`) ahora incluye el término de equipo. Cada evento del motor expone además `p1.teamOverall`, `p2.teamOverall` y `teamAdjustment`.
 
+### Prob. de éxito en playoffs
+
+`GET /api/tournaments/:tournament/playoff/matches` y `GET /api/tournaments/:tournament/playin/matches` agregan `prediction` a cada partido: la "Prob. de éxito" de cada lado según el Rating APA 2.0.
+
+-   **Qué es:** el puntaje esperado del motor. En un cruce de partido único no hay empate final (se define por penales, que el motor cuenta 0,5), así que ese puntaje es la probabilidad de **avanzar**. No es la probabilidad de ganar en tiempo regular: el modelo no distingue ganar de empatar y definir por penales.
+-   **A qué partidos aplica:** playoff y play-in de partido único (`league_playin_playoff`, `world_cup`, `world_cup_2026`, `super_cup` y `playoff` sin modo o `single`). En `champions_league` y en `playoff` con `playoffMode: "two_legged"` es `null` en todos los partidos.
+-   **Campos:** `p1` y `p2` (0 a 1, 3 decimales, suman 1), `basis`, `teamAdjusted` (`false` si no se aplicó el término de equipo y se calculó como la 1.0), `provisional` (algún jugador con menos de `provisionalMatches` partidos) y `ratingVersion`. `teamAdjusted` y `provisional` quedan solo en la API; el FE no los muestra.
+-   **Viva o previa (`basis`):** un partido jugado usa el evento que calculó el motor (`pre_match`, las odds de ese momento). Un partido por jugar con ambos lados cargados usa los ratings actuales (`current`): puede moverse si antes se juega otro partido de esos jugadores. Un jugador sin historial arranca en `initialRating` con 0 partidos.
+-   **`null`:** partido simulado o W.O. (`valid: false`), lado vacío (jugador o equipo), mismo jugador en ambos lados, partido jugado que el motor no puede calificar y cualquier falla del cálculo (se registra `match_predictions_unavailable` y la respuesta sigue en 200).
+-   **No se guarda nada.** Cambiar `config/ratings.js` o `data/teamRatings.json` cambia también las odds mostradas de partidos ya jugados; por eso se incluye `ratingVersion`. Cada consulta lee todos los partidos, igual que `GET /api/ratings`.
+
 ### Código
 
-`config/ratings.js` (parámetros), `service/playerRatings/` (motor, `teamStrength.js` con el acceso a los datos, presentación y evaluación), `data/` (CSV fuente y JSON generado), `scripts/lib/teamRatingsData.js`, `scripts/buildTeamRatings.js`, `scripts/checkTeamRatings.js` y `scripts/evaluateRatings.js`.
+`config/ratings.js` (parámetros), `service/playerRatings/` (motor, `teamStrength.js` con el acceso a los datos, `prediction.js` con la Prob. de éxito de los duelos, presentación y evaluación), `data/` (CSV fuente y JSON generado), `scripts/lib/teamRatingsData.js`, `scripts/buildTeamRatings.js`, `scripts/checkTeamRatings.js` y `scripts/evaluateRatings.js`.
 
 ### Al publicar
 

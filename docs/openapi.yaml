@@ -1231,7 +1231,7 @@ paths:
         get:
             tags: [Matches]
             summary: Lista los partidos de playoff; un array vacío es válido
-            description: Playoffs administrados agregan leg, series y mutation; legacy y Champions conservan su forma histórica.
+            description: Playoffs administrados agregan leg, series y mutation; legacy y Champions conservan su forma histórica. Todos incluyen `prediction` ("Prob. de éxito" según el APA Rating 2.0), que es `null` si no se puede calcular o el formato es de ida y vuelta.
             parameters:
                 - $ref: "#/components/parameters/TournamentId"
             responses:
@@ -1305,11 +1305,22 @@ paths:
         get:
             tags: [Matches]
             summary: Lista los partidos de play-in; un array vacío es válido
+            description: Cada partido incluye `prediction` ("Prob. de éxito" según el APA Rating 2.0), o `null` si no se puede calcular.
             parameters:
                 - $ref: "#/components/parameters/TournamentId"
             responses:
                 "200":
                     description: Objeto con array matches
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                required: [matches]
+                                properties:
+                                    matches:
+                                        type: array
+                                        items:
+                                            $ref: "#/components/schemas/PlayinMatch"
                 "400":
                     $ref: "#/components/responses/BadRequest"
                 "404":
@@ -2371,6 +2382,70 @@ components:
                     $ref: "#/components/schemas/PlayoffMutationMetadata"
                 seriesError:
                     $ref: "#/components/schemas/PlayoffSeriesError"
+                prediction:
+                    allOf:
+                        - $ref: "#/components/schemas/MatchPrediction"
+                    nullable: true
+                    description: >-
+                        "Prob. de éxito" de cada lado según el APA Rating 2.0.
+                        Solo la devuelve `GET .../playoff/matches` (no las
+                        respuestas de carga de resultado). Es `null` en
+                        `champions_league` y en playoffs `two_legged`, en
+                        partidos simulados o W.O. (`valid: false`), con un lado
+                        vacío, con el mismo jugador en ambos lados o si el
+                        cálculo falla.
+            additionalProperties: true
+        MatchPrediction:
+            type: object
+            required: [p1, p2, basis, teamAdjusted, provisional, ratingVersion]
+            properties:
+                p1:
+                    type: number
+                    minimum: 0
+                    maximum: 1
+                    description: Probabilidad de avanzar de P1, con 3 decimales.
+                p2:
+                    type: number
+                    minimum: 0
+                    maximum: 1
+                    description: Probabilidad de avanzar de P2. `p1 + p2 = 1`.
+                basis:
+                    type: string
+                    enum: [pre_match, current]
+                    description: >-
+                        `pre_match`: partido jugado, usa el evento del motor
+                        (odds previas al partido). `current`: partido por
+                        jugar, usa los ratings actuales y puede moverse.
+                teamAdjusted:
+                    type: boolean
+                    description: >-
+                        `false` si no se aplicó el término de equipo y el valor
+                        se calculó como en la 1.0.
+                provisional:
+                    type: boolean
+                    description: >-
+                        `true` si alguno de los dos jugadores tenía menos de
+                        `provisionalMatches` partidos.
+                ratingVersion:
+                    type: string
+                    example: "2.0"
+        PlayinMatch:
+            type: object
+            properties:
+                playedAt:
+                    $ref: "#/components/schemas/PlayedAt"
+                playedAtPrecision:
+                    $ref: "#/components/schemas/PlayedAtPrecision"
+                prediction:
+                    allOf:
+                        - $ref: "#/components/schemas/MatchPrediction"
+                    nullable: true
+                    description: >-
+                        "Prob. de éxito" de cada lado según el APA Rating 2.0.
+                        Es `null` en partidos simulados o W.O. (`valid: false`),
+                        con un lado vacío, con el mismo jugador en ambos lados,
+                        si el torneo es `champions_league` o un playoff
+                        `two_legged`, o si el cálculo falla.
             additionalProperties: true
         UpdateMatchRequest:
             type: object

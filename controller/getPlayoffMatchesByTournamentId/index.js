@@ -1,4 +1,9 @@
 const {
+    decorateMatchesWithPrediction,
+} = require("../../service/playerRatings/prediction")
+const defaultLogger = require("../../utils/logger")
+const {
+    retrieveAllMatches,
     retrievePlayoffMatchesByTournamentId,
     retrieveTournamentById,
 } = require("./../../service")
@@ -10,6 +15,9 @@ const createGetPlayoffMatchesByTournamentId = (dependencies = {}) => {
     const retrieveMatches =
         dependencies.retrievePlayoffMatchesByTournamentId ||
         retrievePlayoffMatchesByTournamentId
+    const retrieveEveryMatch =
+        dependencies.retrieveAllMatches || retrieveAllMatches
+    const logger = dependencies.logger || defaultLogger
 
     return async (req, res) => {
         const { tournament } = req.params
@@ -24,7 +32,15 @@ const createGetPlayoffMatchesByTournamentId = (dependencies = {}) => {
         }
 
         const matches = await retrieveMatches(tournament)
-        return res.status(200).json({ matches })
+        // Agrega la "Prob. de éxito" (APA Rating 2.0) a cada partido
+        const decorated = await decorateMatchesWithPrediction({
+            matches,
+            tournament: tournamentData,
+            retrieveAllMatches: retrieveEveryMatch,
+            logger,
+            options: dependencies.predictionOptions,
+        })
+        return res.status(200).json({ matches: decorated })
     }
 }
 
