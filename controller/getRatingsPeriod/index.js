@@ -51,7 +51,8 @@ const findBiggestUpset = (periodEvents, names) => {
             loser: p1Won ? event.scoreP2 : event.scoreP1,
         },
         // Puntaje esperado por el Elo, no la probabilidad de ganar: el empate
-        // cuenta como 0,5.
+        // cuenta como 0,5. Incluye el término de fuerza de equipo cuando hay
+        // overall de ambos equipos (rating 2.0).
         winnerExpectedScore: round(expected, 3),
         ratingSwing: round(Math.abs(event.delta)),
     }

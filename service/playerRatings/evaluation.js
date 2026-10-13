@@ -143,8 +143,111 @@ const tuneRatingParameters = (
     }
 }
 
+const mean = (values) =>
+    values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0
+
+// Mejora pareada del log-loss de `candidate` respecto de `base` en los mismos
+// partidos: media de (pérdida base - pérdida candidato) y su error estándar.
+// Mayor que 0 es mejor que la base.
+const pairedGain = (base, candidate, indexes) => {
+    const diffs = indexes.map(
+        (index) =>
+            softLogLoss(base[index].expectedP1, base[index].resultP1) -
+            softLogLoss(candidate[index].expectedP1, candidate[index].resultP1)
+    )
+    const average = mean(diffs)
+    const variance =
+        diffs.length > 1
+            ? diffs.reduce((total, diff) => total + (diff - average) ** 2, 0) /
+              (diffs.length - 1)
+            : 0
+    return {
+        gain: average,
+        standardError: diffs.length ? Math.sqrt(variance / diffs.length) : 0,
+        matches: diffs.length,
+    }
+}
+
+// Compara distintos `teamStrengthWeight` (0 = rating 1.0) sobre los mismos
+// partidos. Se simula cronológicamente una vez por peso y se miden solo los
+// partidos evaluables (ambos jugadores con `minGames` partidos previos; los
+// `games` no dependen del peso, así que son los mismos para todos). Esos
+// partidos se parten en orden cronológico (`splitRatio` para elegir, el resto
+// para medir) y el peso elegido es el de menor log-loss en el tramo de elegir.
+// Las diferencias son pareadas contra el peso 0.
+//
+// A diferencia de `tuneRatingParameters`, que parte todos los partidos y recién
+// después filtra, acá el 70/30 es entre evaluables.
+const compareTeamStrength = (
+    matches,
+    weights,
+    { splitRatio = 0.7, minGames = 10, options = {} } = {}
+) => {
+    const simulate = (weight) =>
+        calculatePlayerRatings(matches, {
+            ...options,
+            teamStrengthWeight: weight,
+        }).events
+
+    const baseline = simulate(0)
+    const evaluable = baseline
+        .map((event, index) =>
+            event.p1.games >= minGames && event.p2.games >= minGames
+                ? index
+                : -1
+        )
+        .filter((index) => index >= 0)
+    if (!evaluable.length || !weights.length) return null
+
+    const splitIndex = Math.floor(evaluable.length * splitRatio)
+    const subsets = {
+        all: evaluable,
+        train: evaluable.slice(0, splitIndex),
+        test: evaluable.slice(splitIndex),
+    }
+
+    const results = weights.map((weight) => {
+        const events = weight === 0 ? baseline : simulate(weight)
+        const measure = (indexes) =>
+            evaluateEvents(
+                indexes.map((index) => events[index]),
+                { minGames }
+            )
+
+        return {
+            weight,
+            all: measure(subsets.all),
+            train: measure(subsets.train),
+            test: measure(subsets.test),
+            pairedAll: pairedGain(baseline, events, subsets.all),
+            pairedTest: pairedGain(baseline, events, subsets.test),
+        }
+    })
+
+    const best = results
+        .filter(({ train }) => train.logLoss !== null)
+        .reduce(
+            (winner, candidate) =>
+                !winner || candidate.train.logLoss < winner.train.logLoss
+                    ? candidate
+                    : winner,
+            null
+        )
+
+    return {
+        totalEvents: baseline.length,
+        evaluableMatches: evaluable.length,
+        trainMatches: subsets.train.length,
+        testMatches: subsets.test.length,
+        results,
+        best,
+    }
+}
+
 // ¿Importa el equipo que se usa, más allá del jugador? Para cada equipo se suma
-// cuánto rindió por encima o por debajo de lo que el Elo esperaba (residuo) y
+// cuánto rindió por encima o por debajo de lo que el Elo esperaba (residuo; con
+// la 2.0 el esperado ya incluye el overall del equipo, así que lo que queda es
+// lo que el overall no explica) y
 // se lo compara con el ruido que habría por puro azar. Si bastantes equipos
 // pasan de |z| = 2 más allá de lo que daría el azar (~4,5%), hay señal de que
 // la fuerza del equipo explica parte de los resultados.
@@ -202,6 +305,7 @@ const summarizeTeamEffect = (
 }
 
 module.exports = {
+    compareTeamStrength,
     evaluateEvents,
     softLogLoss,
     summarizeTeamEffect,

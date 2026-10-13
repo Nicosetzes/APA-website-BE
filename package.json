@@ -9,6 +9,8 @@
         "test": "node --test",
         "audit:data": "node scripts/auditData.js",
         "evaluate:ratings": "node scripts/evaluateRatings.js",
+        "build:team-ratings": "node scripts/buildTeamRatings.js",
+        "check:team-ratings": "node scripts/checkTeamRatings.js",
         "migrate": "node scripts/migrations/run.js",
         "smoke:read": "node scripts/smokeRead.js",
         "check:db": "node scripts/checkDbConnection.js",

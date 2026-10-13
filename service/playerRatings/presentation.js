@@ -21,9 +21,11 @@ const buildNameIndex = (users = []) =>
 const displayName = (names, player) => names.get(player.id) ?? player.name
 
 const describeParameters = (config) => ({
+    version: config.version,
     initialRating: config.initialRating,
     kFactor: config.kFactor,
     marginWeight: config.marginWeight,
+    teamStrengthWeight: config.teamStrengthWeight,
     provisionalMatches: config.provisionalMatches,
 })
 

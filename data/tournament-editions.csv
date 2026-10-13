@@ -1,0 +1,19 @@
+﻿tournamentId,tournamentName,format,startedAt,firstMatchAt,lastMatchAt,matches,inexactDates,edition
+64697ac9d542ff4ada3038d3,Chempions 2019/20,champions_league,2019-07-09,2019-07-09,2019-07-09,119,119,FIFA 19
+625e0f191b3f1ce6b5ee4756,Torneo Argentino 2021/22,league,2021-11-30,2021-11-30,2022-03-31,209,209,FIFA 22
+625f32c9cfe012fb71aae3af,Superliga Europea 2022,league_playin_playoff,2022-04-23,2022-04-23,2022-07-05,193,0,FIFA 22
+6457ae8d96efc21b03ba4cfe,Superliga Inglesa 2022,league_playin_playoff,2022-07-11,2022-07-11,2022-11-12,194,18,FIFA 22
+6372f83c88e2408e9cadcc73,Copa del Mundo 2022,world_cup,2022-11-18,2022-11-18,2023-02-24,56,42,FIFA 23
+6377fb8eb217aa7d3bf61eef,Superliga ítalo-española 2022/23,league,2022-11-19,2022-11-19,2023-08-26,203,89,FIFA 23
+646ff40e2524b3187034f790,Superliga Argentina 2023,league_playin_playoff,2023-05-27,2023-05-27,2023-12-12,95,0,FIFA 23
+65296f319f7070f68fa8ec70,Superliga Internacional 2023/24 (I),league_playin_playoff,2023-10-14,2023-10-14,2023-10-17,10,0,FIFA 23
+6532e14f72b09831c4a5edf6,Superliga Internacional 2023/24 (II),league_playin_playoff,2023-10-20,2023-10-20,2023-12-20,45,0,FIFA 23
+659dcf45dd45bf53f0748a0d,Superliga Inglesa 2024,league_playin_playoff,2024-01-10,2024-01-10,2024-11-15,166,0,FIFA 23
+664d43458f37f00eba8ea380,Chempions 2024,champions_league,2024-06-25,2024-06-25,2024-07-04,10,0,FC 24
+6737f0e81d249d13f55ff48c,Mundial de Ferraris 2024/25,world_cup,2024-11-21,2024-11-21,2025-02-18,55,0,FC 25
+67bb58104e0e363cd8eecbf1,Superliga Internacional 2025,league_playin_playoff,2025-02-25,2025-02-25,2025-12-29,121,0,FC 25
+692d1bf2917eda907823f8d8,Copa Argentina 2025/26,playoff,2025-12-22,2025-12-22,2026-08-07,31,0,FC 26
+695b007a9009908018bdc28f,Liga Inglesa 2026,league,2026-01-07,2026-01-07,2026-08-07,47,0,FC 26
+6a36172bac0f63a7f4481b84,Copa del Mundo 2026,world_cup_2026,2026-06-20,2026-06-20,2026-10-10,82,0,FC 26
+6a7e52af1780519ff48380c1,Supercopa APA 2026,super_cup,2026-08-14,2026-08-14,2026-10-10,52,0,FC 26
+6ac43e5daf82ded99b21b660,Copa Afinidades 2026,playoff,2026-10-06,2026-10-06,2026-10-10,6,0,FC 26

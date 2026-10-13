@@ -69,6 +69,13 @@ test("ratings ranking uses user nicknames and exposes the parameters", async () 
 
     const { success, parameters, data } = response.body
     assert.equal(success, true)
+    assert.equal(parameters.version, RATING_CONFIG.version)
+    assert.equal(parameters.version, "2.0")
+    assert.equal(
+        parameters.teamStrengthWeight,
+        RATING_CONFIG.teamStrengthWeight
+    )
+    assert.equal(parameters.teamStrengthWeight, 25)
     assert.equal(parameters.initialRating, 1500)
     assert.deepEqual(
         data.map(({ position }) => position),

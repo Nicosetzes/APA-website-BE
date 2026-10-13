@@ -1,4 +1,5 @@
 const { RATING_CONFIG } = require("../../config/ratings")
+const { defaultTeamStrength } = require("./teamStrength")
 
 const toTime = (value) => {
     if (value === null || value === undefined) return null
@@ -77,8 +78,20 @@ const createPlayerState = (id, name, initialRating) => ({
 // Recorre los partidos en orden cronológico y devuelve, por cada uno, los
 // ratings de ambos antes y después. No guarda nada: ante una edición de un
 // resultado viejo se recalcula todo, que con unos miles de partidos es inmediato.
+//
+// Modelo 2.0: el puntaje esperado usa un rating efectivo,
+//   efectivo = rating del jugador + teamStrengthWeight * overall del equipo,
+// pero el cambio (`delta`) se suma y resta solo a los ratings de los jugadores:
+// el término de equipo nunca entra al rating mostrado y el intercambio sigue
+// siendo de suma cero. Si falta el overall de cualquiera de los dos equipos (o el
+// peso es 0) el partido se calcula exactamente como en la 1.0.
+//
+// `options.teamStrength` reemplaza la búsqueda de overalls (`(match) => {t1, t2}
+// | null`); `null` la desactiva. Sirve para tests y para evaluar con datos propios.
 const calculatePlayerRatings = (matches = [], options = {}) => {
-    const config = { ...RATING_CONFIG, ...options }
+    const { teamStrength: injected, ...overrides } = options
+    const config = { ...RATING_CONFIG, ...overrides }
+    const lookup = injected === undefined ? defaultTeamStrength : injected
     const players = new Map()
     const events = []
 
@@ -110,7 +123,16 @@ const calculatePlayerRatings = (matches = [], options = {}) => {
         const games1 = p1.matches
         const games2 = p2.matches
 
-        const expectedP1 = expectedScore(before1, before2, config.scale)
+        const teams =
+            config.teamStrengthWeight !== 0 && lookup ? lookup(match) : null
+        const adjust1 = teams ? config.teamStrengthWeight * teams.t1 : 0
+        const adjust2 = teams ? config.teamStrengthWeight * teams.t2 : 0
+
+        const expectedP1 = expectedScore(
+            before1 + adjust1,
+            before2 + adjust2,
+            config.scale
+        )
         const resultP1 = resultScore(match.scoreP1, match.scoreP2)
         const delta =
             config.kFactor *
@@ -148,12 +170,16 @@ const calculatePlayerRatings = (matches = [], options = {}) => {
             expectedP1,
             resultP1,
             delta,
+            // Puntos Elo a favor de P1 que el equipo sumó al diferencial (0 si no
+            // se aplicó el término de equipo).
+            teamAdjustment: adjust1 - adjust2,
             p1: {
                 id: p1.id,
                 name: p1.name,
                 before: before1,
                 games: games1,
                 team: teamName(match.teamP1),
+                teamOverall: teams ? teams.t1 : null,
             },
             p2: {
                 id: p2.id,
@@ -161,6 +187,7 @@ const calculatePlayerRatings = (matches = [], options = {}) => {
                 before: before2,
                 games: games2,
                 team: teamName(match.teamP2),
+                teamOverall: teams ? teams.t2 : null,
             },
         })
     }

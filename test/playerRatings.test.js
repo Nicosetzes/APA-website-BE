@@ -8,9 +8,13 @@ const {
     snapshotBefore,
 } = require("../service/playerRatings")
 const {
+    compareTeamStrength,
     evaluateEvents,
     tuneRatingParameters,
 } = require("../service/playerRatings/evaluation")
+const {
+    createTeamStrengthLookup,
+} = require("../service/playerRatings/teamStrength")
 
 const NICO = { id: "n", name: "Nico" }
 const SANTI = { id: "s", name: "Santi" }
@@ -27,6 +31,11 @@ const match = (playerP1, scoreP1, playerP2, scoreP2, playedAt, extra = {}) => ({
     ...extra,
 })
 
+const SINGLE_SIDED = {
+    tournament: { id: "x", name: "Torneo" },
+    teamP1: { id: 1, name: "Con rating" },
+    teamP2: { id: 2, name: "Sin rating" },
+}
 const OPTIONS = { initialRating: 1500, kFactor: 20, marginWeight: 0 }
 
 test("expected score is symmetric and 0.5 between equals", () => {
@@ -311,4 +320,307 @@ test("team effect is null with no evaluable matches and ignores unnamed teams", 
 
     assert.equal(summary.distinctTeams, 0)
     assert.deepEqual(summary.top, [])
+})
+
+// --- APA Rating 2.0: fuerza de equipo en el puntaje esperado ---
+
+// Lookup sintético: cada partido trae sus overalls en `strength`.
+const strengthOf = (m) => m.strength ?? null
+const withStrength = (t1, t2) => ({ strength: { t1, t2 } })
+const TEAM_OPTIONS = { ...OPTIONS, teamStrengthWeight: 25 }
+
+test("the stronger team raises its side's expected score and lowers the other", () => {
+    const run = (extra) =>
+        calculatePlayerRatings(
+            [match(NICO, 1, SANTI, 0, "2026-01-01", extra)],
+            {
+                ...TEAM_OPTIONS,
+                teamStrength: strengthOf,
+            }
+        ).events[0]
+
+    const even = run(withStrength(80, 80))
+    const p1Stronger = run(withStrength(85, 80))
+    const p2Stronger = run(withStrength(80, 85))
+
+    assert.equal(even.expectedP1, 0.5)
+    assert.ok(p1Stronger.expectedP1 > 0.5)
+    assert.ok(p2Stronger.expectedP1 < 0.5)
+    // Intercambiar los lados da el espejo exacto.
+    assert.ok(
+        Math.abs(p1Stronger.expectedP1 + p2Stronger.expectedP1 - 1) < 1e-12
+    )
+})
+
+test("equal players with a 10-point overall gap expect about 0.81 at weight 25", () => {
+    const { events } = calculatePlayerRatings(
+        [match(NICO, 1, SANTI, 0, "2026-01-01", withStrength(90, 80))],
+        { ...TEAM_OPTIONS, teamStrength: strengthOf }
+    )
+
+    assert.ok(
+        Math.abs(events[0].expectedP1 - 1 / (1 + 10 ** (-250 / 400))) < 1e-12
+    )
+    assert.ok(Math.abs(events[0].expectedP1 - 0.808) < 0.001)
+    assert.equal(events[0].teamAdjustment, 250)
+})
+
+test("missing team data behaves exactly like 1.0", () => {
+    const base = [
+        match(NICO, 2, SANTI, 0, "2026-01-01", SINGLE_SIDED),
+        match(SANTI, 1, NICO, 1, "2026-01-02", SINGLE_SIDED),
+        match(NICO, 0, SANTI, 3, "2026-01-03"),
+    ]
+    const reference = calculatePlayerRatings(base, {
+        ...TEAM_OPTIONS,
+        teamStrengthWeight: 0,
+        teamStrength: null,
+    })
+
+    const variants = {
+        "lookup sin datos": { teamStrength: () => null },
+        "teamStrength null": { teamStrength: null },
+        "partido sin torneo ni equipos": { teamStrength: strengthOf },
+        "overall de un solo equipo": {
+            teamStrength: createTeamStrengthLookup({
+                editionByTournament: { x: "FIFA 19" },
+                overallByTeamEdition: { "1|FIFA 19": 90 },
+            }),
+        },
+    }
+    for (const [label, extra] of Object.entries(variants)) {
+        const result = calculatePlayerRatings(base, {
+            ...TEAM_OPTIONS,
+            ...extra,
+        })
+        assert.deepEqual(
+            result.events.map(({ delta, expectedP1 }) => [delta, expectedP1]),
+            reference.events.map(({ delta, expectedP1 }) => [
+                delta,
+                expectedP1,
+            ]),
+            label
+        )
+        assert.equal(
+            result.players.get("n").rating,
+            reference.players.get("n").rating,
+            label
+        )
+        assert.ok(
+            result.events.every(
+                (event) =>
+                    event.teamAdjustment === 0 &&
+                    event.p1.teamOverall === null &&
+                    event.p2.teamOverall === null
+            ),
+            label
+        )
+    }
+})
+
+test("weight 0 reproduces 1.0 exactly even when the lookup has data", () => {
+    const results = [
+        [2, 0],
+        [1, 1],
+        [0, 1],
+        [3, 2],
+        [0, 0],
+        [1, 4],
+    ]
+    const matches = results.map(([a, b], index) =>
+        match(
+            index % 2 ? SANTI : NICO,
+            a,
+            index % 2 ? NICO : SANTI,
+            b,
+            `2026-02-0${index + 1}`,
+            withStrength(70 + index * 3, 90 - index * 2)
+        )
+    )
+    const plain = matches.map(({ strength, ...rest }) => rest)
+
+    const withData = calculatePlayerRatings(matches, {
+        ...OPTIONS,
+        teamStrengthWeight: 0,
+        teamStrength: strengthOf,
+    })
+    const without = calculatePlayerRatings(plain, {
+        ...OPTIONS,
+        teamStrengthWeight: 0,
+        teamStrength: null,
+    })
+
+    assert.equal(withData.events.length, 6)
+    for (const [index, event] of withData.events.entries()) {
+        assert.equal(event.expectedP1, without.events[index].expectedP1)
+        assert.equal(event.delta, without.events[index].delta)
+        assert.equal(event.p1.before, without.events[index].p1.before)
+    }
+    assert.equal(
+        withData.players.get("n").rating,
+        without.players.get("n").rating
+    )
+    assert.equal(
+        withData.players.get("s").rating,
+        without.players.get("s").rating
+    )
+    // Con peso 0 no se aplicó término: los overalls no se exponen.
+    assert.ok(withData.events.every((event) => event.p1.teamOverall === null))
+})
+
+test("the team term keeps the exchange zero-sum", () => {
+    const matches = [
+        match(NICO, 2, SANTI, 0, "2026-01-01", withStrength(88, 75)),
+        match(SANTI, 1, LEO, 3, "2026-01-02", withStrength(70, 90)),
+        match(LEO, 0, NICO, 0, "2026-01-03", withStrength(80, 80)),
+        match(NICO, 1, SANTI, 2, "2026-01-04", withStrength(60, 92)),
+    ]
+    const { players, events, config } = calculatePlayerRatings(matches, {
+        ...TEAM_OPTIONS,
+        teamStrength: strengthOf,
+    })
+
+    const total = [...players.values()].reduce(
+        (sum, player) => sum + player.rating,
+        0
+    )
+    assert.ok(Math.abs(total - players.size * config.initialRating) < 1e-9)
+    assert.ok(events.every((event) => event.teamAdjustment !== undefined))
+    assert.ok(events.some((event) => event.teamAdjustment !== 0))
+})
+
+test("the displayed rating does not include the team term", () => {
+    const { players, events } = calculatePlayerRatings(
+        [match(NICO, 1, SANTI, 0, "2026-01-01", withStrength(90, 70))],
+        { ...TEAM_OPTIONS, teamStrength: strengthOf }
+    )
+    const [event] = events
+
+    assert.equal(event.p1.before, 1500)
+    assert.equal(event.p2.before, 1500)
+    assert.equal(
+        players.get("n").rating,
+        1500 + TEAM_OPTIONS.kFactor * (1 - event.expectedP1)
+    )
+    // El favorito por equipo que gana sube poco: el esperado ya lo contaba.
+    assert.ok(players.get("n").rating - 1500 < TEAM_OPTIONS.kFactor / 2)
+
+    const snapshot = snapshotBefore(events, null, 1500)
+    assert.equal(snapshot.get("n").rating, players.get("n").rating)
+    assert.equal(snapshot.get("s").rating, players.get("s").rating)
+})
+
+test("events expose the team overalls and the adjustment used", () => {
+    const { events } = calculatePlayerRatings(
+        [
+            match(NICO, 1, SANTI, 0, "2026-01-01", withStrength(84, 79)),
+            match(NICO, 1, SANTI, 0, "2026-01-02"),
+        ],
+        { ...TEAM_OPTIONS, teamStrength: strengthOf }
+    )
+
+    assert.equal(events[0].p1.teamOverall, 84)
+    assert.equal(events[0].p2.teamOverall, 79)
+    assert.equal(events[0].teamAdjustment, 125)
+    assert.equal(events[1].p1.teamOverall, null)
+    assert.equal(events[1].p2.teamOverall, null)
+    assert.equal(events[1].teamAdjustment, 0)
+})
+
+test("the returned config does not carry the injected lookup", () => {
+    const { config } = calculatePlayerRatings([], {
+        teamStrength: strengthOf,
+        teamStrengthWeight: 10,
+    })
+    assert.equal(config.teamStrength, undefined)
+    assert.equal(config.teamStrengthWeight, 10)
+})
+
+test("the default lookup reads real overalls from data/teamRatings.json", () => {
+    const data = require("../data/teamRatings.json")
+    const [key] = Object.keys(data.overallByTeamEdition)
+    const [teamId, edition] = key.split("|")
+    const tournamentId = Object.keys(data.editionByTournament).find(
+        (id) => data.editionByTournament[id] === edition
+    )
+    const overall = data.overallByTeamEdition[key]
+    const tournament = { id: tournamentId, name: "Real" }
+
+    for (const [id1, id2] of [
+        [Number(teamId), Number(teamId)],
+        [String(teamId), String(teamId)],
+    ]) {
+        const { events } = calculatePlayerRatings([
+            match(NICO, 1, SANTI, 0, "2026-01-01", {
+                tournament,
+                teamP1: { id: id1, name: "A" },
+                teamP2: { id: id2, name: "B" },
+            }),
+        ])
+        assert.equal(events[0].p1.teamOverall, overall)
+        assert.equal(events[0].p2.teamOverall, overall)
+        // Mismo overall en ambos lados: el término se cancela.
+        assert.equal(events[0].teamAdjustment, 0)
+    }
+})
+
+// --- Comparación 1.0 vs 2.0 ---
+
+// Nico siempre juega con el equipo fuerte (90 vs 70). El Elo de jugadores solo
+// lo explica mal; el término de equipo lo explica bien.
+const teamDrivenMatches = (count = 120) =>
+    Array.from({ length: count }, (_, index) => {
+        const nicoStrong = index % 2 === 0
+        const nicoWins = nicoStrong ? index % 10 !== 0 : index % 10 === 1
+        return match(
+            NICO,
+            nicoWins ? 2 : 0,
+            SANTI,
+            nicoWins ? 0 : 2,
+            new Date(Date.UTC(2026, 0, 1 + index)).toISOString(),
+            withStrength(nicoStrong ? 90 : 70, nicoStrong ? 70 : 90)
+        )
+    })
+
+test("compareTeamStrength prefers a positive weight when team strength drives results", () => {
+    const comparison = compareTeamStrength(teamDrivenMatches(), [0, 10, 25], {
+        minGames: 5,
+        options: { teamStrength: strengthOf },
+    })
+
+    const byWeight = new Map(comparison.results.map((r) => [r.weight, r]))
+    assert.ok(byWeight.get(25).all.logLoss < byWeight.get(0).all.logLoss)
+    assert.ok(comparison.best.weight > 0)
+    assert.ok(byWeight.get(comparison.best.weight).pairedAll.gain > 0)
+    assert.equal(byWeight.get(0).pairedAll.gain, 0)
+    assert.ok(comparison.trainMatches > 0)
+    assert.ok(comparison.testMatches > 0)
+    assert.equal(
+        comparison.trainMatches + comparison.testMatches,
+        comparison.evaluableMatches
+    )
+    for (const { all, train, test: held } of comparison.results) {
+        assert.ok(all.matches > 0 && train.matches > 0 && held.matches > 0)
+    }
+})
+
+test("compareTeamStrength gives identical results when no team data exists", () => {
+    const plain = teamDrivenMatches().map(({ strength, ...rest }) => rest)
+    const comparison = compareTeamStrength(plain, [0, 25], {
+        minGames: 5,
+        options: { teamStrength: strengthOf },
+    })
+    const [zero, weighted] = comparison.results
+
+    assert.equal(zero.all.logLoss, weighted.all.logLoss)
+    assert.equal(weighted.pairedAll.gain, 0)
+    assert.equal(weighted.pairedTest.gain, 0)
+})
+
+test("compareTeamStrength returns null when nothing is evaluable", () => {
+    assert.equal(compareTeamStrength([], [0, 25]), null)
+    assert.equal(
+        compareTeamStrength([match(NICO, 1, SANTI, 0, "2026-01-01")], [0, 25]),
+        null
+    )
 })

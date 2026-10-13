@@ -1533,7 +1533,12 @@ paths:
                 enseguida. Todos los jugadores arrancan en `initialRating`.
                 Un empate, también el definido por penales, vale 0,5. El
                 rating es provisorio (`provisional`) hasta `provisionalMatches`
-                partidos. No considera la fuerza de los equipos usados.
+                partidos. Desde la versión 2.0 también considera la fuerza de
+                los equipos usados: el puntaje esperado de cada partido suma
+                `teamStrengthWeight` por el "overall" de Sofifa del equipo
+                (de la edición del juego con que se jugó el torneo) cuando hay
+                dato de ambos equipos; si falta alguno, el partido se calcula
+                como en la 1.0. El rating mostrado no incluye ese término.
             responses:
                 "200":
                     description: Ranking, del mejor al peor
@@ -1562,7 +1567,10 @@ paths:
                 `previousRating` son `null` para jugadores que todavía no tenían
                 partidos al inicio; su `ratingChange` se mide contra el rating
                 inicial. `highlights.biggestUpset` es el partido con ganador que
-                el Elo menos esperaba (`null` si no hubo sorpresas).
+                el Elo menos esperaba (`null` si no hubo sorpresas); su
+                `winnerExpectedScore` ("esperaba") incluye el término de
+                fuerza de equipo (`teamStrengthWeight`) cuando hay dato de
+                ambos equipos.
             parameters:
                 - in: query
                   name: dateFrom
@@ -1797,12 +1805,24 @@ components:
             type: object
             description: Parámetros con los que se calculó el Elo
             properties:
+                version:
+                    type: string
+                    description: Versión del APA Rating (ver docs/APA-RATING.md)
+                    example: "2.0"
                 initialRating:
                     type: number
                 kFactor:
                     type: number
                 marginWeight:
                     type: number
+                teamStrengthWeight:
+                    type: number
+                    description: >-
+                        Puntos Elo que suma el puntaje esperado por cada punto
+                        de "overall" de Sofifa del equipo usado. Con 25, una
+                        brecha de 10 de overall pesa 250 puntos Elo. 0 es el
+                        rating 1.0 (sin fuerza de equipos).
+                    example: 25
                 provisionalMatches:
                     type: integer
         RatingPlayer:
