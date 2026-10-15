@@ -1,5 +1,6 @@
 const { HttpError } = require("../../middleware/httpErrors")
 const { classifySeriesMatch } = require("../../service/playoffSeries")
+const ratingSync = require("../../service/syncRatingsAfterWrite")
 const logger = require("../../utils/logger")
 const withTransaction = require("../../utils/withTransaction")
 const {
@@ -123,6 +124,11 @@ const createPutMatchByTournamentId = (dependencies = {}) => {
         dependencies.processPlayoffSeriesResult || processPlayoffSeriesResult
     const runInTransaction = dependencies.withTransaction || withTransaction
     const log = dependencies.logger || logger
+    // Actualiza los ratings persistidos DESPUÉS de confirmada la escritura y
+    // ANTES de responder (la función serverless puede congelarse al responder).
+    // Nunca hace fallar ni cambia la respuesta: ver service/ratingsSync/hook.
+    const syncRatings =
+        dependencies.syncRatings || ratingSync.syncRatingsAfterWrite
 
     return async (req, res) => {
         const { tournament, match } = req.params
@@ -137,6 +143,10 @@ const createPutMatchByTournamentId = (dependencies = {}) => {
                 body: req.body,
                 requestId: req.requestId || null,
             })
+            await ratingSync.triggerRatingSync(
+                syncRatings,
+                "match_result_saved"
+            )
             return res.status(200).send(result)
         }
         if (classification === "invalid") {
@@ -331,6 +341,7 @@ const createPutMatchByTournamentId = (dependencies = {}) => {
             return updatedMatch
         })
 
+        await ratingSync.triggerRatingSync(syncRatings, "match_result_saved")
         return res.status(200).send(uploadedMatch)
     }
 }

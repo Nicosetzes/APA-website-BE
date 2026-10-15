@@ -7,11 +7,18 @@ const {
 // Aplica un diff (service/ratingsStore/diff) a `player-ratings` y
 // `rating-events` con bulkWrite en tandas. Solo puede escribir en esas dos
 // colecciones. Los modelos se cargan recién al llamar (o se inyectan, para
-// tests). Todavía no se exporta desde dao/index.js.
+// tests). NO se exporta desde dao/index.js a propósito: lo usan el script
+// `recompute:ratings` y service/syncRatingsAfterWrite (la actualización al
+// escribir, etapa 3), y la lectura de la app no debe cargar el camino de
+// escritura (lo exige test/ratingsStoreScripts.test.js).
 //
-// No es transaccional en la etapa 1 (colecciones derivadas y recomputables);
-// `session` se pasa a bulkWrite para poder envolverlo en una transacción más
-// adelante sin cambiar la firma.
+// No es transaccional (colecciones derivadas y recomputables; el orden eventos
+// y luego jugadores hace seguro el estado intermedio); `session` se pasa a
+// bulkWrite para poder envolverlo en una transacción sin cambiar la firma.
+//
+// `shouldContinue` (opcional) se evalúa antes de cada tanda; si da falso se
+// corta y el resultado trae `cancelled: true` (lo usa el presupuesto de tiempo
+// de la etapa 3).
 const assertAllowedModel = (model) => {
     if (!ALLOWED_COLLECTIONS.includes(model?.collection?.name)) {
         throw new Error(
@@ -66,16 +73,25 @@ const eventKey = (doc) => ({
 })
 const playerKey = (doc) => ({ ratingVersion: doc.ratingVersion, id: doc.id })
 
-const writeInBatches = async (model, operations, batchSize, session) => {
+// `shouldContinue` se evalúa ANTES de cada tanda: si devuelve falso se corta ahí
+// (`cancelled: true`) y no se escribe nada más.
+const writeInBatches = async (
+    model,
+    operations,
+    batchSize,
+    session,
+    shouldContinue
+) => {
     let batches = 0
     for (let start = 0; start < operations.length; start += batchSize) {
+        if (!shouldContinue()) return { batches, cancelled: true }
         await model.bulkWrite(operations.slice(start, start + batchSize), {
             ordered: false,
             ...(session ? { session } : {}),
         })
         batches += 1
     }
-    return batches
+    return { batches, cancelled: false }
 }
 
 const counts = (section) => ({
@@ -86,7 +102,13 @@ const counts = (section) => ({
 
 const applyRatingDiff = async (
     diff,
-    { playersModel, eventsModel, batchSize = DEFAULT_BATCH_SIZE, session } = {}
+    {
+        playersModel,
+        eventsModel,
+        batchSize = DEFAULT_BATCH_SIZE,
+        session,
+        shouldContinue = () => true,
+    } = {}
 ) => {
     const players = playersModel ?? require("../models/playerRatings")
     const events = eventsModel ?? require("../models/ratingEvents")
@@ -100,23 +122,35 @@ const applyRatingDiff = async (
     // no deja una escritura a medias.
     const eventOperations = buildOperations(diff.events, eventKey, ["matchId"])
     const playerOperations = buildOperations(diff.players, playerKey, ["id"])
-    const eventBatches = await writeInBatches(
+    // Primero TODOS los eventos y recién después los jugadores: los jugadores
+    // llevan `source` + `fingerprint`, el marcador de frescura (ver
+    // service/ratingsStore/freshness). Si el proceso se corta entre las dos
+    // colecciones, los jugadores guardados siguen con el `source` viejo y los
+    // lectores caen al camino en vivo.
+    const eventsResult = await writeInBatches(
         events,
         eventOperations,
         batchSize,
-        session
+        session,
+        shouldContinue
     )
-    const playerBatches = await writeInBatches(
-        players,
-        playerOperations,
-        batchSize,
-        session
-    )
-    return {
+    const playersResult = eventsResult.cancelled
+        ? { batches: 0, cancelled: true }
+        : await writeInBatches(
+              players,
+              playerOperations,
+              batchSize,
+              session,
+              shouldContinue
+          )
+    const result = {
         events: counts(diff.events),
         players: counts(diff.players),
-        batches: eventBatches + playerBatches,
+        batches: eventsResult.batches + playersResult.batches,
     }
+    // Sin la clave `cancelled` cuando se aplicó completo: misma forma que antes.
+    if (playersResult.cancelled) result.cancelled = true
+    return result
 }
 
 module.exports = applyRatingDiff

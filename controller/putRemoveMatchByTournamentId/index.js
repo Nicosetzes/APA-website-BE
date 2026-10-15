@@ -1,5 +1,6 @@
 const { HttpError } = require("../../middleware/httpErrors")
 const { classifySeriesMatch } = require("../../service/playoffSeries")
+const ratingSync = require("../../service/syncRatingsAfterWrite")
 const withTransaction = require("../../utils/withTransaction")
 const {
     modifyMatchResultToRemoveIt,
@@ -16,6 +17,11 @@ const createPutRemoveMatchByTournamentId = (dependencies = {}) => {
         dependencies.modifyTournamentStartedAtAfterRemoval ||
         modifyTournamentStartedAtAfterRemoval
     const runInTransaction = dependencies.withTransaction || withTransaction
+    // Actualiza los ratings persistidos DESPUÉS de confirmada la escritura y
+    // ANTES de responder (la función serverless puede congelarse al responder).
+    // Nunca hace fallar ni cambia la respuesta: ver service/ratingsSync/hook.
+    const syncRatings =
+        dependencies.syncRatings || ratingSync.syncRatingsAfterWrite
 
     return async (req, res) => {
         const { tournament, match } = req.params
@@ -64,6 +70,7 @@ const createPutRemoveMatchByTournamentId = (dependencies = {}) => {
             )
         }
 
+        await ratingSync.triggerRatingSync(syncRatings, "match_result_removed")
         return res.status(200).json(matchWithoutResult)
     }
 }

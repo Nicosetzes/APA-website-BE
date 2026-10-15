@@ -10,9 +10,9 @@
 const { isTestDatabaseName } = require("../../config/databaseSafety")
 const {
     checkRatingsDrift,
-    computeRatingsState,
-    diffRatingDocuments,
+    diffAgainstStored,
     formatSummary,
+    loadRatingsState,
     summarizeDiff,
 } = require("../../service/ratingsStore")
 const { URI_ENV_PATTERN } = require("../migrations/lib/args")
@@ -191,20 +191,15 @@ const runRecompute = async (args, deps) => {
             allowProduction: args.allowProduction,
             databaseName: name,
         })
-        // Orden a propósito: primero las stats y después el historial. Si se
-        // cuela una escritura entre ambas lecturas, el `source` guardado queda
-        // más viejo que los datos usados y el read-model parece desactualizado
-        // (seguro). Al revés podría declararse fresco algo calculado con datos
-        // viejos.
-        const sourceStats = await deps.loadSourceStats()
-        const matches = await deps.loadMatches()
-        const state = computeRatingsState(matches, {
-            now: deps.now(),
-            sourceStats,
+        // Orden de lecturas (stats antes que el historial): ver
+        // `loadRatingsState` en service/ratingsStore/pipeline.js.
+        const { sourceStats, state } = await loadRatingsState({
+            loadSourceStats: deps.loadSourceStats,
+            loadMatches: deps.loadMatches,
+            now: deps.now,
         })
         reportState(deps, state, sourceStats)
-        const stored = await deps.findStored(state.ratingVersion)
-        const diff = diffRatingDocuments(state.computed, stored)
+        const { diff } = await diffAgainstStored(state, deps.findStored)
         deps.log("Diferencias contra lo guardado:")
         printSummary(deps, diff, args.sample)
         if (!args.apply) {
@@ -218,8 +213,10 @@ const runRecompute = async (args, deps) => {
         deps.log(
             `Aplicado: ${result.batches} llamadas a bulkWrite en player-ratings y rating-events.`
         )
-        const storedAfter = await deps.findStored(state.ratingVersion)
-        const diffAfter = diffRatingDocuments(state.computed, storedAfter)
+        const { diff: diffAfter } = await diffAgainstStored(
+            state,
+            deps.findStored
+        )
         deps.log("Diferencias después de aplicar:")
         printSummary(deps, diffAfter, args.sample)
         if (!summarizeDiff(diffAfter, { maxExamples: 0 }).inSync) {
@@ -249,13 +246,11 @@ const runVerify = async (args, deps) => {
         const { name } = await deps.connect()
         connected = true
         deps.log(`Base: ${name} (modo: solo lectura)`)
-        // Mismo orden que en recompute (stats antes que el historial), a
-        // propósito: ver el comentario de runRecompute.
-        const sourceStats = await deps.loadSourceStats()
-        const matches = await deps.loadMatches()
-        const state = computeRatingsState(matches, {
-            now: deps.now(),
-            sourceStats,
+        // Mismo pipeline que en recompute (stats antes que el historial).
+        const { sourceStats, state } = await loadRatingsState({
+            loadSourceStats: deps.loadSourceStats,
+            loadMatches: deps.loadMatches,
+            now: deps.now,
         })
         reportState(deps, state, sourceStats)
         const stored = await deps.findStored(state.ratingVersion)

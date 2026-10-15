@@ -186,7 +186,7 @@ El historial se lee con `dao/findRatingMatches`: `.lean()` (objetos planos, sin 
 
 ### Ratings persistidos (etapa 1)
 
-Se guarda la salida del motor en dos colecciones **derivadas**, para que más adelante las pantallas lean de ahí en vez de recalcular todo el historial. `matches` (`face-to-face`) sigue siendo la única fuente de verdad: las dos colecciones se pueden borrar y reconstruir en cualquier momento. Las escriben y verifican dos scripts; desde la etapa 2 tres endpoints las leen (ver [Lectura desde los ratings persistidos (etapa 2)](#lectura-desde-los-ratings-persistidos-etapa-2)). `/ratings`, `/ratings/period`, las estadísticas y `/matches` siguen sin leerlas.
+Se guarda la salida del motor en dos colecciones **derivadas**, para que más adelante las pantallas lean de ahí en vez de recalcular todo el historial. `matches` (`face-to-face`) sigue siendo la única fuente de verdad: las dos colecciones se pueden borrar y reconstruir en cualquier momento. Las escriben y verifican dos scripts; desde la etapa 2 tres endpoints las leen (ver [Lectura desde los ratings persistidos (etapa 2)](#lectura-desde-los-ratings-persistidos-etapa-2)) y desde la etapa 3 cada resultado cargado, editado o borrado las actualiza (ver [Actualización al escribir (etapa 3)](#actualización-al-escribir-etapa-3)). `/ratings`, `/ratings/period`, las estadísticas y `/matches` siguen sin leerlas.
 
 #### `player-ratings` (un documento por `(ratingVersion, id)`)
 
@@ -216,7 +216,7 @@ Es un SHA-256 del JSON canónico (claves ordenadas) de `config/ratings.js` (todo
 -   `npm run recompute:ratings -- --apply` crea los índices de las dos colecciones, aplica el diff (`bulkWrite` en tandas de 500) y vuelve a leer para comprobar que no quedó ninguna diferencia. Solo escribe en `player-ratings` y `rating-events`; `matches` no se toca. En una base que no es de pruebas exige además `--allow-production`.
 -   `npm run verify:ratings` es **solo lectura**: no acepta `--apply`, no crea índices y sale con código 1 si hay drift y 0 si coincide.
 -   Ambos aceptan `--uri-env MONGO_URI_PROD` (por defecto `MONGO_URI`) y `--sample <n>` (ids de ejemplo del resumen). La URI nunca se imprime, solo el nombre de la base.
--   Una vez creadas, las colecciones no se actualizan solas: cada vez que cambien los partidos hay que re-correr `recompute:ratings -- --apply` (la actualización automática por escritura es la etapa 3).
+-   Desde la etapa 3 la API mantiene las colecciones al día cuando se carga, edita o borra un resultado. El script sigue siendo necesario para el relleno inicial, cuando cambia la fórmula o los datos de equipos (cambia el fingerprint), cuando una corrección toca muchos resultados (diff grande) y después de cualquier cambio hecho fuera de la API (migraciones, ediciones directas en la base).
 
 #### Qué es un drift
 
@@ -230,7 +230,7 @@ El camino con la base real (casteo de `matchId` en `bulkWrite`, `$set` anidado, 
 
 #### Qué pasa al desplegar
 
-Desde la etapa 2 la app carga los modelos (`dao/models/playerRatings.js` y `dao/models/ratingEvents.js`) para leer, pero tienen `autoIndex` y `autoCreate` apagados. Las colecciones y sus índices no se crean al desplegar: solo cuando se corre el script con `--apply`. Mientras no existan (o estén desactualizadas) los endpoints usan el camino en vivo. El camino de escritura (`dao/applyRatingDiff`, `dao/findStoredRatingDocuments`, `service/ratingsStore/` salvo la frescura y el fingerprint) no lo carga la app.
+Desde la etapa 2 la app carga los modelos (`dao/models/playerRatings.js` y `dao/models/ratingEvents.js`) para leer, pero tienen `autoIndex` y `autoCreate` apagados. Las colecciones y sus índices no se crean al desplegar: solo cuando se corre el script con `--apply`. Mientras no existan (o estén desactualizadas) los endpoints usan el camino en vivo. El camino de escritura (`dao/applyRatingDiff`, `dao/findStoredRatingDocuments`, `service/ratingsStore/` salvo la frescura y el fingerprint) no lo cargan la lectura ni los barrels `dao/index.js` y `service/index.js`; desde la etapa 3 lo cargan los controllers de cargar y borrar resultados, por ruta directa (`service/syncRatingsAfterWrite`). Los índices siguen sin crearse al desplegar: hay que correr `recompute:ratings -- --apply` ANTES de confiar en la actualización al escribir, porque en ejecución hace `upsert` y sin el índice único `(ratingVersion, id)` / `(ratingVersion, matchId)` una carrera entre instancias podría duplicar un documento.
 
 ### Lectura desde los ratings persistidos (etapa 2)
 
@@ -272,13 +272,124 @@ Otras notas:
 
 -   **`ratedMatches` y `eventCount`.** `ratedMatches` cuenta los partidos que cumplen el filtro del motor (jugados y válidos). Puede ser mayor que la cantidad de eventos porque ese filtro incluye partidos que el motor no califica (mismo jugador en ambos lados, goles no enteros, sin jugador). Se compara contra la misma consulta, no contra los eventos.
 -   **Limitación de `updatedAt`.** Las ediciones nativas o masivas que no actualizan `updatedAt` (scripts de migración, `updateMany` sin timestamps, cambios directos en la base) solo las detecta la cantidad. Si una edición cambia un resultado sin cambiar la cantidad ni `updatedAt`, lo guardado se sigue usando hasta el próximo recompute.
--   **Qué hacer en la práctica.** Hasta la etapa 3 las colecciones no se actualizan solas: cada resultado cargado cambia la cantidad o el `updatedAt`, así que lo guardado queda desactualizado y los endpoints usan el camino en vivo (con el caché de 30 s) sin avisar. Después de cargar resultados o correr migraciones: `npm run recompute:ratings -- --apply --uri-env <VAR>` y luego `npm run verify:ratings -- --uri-env <VAR>`. El beneficio de la etapa 2 aparece entre un recompute y la siguiente carga.
--   **Primera vez tras el deploy.** Los documentos de la etapa 1 no tienen `source`, así que hay que re-correr `recompute:ratings -- --apply` una vez en dev y otra en PROD después del deploy. Hasta entonces la razón es `missing_source` y todo sigue en vivo.
+-   **Qué hacer en la práctica.** Cada resultado cargado cambia la cantidad o el `updatedAt`, así que lo guardado queda desactualizado hasta que se actualice. Con la etapa 3 eso lo hace la propia API al escribir; si esa actualización no corre (`skipped`, `timeout`, `error` o interruptor apagado) los endpoints usan el camino en vivo (con el caché de 30 s) sin avisar. Después de migraciones o cambios fuera de la API, o si el log `rating_sync` dice `large_diff`: `npm run recompute:ratings -- --apply --uri-env <VAR>` y luego `npm run verify:ratings -- --uri-env <VAR>`.
+-   **Primera vez tras el deploy.** Los documentos de la etapa 1 no tienen `source`, así que hay que re-correr `recompute:ratings -- --apply` una vez en dev y otra en PROD después del deploy. Hasta entonces la razón es `missing_source` y todo sigue en vivo. Con la etapa 3, la primera carga de un resultado también completa el `source` si el diff entra en el umbral (solo cambian los jugadores); si no entra, se saltea por `large_diff` y queda para el script.
 -   **Costo por pedido:** una agregación sobre `matches` (no transfiere documentos), una lectura de los jugadores y una de los eventos pedidos, en lugar de leer el historial completo.
+
+### Actualización al escribir (etapa 3)
+
+Cuando se carga, edita o borra un resultado, la API deja al día `player-ratings` y `rating-events` antes de responder. Así lo guardado vuelve a estar fresco (etapa 2) sin correr el script a mano.
+
+#### Mecanismo: recomputar al escribir y persistir solo el diff
+
+Después de que la escritura del resultado se confirmó (y de cerrar cualquier transacción), el controller llama a la actualización, que corre **la misma tubería que `npm run recompute:ratings`** dentro del proceso:
+
+1. Lee las estadísticas del origen (`findRatingSourceStats`) y **después** el historial rateado, directo de la base (`dao/findRatingMatches`). Nunca pasa por `service/retrieveRatingMatches`: ese caché en memoria puede tener datos previos a la escritura hasta que termina la respuesta.
+2. Calcula el timeline y los documentos (`computeRatingsState`) con el fingerprint actual y el `source` leído.
+3. Lee lo guardado (`findStoredRatingDocuments`) y calcula el diff (`diffRatingDocuments`).
+4. Aplica **solo el diff** (`applyRatingDiff`). Si no hay diferencias, no escribe nada (`noop`).
+
+La tubería vive en `service/ratingsStore/pipeline.js` (lecturas + diff, un solo lugar) y la usan el script y la actualización al escribir: no hay dos implementaciones. El script mantiene su comportamiento (dry-run por defecto, mismos mensajes y exit codes) y **no tiene límite de cambios**.
+
+Se llama **antes** de responder y se espera (`await`): en Vercel la función puede congelarse apenas se envía la respuesta, así que no se deja trabajo "suelto" después de `res.json`. No se parchea `res.end`. El middleware que invalida el caché en memoria no cambia.
+
+#### Rutas de escritura
+
+El router tiene 11 rutas que no son `GET`. Solo dos cambian datos rateados:
+
+| Ruta                                                           | ¿Cambia datos rateados?                                                                                                                                                                       | Dónde se llama                                                                                                                                                                       |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PUT /api/tournaments/:tournament/matches/update-game/:match`  | Sí: carga o edita un resultado (liga, play-in, playoff de partido único o de serie, desempate, simulado y W.O.). Incluye lo que dispara en cascada (cruces de playoff y play-in, desempates). | `controller/putMatchByTournamentId`: tras `processSeries` (serie) o tras la transacción (legado), antes de `res.send`. Disparador `match_result_saved`.                              |
+| `PUT /api/tournaments/:tournament/matches/delete-game/:match`  | Sí: borra el resultado (`played: false`).                                                                                                                                                     | `controller/putRemoveMatchByTournamentId`: tras obtener el partido limpio (y comprobar que existe), antes de `res.json`. Sirve a los dos caminos. Disparador `match_result_removed`. |
+| `PUT /api/tournaments/:tournament/complete`                    | No: solo cierra el torneo (`tournaments`); el motor no lee esa colección.                                                                                                                     | No se llama.                                                                                                                                                                         |
+| `POST /api/tournaments/:tournament/fixture`                    | No: crea partidos sin jugar.                                                                                                                                                                  | No se llama.                                                                                                                                                                         |
+| `POST /api/tournaments/:tournament/playin`                     | No: crea partidos sin jugar.                                                                                                                                                                  | No se llama.                                                                                                                                                                         |
+| `POST /api/tournaments/:tournament/playoff`                    | No: crea llaves sin jugar.                                                                                                                                                                    | No se llama.                                                                                                                                                                         |
+| `POST /api/tournaments`                                        | No: crea el torneo (y el bracket inicial sin jugar).                                                                                                                                          | No se llama.                                                                                                                                                                         |
+| `POST /api/edits`, `DELETE /api/edits/:id`, `POST /api/recaps` | No: colecciones `edits` y `recaps`.                                                                                                                                                           | No se llama.                                                                                                                                                                         |
+| `POST /api/users/login`                                        | No: no escribe datos.                                                                                                                                                                         | No se llama.                                                                                                                                                                         |
+
+-   Se llama de forma **incondicional** tras cualquier escritura exitosa de resultado, aunque no haya cambiado ningún rating. Algunos DAOs (`updatePlayoffMatchTeams`, `updatePlayinMatchTeams`, `updatePlayoffSeriesSlots`) escriben con `timestamps: false`: un cambio en un partido ya jugado no sube `updatedAt` y la frescura no lo detectaría; el recálculo sí lo ve.
+-   Un resultado simulado o W.O. (`valid: false`) queda fuera del filtro del motor: cargarlo no cambia la cantidad ni el `updatedAt` del origen y la actualización responde `noop`. Convertir un resultado ya rateado en simulado o W.O. sí cambia la cantidad (se borra su evento).
+-   No se llama si la escritura falla (409, 404, error de transacción, etc.): la excepción se propaga antes.
+-   **Fuera de la API no hay actualización**: scripts de migración, `seedTestData`, `smokeWrite` y ediciones directas en la base. Después de eso hay que correr `npm run recompute:ratings -- --apply`.
+-   El test `test/ratingSyncRoutes.test.js` enumera las rutas del router y falla si aparece una de escritura sin clasificar.
+
+#### Política de fallos
+
+La actualización **nunca hace fallar la escritura ni cambia el status o el cuerpo de la respuesta**. Se llama dentro de un `try/catch`, con un presupuesto de tiempo (`Promise.race`) y, ante cualquier error o vencimiento, se loguea y se sigue. Esto es seguro porque el chequeo de frescura de la etapa 2 hace que, si lo guardado no quedó al día, los lectores vean `source: live` y la respuesta siga siendo correcta.
+
+-   **Error:** resultado `error` (se loguea solo el nombre del error, nunca el mensaje: el de un error del driver puede traer la URI).
+-   **Presupuesto vencido:** resultado `timeout`. El trabajo en curso no se cancela a la fuerza: corta solo en el próximo límite de tanda de escritura.
+-   **Base sin conexión** (solo ocurre en tests unitarios): se saltea sin loguear.
+
+#### Orden de escritura y por qué no hay transacción
+
+Se escribe primero `rating-events` completo (altas, cambios y borrado de huérfanos) y recién después `player-ratings`, que lleva `source` y `fingerprint`: el marcador de frescura.
+
+-   Mientras se escriben los eventos, los jugadores guardados siguen con el `source` viejo, que ya no coincide con `matches` (la escritura del resultado cambió la cantidad o el `updatedAt`): los lectores ven `stale_*` y calculan en vivo.
+-   Si el apply se corta entre jugadores (error, tandas, presupuesto), los `source` quedan mezclados: `inconsistent_players`, también en vivo.
+-   El estado "parece fresco pero está incompleto" exigiría jugadores nuevos con eventos viejos, y eso no puede pasar porque los jugadores se escriben cuando los eventos ya están completos. Hay tests que miran el estado intermedio (incluido el borrado de huérfanos) y lo evalúan con `assessFreshness`.
+
+No hace falta una transacción entre las dos colecciones: ambas son derivadas y recomputables, el marcador de frescura ya vuelve seguro cualquier estado intermedio, y una transacción con miles de documentos sumaría contención y límites de tamaño y tiempo (Atlas M0) sin mejorar la seguridad de lectura.
+
+**Límite conocido (doble fallo):** si una actualización queda a medias (eventos nuevos, jugadores viejos), después el origen vuelve exactamente al mismo `source` guardado (solo ocurre borrando o invalidando el último resultado editado) y la actualización siguiente también falla, los lectores podrían ver eventos del estado intermedio con jugadores "frescos". La próxima actualización exitosa lo corrige y `verify:ratings` lo detecta.
+
+#### Diferencias grandes
+
+Si el diff supera `RATING_SYNC_MAX_CHANGES` documentos (eventos y jugadores de las dos colecciones, 300 por defecto), la API **no lo aplica en línea** (límite de tiempo de la función en Vercel): loguea `skipped` con `reason: "large_diff"` y lo deja para el script. Pasa en estos casos:
+
+-   Relleno inicial (colecciones vacías) o historial grande.
+-   Cambio de fórmula, de parámetros o de datos de equipos (cambia el fingerprint: todo se reescribe).
+-   Edición de un resultado viejo que cambia muchos eventos posteriores.
+-   Muchos jugadores: una carga normal reescribe 1 evento y el `source` de **todos** los jugadores (cambia en cada escritura), así que el umbral alcanza mientras haya menos de unos 250 jugadores.
+
+Qué hacer: `npm run recompute:ratings -- --apply --uri-env <VAR>` (el script no tiene límite) y luego `npm run verify:ratings -- --uri-env <VAR>`. Mientras tanto los lectores usan el camino en vivo, con la misma respuesta.
+
+#### Concurrencia
+
+-   **En el proceso:** mutex con coalescing (`service/ratingsSync/coordinator.js`). Nunca corren dos actualizaciones a la vez; los pedidos que llegan durante una corrida comparten **una sola** corrida posterior (la que estaba en curso pudo haber leído antes de esas escrituras).
+-   **Pasada extra:** después de aplicar se vuelve a leer una vez las estadísticas del origen; si cambiaron durante la corrida, se hace otra pasada (máximo 2 extra). Si siguen cambiando se termina con `reason: "source_changed"` y lo guardado queda viejo (seguro: los lectores van en vivo).
+-   **Entre instancias** (varias funciones serverless a la vez) no hay exclusión. Una carrera deja lo guardado desactualizado o mezclado, lo detecta el chequeo de frescura (lectura en vivo) y `verify:ratings`, y se corrige con la actualización siguiente o con el script.
+
+#### Variables de entorno
+
+Se leen en cada llamada (`config/ratingSync.js`), así que un cambio vale sin reiniciar la instancia.
+
+| Variable                  | Default   | Efecto                                                                                                                                  |
+| ------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `RATING_SYNC_ON_WRITE`    | encendido | `off`, `0` o `false` (sin importar mayúsculas ni espacios) apagan la actualización al escribir. Cualquier otro valor la deja encendida. |
+| `RATING_SYNC_TIMEOUT_MS`  | `5000`    | Presupuesto de tiempo dentro del request. Vencido, la respuesta sale igual y se loguea `timeout`.                                       |
+| `RATING_SYNC_MAX_CHANGES` | `300`     | Máximo de documentos que se aplican en línea. Más que eso: `skipped` / `large_diff`.                                                    |
+
+Los dos números aceptan solo enteros positivos; un valor vacío, decimal, negativo, `0` o no numérico usa el default (`0` no significa "sin límite"; para apagar está el interruptor).
+
+#### Log `rating_sync`
+
+Una línea por actualización (ninguna si la base no está conectada, que solo ocurre en tests):
+
+```text
+{"level":"info","event":"rating_sync","result":"applied","reason":null,"changes":{"events":{"insert":1,"update":0,"delete":0},"players":{"insert":0,"update":42,"delete":0}},"ratedMatches":812,"durationMs":930,"trigger":"match_result_saved"}
+```
+
+-   `result`: `applied`, `noop`, `skipped`, `timeout`, `error` o `disabled`. Nivel `warn` para `timeout` y `error`, `info` para el resto.
+-   `reason`: `large_diff` (skipped), `deadline` o `budget_exceeded` (timeout), `source_changed` (applied), `env_off` (disabled), el nombre del error (error) o `null`.
+-   `changes`: documentos por colección y operación. En `applied` es lo aplicado; en `skipped`, lo que quedó sin aplicar.
+-   `ratedMatches`: partidos que cumplen el filtro del motor. Puede ser mayor que la cantidad de eventos (ver la nota de la etapa 2).
+-   `durationMs`, `trigger` (`match_result_saved` o `match_result_removed`) y `passes` si hubo más de una pasada. Nunca lleva ids ni datos personales.
+
+#### Costo
+
+En cada carga o borrado de un resultado se lee todo el historial rateado y todos los documentos guardados, dentro del request. Es el mismo trabajo del script más las escrituras del diff. El camino incremental ("agregar al final" sin recalcular todo) queda como optimización futura; requeriría extraer del motor un paso por partido y **no se hizo**.
+
+#### Pendientes
+
+-   Camino incremental "agregar al final" (optimización).
+-   Migrar `/ratings`, `/ratings/period`, las estadísticas y `/matches` a leer de lo persistido.
 
 ### Código
 
-`config/ratings.js` (parámetros), `service/playerRatings/` (motor, `timeline.js` con el punto de entrada único, `teamStrength.js` con el acceso a los datos, `prediction.js` con la Prob. de éxito de los duelos, presentación y evaluación), `service/retrieveRatingsTimeline/` y `dao/findRatingMatches/` (lectura del historial), `data/` (CSV fuente y JSON generado), `scripts/lib/teamRatingsData.js`, `scripts/buildTeamRatings.js`, `scripts/checkTeamRatings.js` y `scripts/evaluateRatings.js`. Capa de empate: `config/drawModel.js` (parámetros), `service/playerRatings/outcomes.js` (reparto en victoria / empate / derrota), `scripts/evaluateDraws.js` y `scripts/lib/drawEvaluation.js` (reajuste, solo lectura). Ratings persistidos: `service/ratingsStore/` (builder, fingerprint, diff y resumen, puros), `dao/models/playerRatings.js` y `dao/models/ratingEvents.js`, `dao/applyRatingDiff/`, `dao/findStoredRatingDocuments/`, `scripts/lib/ratingsStoreCli.js`, `scripts/recomputeRatings.js` y `scripts/verifyRatings.js`. Lectura persistida (etapa 2): `service/ratingsStore/freshness.js` (frescura, pura), `config/ratingReadModel.js` (interruptor), `service/ratingsReadModel/` (índice guardado con la misma forma que el del motor y su retriever), `service/retrieveStoredPredictionIndex/` (cableado con los DAOs), `dao/findRatingSourceStats/`, `dao/findPlayerRatings/`, `dao/findRatingEventsByMatchIds/` y `decorateMatchesWithPrediction` en `service/playerRatings/prediction.js`.
+`config/ratings.js` (parámetros), `service/playerRatings/` (motor, `timeline.js` con el punto de entrada único, `teamStrength.js` con el acceso a los datos, `prediction.js` con la Prob. de éxito de los duelos, presentación y evaluación), `service/retrieveRatingsTimeline/` y `dao/findRatingMatches/` (lectura del historial), `data/` (CSV fuente y JSON generado), `scripts/lib/teamRatingsData.js`, `scripts/buildTeamRatings.js`, `scripts/checkTeamRatings.js` y `scripts/evaluateRatings.js`. Capa de empate: `config/drawModel.js` (parámetros), `service/playerRatings/outcomes.js` (reparto en victoria / empate / derrota), `scripts/evaluateDraws.js` y `scripts/lib/drawEvaluation.js` (reajuste, solo lectura). Ratings persistidos: `service/ratingsStore/` (builder, fingerprint, diff y resumen, puros), `dao/models/playerRatings.js` y `dao/models/ratingEvents.js`, `dao/applyRatingDiff/`, `dao/findStoredRatingDocuments/`, `scripts/lib/ratingsStoreCli.js`, `scripts/recomputeRatings.js` y `scripts/verifyRatings.js`. Lectura persistida (etapa 2): `service/ratingsStore/freshness.js` (frescura, pura), `config/ratingReadModel.js` (interruptor), `service/ratingsReadModel/` (índice guardado con la misma forma que el del motor y su retriever), `service/retrieveStoredPredictionIndex/` (cableado con los DAOs), `dao/findRatingSourceStats/`, `dao/findPlayerRatings/`, `dao/findRatingEventsByMatchIds/` y `decorateMatchesWithPrediction` en `service/playerRatings/prediction.js`. Actualización al escribir (etapa 3): `service/ratingsStore/pipeline.js` y `service/ratingsStore/computeState.js` (tubería compartida con el script), `service/ratingsSync/` (corrida, coordinador y hook, puros con DI), `service/syncRatingsAfterWrite/` (cableado real con los DAOs; no se exporta desde `service/index.js` ni `dao/index.js`), `config/ratingSync.js` (variables de entorno) y la opción `shouldContinue` de `dao/applyRatingDiff/`.
 
 ### Al publicar
 
