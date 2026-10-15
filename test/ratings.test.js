@@ -9,6 +9,9 @@ const matchesModel = require("../dao/models/matches")
 const usersModel = require("../dao/models/users")
 const { createGetRatings } = require("../controller/getRatings")
 const { createGetRatingsPeriod } = require("../controller/getRatingsPeriod")
+const {
+    invalidate: invalidateRatingMatches,
+} = require("../service/retrieveRatingMatches")
 const { RATING_CONFIG } = require("../config/ratings")
 
 // Lo que gana el ganador de un partido entre iguales, con los K de la config.
@@ -214,6 +217,9 @@ test("ratings period with no matches still returns the standing with zero change
 })
 
 const withApp = async (t, callback) => {
+    // El historial se guarda unos segundos en memoria: cada test parte de cero.
+    invalidateRatingMatches()
+    t.after(invalidateRatingMatches)
     // Los ratings leen el historial con `find(...).lean()`.
     t.mock.method(matchesModel, "find", () => ({ lean: async () => MATCHES }))
     t.mock.method(usersModel, "find", async () => USERS)

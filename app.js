@@ -5,6 +5,9 @@ const helmet = require("helmet")
 const { root, users, tournaments, statistics } = require("./router/router")
 const { HttpError, notFound, errorHandler } = require("./middleware/httpErrors")
 const { requestContext } = require("./middleware/requestContext")
+const {
+    invalidateRatingCacheOnWrite,
+} = require("./middleware/invalidateRatingCache")
 
 const corsOrigins =
     process.env.NODE_ENV === "development"
@@ -75,6 +78,8 @@ const createApp = ({ ensureDatabase, getDatabaseStatus }) => {
         }
     })
 
+    // Cualquier escritura descarta el historial en memoria de los ratings.
+    app.use("/api", invalidateRatingCacheOnWrite())
     app.use("/api", root)
     app.use("/api/users", users)
     app.use("/api/tournaments", tournaments)

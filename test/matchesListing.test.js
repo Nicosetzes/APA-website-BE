@@ -922,7 +922,11 @@ const withStubbedFind = async (t, callback) => {
     })
     matchesModel.find = (...args) => {
         calls.push(args)
-        return Promise.resolve([...DATED_MATCHES])
+        // La query se puede esperar directamente o encadenar `.lean()`
+        // (findAllMatches lee con `.lean()`).
+        const query = Promise.resolve([...DATED_MATCHES])
+        query.lean = () => Promise.resolve([...DATED_MATCHES])
+        return query
     }
     const result = await callback()
     return { result, calls }

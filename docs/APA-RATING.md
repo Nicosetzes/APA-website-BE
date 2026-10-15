@@ -172,7 +172,17 @@ En un partido donde se puede empatar, el puntaje esperado E del motor no es la p
 
 Todos los endpoints de rating (`/ratings`, `/ratings/period` y las predicciones de playoff y play-in) pasan por un único punto, el **timeline** (`service/playerRatings/timeline.js`, `buildRatingsTimeline`): corre el motor una vez y expone `events`, `config`, `eventsByMatchId` y `snapshotAt(corte)`. Ningún controller llama al motor directo. Los scripts de evaluación (`scripts/evaluateRatings.js`, `service/playerRatings/evaluation.js`) sí lo usan directo porque prueban parámetros distintos.
 
-El historial se lee con `dao/findRatingMatches`: `.lean()` (objetos planos, sin hidratar documentos Mongoose) y una proyección mínima con lo que usa el motor: `playerP1/2.id` y `.name`, `teamP1/2.id` y `.name`, `scoreP1/2`, `tournament.id` y `.name`, `type` y `playedAt`. No se ordena en la consulta porque el motor ordena por su cuenta (`playedAt` y luego `_id`). Si el motor pasa a usar otro campo del partido, hay que sumarlo a `RATING_PROJECTION`; un test (`test/ratingsTimeline.test.js`) compara los eventos con el documento entero y con la proyección. Para el resto de las estadísticas se sigue usando `dao/findAllMatches`.
+El historial se lee con `dao/findRatingMatches`: `.lean()` (objetos planos, sin hidratar documentos Mongoose) y una proyección mínima con lo que usa el motor: `playerP1/2.id` y `.name`, `teamP1/2.id` y `.name`, `scoreP1/2`, `tournament.id` y `.name`, `type` y `playedAt`. No se ordena en la consulta porque el motor ordena por su cuenta (`playedAt` y luego `_id`). Si el motor pasa a usar otro campo del partido, hay que sumarlo a `RATING_PROJECTION`; un test (`test/ratingsTimeline.test.js`) compara los eventos con el documento entero y con la proyección. Para el resto de las estadísticas (estadísticas globales, equipos históricos y cara a cara) se usa `dao/findAllMatches`, que también lee con `.lean()` pero con una proyección más amplia (incluye `outcome`, `playoff_id` y `playedAtPrecision`).
+
+#### Caché en memoria del historial
+
+`service/retrieveRatingMatches` guarda el historial liviano en memoria (`utils/singleFlightCache.js`) y lo comparten todos los endpoints de rating (`/ratings`, `/ratings/period`, `playoff/matches`, `playin/matches` y el fixture). El motor se vuelve a calcular en cada pedido (unos 5 ms); lo que se evita es la lectura de la base (~0,5 s).
+
+-   **TTL:** 30 s por defecto. Se cambia con la variable de entorno `RATING_MATCHES_CACHE_TTL_MS` (`0` lo desactiva). Ver `config/cache.js`.
+-   **Pedidos simultáneos** comparten una sola lectura.
+-   **Escrituras:** `middleware/invalidateRatingCache.js` descarta el historial cuando termina cualquier `POST`, `PUT`, `PATCH` o `DELETE` bajo `/api` (también si falló o se cortó la conexión), así que cargar o borrar un resultado se ve al instante en esa instancia. Una lectura que había empezado antes de la escritura no se guarda.
+-   **Límite:** el caché es por instancia. En Vercel cada instancia serverless tiene el suyo y se pierde cuando se enfría. Otra instancia puede mostrar datos viejos hasta que venza el TTL, y los cambios hechos fuera de la API (scripts de migración, ediciones directas en la base) se ven recién al vencer el TTL.
+-   **Compartido y congelado:** el arreglo que devuelve está congelado y lo comparten todos los llamadores; no hay que modificarlo (el motor lo filtra y ordena en copias).
 
 ### Código
 
