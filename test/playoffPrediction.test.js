@@ -405,11 +405,16 @@ test("decorateMatchesWithPrediction no lee la base fuera de alcance ni sin parti
         return history()
     }
     const logger = createLogger()
-    const matches = [pending(NICO, SANTI)]
-
-    for (const tournament of [
-        { format: "champions_league" },
-        { format: "playoff", playoffMode: "two_legged" },
+    // Desempate (leg 3) de un playoff a dos piernas y play-in de la Champions.
+    for (const [tournament, matches] of [
+        [
+            { format: "playoff", playoffMode: "two_legged" },
+            [pending(NICO, SANTI, { type: "playoff", leg: 3 })],
+        ],
+        [
+            { format: "champions_league" },
+            [pending(NICO, SANTI, { type: "playin" })],
+        ],
     ]) {
         const result = await decorateMatchesWithPrediction({
             matches,

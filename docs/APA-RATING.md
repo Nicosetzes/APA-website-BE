@@ -133,15 +133,50 @@ Los mismos de la 1.0 (`GET /api/ratings` y `GET /api/ratings/period`). `paramete
 `GET /api/tournaments/:tournament/playoff/matches` y `GET /api/tournaments/:tournament/playin/matches` agregan `prediction` a cada partido: la "Prob. de éxito" de cada lado según el Rating APA 2.0.
 
 -   **Qué es:** el puntaje esperado del motor. En un cruce de partido único no hay empate final (se define por penales, que el motor cuenta 0,5), así que ese puntaje es la probabilidad de **avanzar**. No es la probabilidad de ganar en tiempo regular: el modelo no distingue ganar de empatar y definir por penales.
--   **A qué partidos aplica:** playoff y play-in de partido único (`league_playin_playoff`, `world_cup`, `world_cup_2026`, `super_cup` y `playoff` sin modo o `single`). En `champions_league` y en `playoff` con `playoffMode: "two_legged"` es `null` en todos los partidos.
+-   **A qué partidos aplica:** playoff y play-in de partido único (`league_playin_playoff`, `world_cup`, `world_cup_2026`, `super_cup` y `playoff` sin modo o `single`). En `champions_league` y en `playoff` con `playoffMode: "two_legged"` no hay "Prob. de éxito" (no hay una única probabilidad de avanzar): esos partidos usan la predicción de victoria / empate / derrota de la sección siguiente, o `null` en la pata 3 y en el play-in de `champions_league`.
 -   **Campos:** `p1` y `p2` (0 a 1, 3 decimales, suman 1), `basis`, `teamAdjusted` (`false` si no se aplicó el término de equipo y se calculó como la 1.0), `provisional` (algún jugador con menos de `provisionalMatches` partidos) y `ratingVersion`. `teamAdjusted` y `provisional` quedan solo en la API; el FE no los muestra.
 -   **Viva o previa (`basis`):** un partido jugado usa el evento que calculó el motor (`pre_match`, las odds de ese momento). Un partido por jugar con ambos lados cargados usa los ratings actuales (`current`): puede moverse si antes se juega otro partido de esos jugadores. Un jugador sin historial arranca en `initialRating` con 0 partidos.
 -   **`null`:** partido simulado o W.O. (`valid: false`), lado vacío (jugador o equipo), mismo jugador en ambos lados, partido jugado que el motor no puede calificar y cualquier falla del cálculo (se registra `match_predictions_unavailable` y la respuesta sigue en 200).
 -   **No se guarda nada.** Cambiar `config/ratings.js` o `data/teamRatings.json` cambia también las odds mostradas de partidos ya jugados; por eso se incluye `ratingVersion`. Cada consulta lee todos los partidos, igual que `GET /api/ratings`.
 
+### Probabilidades de victoria, empate y derrota (capa de empate)
+
+En un partido donde se puede empatar, el puntaje esperado E del motor no es la probabilidad de ganar: incluye medio punto por el empate. Esta capa reparte E entre victoria, empate y derrota.
+
+-   **Solo predicción.** El rating, `ratingVersion` (`"2.0"`) y el historial no cambian y nada de esto vuelve al motor. No hay versión ni tag nuevos del rating.
+-   **Relación con E:** `E = P(gana) + 0,5 · P(empata)`. Invariantes: `p1Win + draw + p2Win = 1` y `p1Win + draw / 2 = E` (con redondeo de 3 decimales, a lo sumo 0,001 de diferencia). Ninguna probabilidad es negativa.
+-   **Fórmula:** `draw = min(d0 · (4E(1 − E))^k, 2 · min(E, 1 − E))`, `p1Win = E − draw / 2`, `p2Win = 1 − E − draw / 2`. Parámetros en `config/drawModel.js`: `d0` 0,22 (empate entre iguales), `k` 1 (cuánto cae el empate en duelos desparejos) y `version` `draw-1`. Con estos valores el tope no se activa.
+-   **Ajuste:** 1.541 partidos de liga de PROD (2026-10-14), con una tasa de empate de 16,2 %. En validación cronológica el log-loss de tres resultados fue 0,780 con esta forma, 0,787 con un empate constante y 1,099 al azar. La precisión esperada es de unos ±3 puntos porcentuales. Se probó una propensión al empate por pareja de jugadores y se descartó: no mejoró fuera de muestra.
+-   **Referencia** (favorito / empate / el otro):
+
+| Duelo (E) | Gana el favorito | Empate | Gana el otro |
+| --------- | ---------------- | ------ | ------------ |
+| 50 / 50   | 39,0 %           | 22,0 % | 39,0 %       |
+| 55 / 45   | 44,1 %           | 21,8 % | 34,1 %       |
+| 60 / 40   | 49,4 %           | 21,1 % | 29,4 %       |
+| 70 / 30   | 60,8 %           | 18,5 % | 20,8 %       |
+| 80 / 20   | 73,0 %           | 14,1 % | 13,0 %       |
+| 90 / 10   | 86,0 %           | 7,9 %  | 6,0 %        |
+
+-   **Campos:** `kind` (`"outcomes"`), `p1Win`, `draw`, `p2Win`, `basis`, `teamAdjusted`, `provisional`, `ratingVersion` y `drawModelVersion`. La predicción de "Prob. de éxito" (`p1` / `p2`) no tiene `kind`: así se distinguen.
+-   **A qué partidos aplica:** liga (`type: "regular"`) en cualquier formato, playoffs de `champions_league` y las patas 1 y 2 de un playoff `two_legged`. La pata 3 es `null`. Los playoffs de partido único siguen con la "Prob. de éxito", sin cambios.
+-   **Endpoints:** `GET /api/tournaments/:tournament/fixture` (cada partido trae `prediction`, `outcomes` o `null`) y `GET /api/tournaments/:tournament/playoff/matches`.
+-   **Viva o previa (`basis`):** igual que la "Prob. de éxito". Un partido jugado usa el evento del motor (`pre_match`); uno por jugar usa los ratings actuales (`current`) y puede moverse si se juega antes otro partido de esos jugadores.
+-   **`null`:** partido simulado o W.O. (`valid: false`), lado vacío, mismo jugador en ambos lados, partido jugado que el motor no puede calificar y cualquier falla del cálculo (se registra `match_predictions_unavailable` y la respuesta sigue en 200).
+-   **Por partido, nunca de la serie.** No se estima la probabilidad de avanzar en un cruce de ida y vuelta.
+-   **No validado en ida y vuelta.** Los parámetros se ajustaron solo con partidos de liga. Se aplican a las patas de un playoff `two_legged` por suposición, sin haberlo medido.
+-   **Costo:** el fixture suma una lectura liviana (`.lean()`) del historial completo por consulta, igual que las predicciones de playoff.
+-   **Cómo reajustar:** `npm run evaluate:draws -- --uri-env MONGO_URI_PROD` (solo lectura) imprime tasa de empate, lo observado por duelo, la validación cronológica y el mejor ajuste. El script no modifica nada: si hace falta cambiar los valores, editar `config/drawModel.js` a mano y subir `version`.
+
+### Cómo se lee el historial (timeline)
+
+Todos los endpoints de rating (`/ratings`, `/ratings/period` y las predicciones de playoff y play-in) pasan por un único punto, el **timeline** (`service/playerRatings/timeline.js`, `buildRatingsTimeline`): corre el motor una vez y expone `events`, `config`, `eventsByMatchId` y `snapshotAt(corte)`. Ningún controller llama al motor directo. Los scripts de evaluación (`scripts/evaluateRatings.js`, `service/playerRatings/evaluation.js`) sí lo usan directo porque prueban parámetros distintos.
+
+El historial se lee con `dao/findRatingMatches`: `.lean()` (objetos planos, sin hidratar documentos Mongoose) y una proyección mínima con lo que usa el motor: `playerP1/2.id` y `.name`, `teamP1/2.id` y `.name`, `scoreP1/2`, `tournament.id` y `.name`, `type` y `playedAt`. No se ordena en la consulta porque el motor ordena por su cuenta (`playedAt` y luego `_id`). Si el motor pasa a usar otro campo del partido, hay que sumarlo a `RATING_PROJECTION`; un test (`test/ratingsTimeline.test.js`) compara los eventos con el documento entero y con la proyección. Para el resto de las estadísticas se sigue usando `dao/findAllMatches`.
+
 ### Código
 
-`config/ratings.js` (parámetros), `service/playerRatings/` (motor, `teamStrength.js` con el acceso a los datos, `prediction.js` con la Prob. de éxito de los duelos, presentación y evaluación), `data/` (CSV fuente y JSON generado), `scripts/lib/teamRatingsData.js`, `scripts/buildTeamRatings.js`, `scripts/checkTeamRatings.js` y `scripts/evaluateRatings.js`.
+`config/ratings.js` (parámetros), `service/playerRatings/` (motor, `timeline.js` con el punto de entrada único, `teamStrength.js` con el acceso a los datos, `prediction.js` con la Prob. de éxito de los duelos, presentación y evaluación), `service/retrieveRatingsTimeline/` y `dao/findRatingMatches/` (lectura del historial), `data/` (CSV fuente y JSON generado), `scripts/lib/teamRatingsData.js`, `scripts/buildTeamRatings.js`, `scripts/checkTeamRatings.js` y `scripts/evaluateRatings.js`. Capa de empate: `config/drawModel.js` (parámetros), `service/playerRatings/outcomes.js` (reparto en victoria / empate / derrota), `scripts/evaluateDraws.js` y `scripts/lib/drawEvaluation.js` (reajuste, solo lectura).
 
 ### Al publicar
 

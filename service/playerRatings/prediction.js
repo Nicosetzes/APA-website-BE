@@ -1,19 +1,23 @@
-const {
-    calculatePlayerRatings,
-    expectedForMatch,
-    snapshotBefore,
-} = require("./index")
-const { defaultTeamStrength } = require("./teamStrength")
+const { DRAW_MODEL } = require("../../config/drawModel")
+const { buildRatingsTimeline } = require("./timeline")
+const { expectedForMatch } = require("./index")
+const { outcomeProbabilities } = require("./outcomes")
 
-// Probabilidad de éxito ("Prob. de éxito") de cada lado en un duelo de
-// eliminación de partido único, según el APA Rating 2.0.
+// Predicciones de un partido según el APA Rating 2.0. Hay dos formas, y
+// `predictionKind` decide cuál corresponde:
 //
-// El número es el puntaje esperado del motor. En un cruce de partido único no hay
-// empate final (se define por penales, que el motor cuenta 0,5), así que el
-// puntaje esperado es la probabilidad de AVANZAR, no de ganar en los 90 minutos.
+// - "advance" ({ p1, p2, ... }): "Prob. de éxito" en un cruce de eliminación de
+//   partido único. No hay empate final (se define por penales, que el motor
+//   cuenta 0,5), así que el puntaje esperado es la probabilidad de AVANZAR, no
+//   de ganar en los 90 minutos.
+// - "outcomes" ({ kind: "outcomes", p1Win, draw, p2Win, ... }): victoria /
+//   empate / derrota de un partido que puede empatarse (liga, playoffs de la
+//   Champions, ida y vuelta). Reparte el mismo puntaje esperado con el modelo de
+//   empate de `config/drawModel.js`. Es por partido, no por serie.
 //
-// Nada se guarda: partidos jugados usan el evento que calcula el motor (odds
-// previas al partido) y los pendientes usan los ratings actuales.
+// El motor de ratings no cambia: esta capa solo lee su puntaje esperado. Nada se
+// guarda: partidos jugados usan el evento que calcula el motor (odds previas al
+// partido) y los pendientes usan los ratings actuales.
 
 const idOf = (reference) =>
     reference?.id === undefined || reference?.id === null
@@ -33,22 +37,13 @@ const isSingleLegTournament = (tournament) =>
 // partido y el estado actual de cada jugador. `options` es el mismo que acepta
 // `calculatePlayerRatings` (sirve para tests).
 const buildPredictionIndex = (allMatches, options = {}) => {
-    const { events, config } = calculatePlayerRatings(allMatches || [], options)
-    // Debe ser el mismo lookup que usó el motor.
-    const lookup =
-        options.teamStrength === undefined
-            ? defaultTeamStrength
-            : options.teamStrength
-    const eventsByMatchId = new Map()
-    for (const event of events) {
-        if (event.matchId !== null) eventsByMatchId.set(event.matchId, event)
-    }
+    const timeline = buildRatingsTimeline(allMatches, options)
 
     return {
-        eventsByMatchId,
-        snapshot: snapshotBefore(events, null, config.initialRating),
-        config,
-        lookup,
+        eventsByMatchId: timeline.eventsByMatchId,
+        snapshot: timeline.snapshotAt(null),
+        config: timeline.config,
+        lookup: timeline.lookup,
     }
 }
 
@@ -61,10 +56,10 @@ const toProbabilities = (expectedP1) => {
     }
 }
 
-// `{ p1, p2, basis, teamAdjusted, provisional, ratingVersion }` o `null` si el
-// duelo no tiene predicción posible: lado vacío (jugador o equipo), mismo jugador
-// en ambos lados, partido inválido (SIM o W.O.) o jugado sin evento del motor.
-const predictMatch = (match, index) => {
+// Puntaje esperado del duelo y su contexto, o `null` si el duelo no tiene
+// predicción posible: lado vacío (jugador o equipo), mismo jugador en ambos
+// lados, partido inválido (SIM o W.O.) o jugado sin evento del motor.
+const resolveExpected = (match, index) => {
     const player1 = idOf(match?.playerP1)
     const player2 = idOf(match?.playerP2)
 
@@ -112,7 +107,7 @@ const predictMatch = (match, index) => {
     }
 
     return {
-        ...toProbabilities(expectedP1),
+        expectedP1,
         basis,
         teamAdjusted,
         provisional: Math.min(games1, games2) < config.provisionalMatches,
@@ -120,13 +115,76 @@ const predictMatch = (match, index) => {
     }
 }
 
+// `{ p1, p2, basis, teamAdjusted, provisional, ratingVersion }` o `null`.
+// Probabilidad de avanzar en un cruce de partido único.
+const predictMatch = (match, index) => {
+    const resolved = resolveExpected(match, index)
+    if (resolved === null) return null
+
+    return {
+        ...toProbabilities(resolved.expectedP1),
+        basis: resolved.basis,
+        teamAdjusted: resolved.teamAdjusted,
+        provisional: resolved.provisional,
+        ratingVersion: resolved.ratingVersion,
+    }
+}
+
+// `{ kind: "outcomes", p1Win, draw, p2Win, basis, teamAdjusted, provisional,
+// ratingVersion, drawModelVersion }` o `null`. Victoria / empate / derrota de un
+// partido que puede terminar empatado. No cambia el rating: solo reparte el
+// puntaje esperado del motor con el modelo de empate.
+const predictOutcomes = (match, index, drawModel = DRAW_MODEL) => {
+    const resolved = resolveExpected(match, index)
+    if (resolved === null) return null
+
+    const probabilities = outcomeProbabilities(resolved.expectedP1, drawModel)
+    if (probabilities === null) return null
+
+    return {
+        kind: "outcomes",
+        p1Win: probabilities.p1Win,
+        draw: probabilities.draw,
+        p2Win: probabilities.p2Win,
+        basis: resolved.basis,
+        teamAdjusted: resolved.teamAdjusted,
+        provisional: resolved.provisional,
+        ratingVersion: resolved.ratingVersion,
+        drawModelVersion: drawModel.version,
+    }
+}
+
+// Qué tipo de predicción corresponde a un partido: "outcomes" (se puede
+// empatar), "advance" (partido único, hay ganador sí o sí) o `null` (sin
+// predicción: ej. el desempate de un cruce a dos piernas o un play-in de
+// Champions).
+const predictionKind = ({ match, tournament }) => {
+    if (match?.type === "regular") return "outcomes"
+
+    if (tournament?.format === "champions_league") {
+        return match?.type === "playoff" ? "outcomes" : null
+    }
+
+    if (
+        tournament?.format === "playoff" &&
+        tournament?.playoffMode === "two_legged"
+    ) {
+        return match?.type === "playoff" &&
+            (match?.leg === 1 || match?.leg === 2)
+            ? "outcomes"
+            : null
+    }
+
+    return "advance"
+}
+
 const toPlain = (match) =>
     typeof match?.toJSON === "function" ? match.toJSON() : { ...match }
 
 // Agrega `prediction` a cada partido sin tocar el resto de sus campos. Es un
 // adorno: ante cualquier falla devuelve `prediction: null` para que la llave
-// nunca se rompa. No lee la base si el torneo está fuera de alcance o no hay
-// partidos.
+// nunca se rompa. Cada partido recibe la predicción que indica `predictionKind`.
+// No lee la base si no hay partidos o ninguno admite predicción.
 const decorateMatchesWithPrediction = async ({
     matches,
     tournament,
@@ -137,17 +195,21 @@ const decorateMatchesWithPrediction = async ({
     const plain = (matches || []).map(toPlain)
     const withoutPrediction = () =>
         plain.map((match) => ({ ...match, prediction: null }))
+    const kinds = plain.map((match) => predictionKind({ match, tournament }))
 
-    if (plain.length === 0 || !isSingleLegTournament(tournament)) {
+    if (kinds.every((kind) => kind === null)) {
         return withoutPrediction()
     }
 
     try {
         const index = buildPredictionIndex(await retrieveAllMatches(), options)
-        return plain.map((match) => ({
-            ...match,
-            prediction: predictMatch(match, index),
-        }))
+        return plain.map((match, position) => {
+            const kind = kinds[position]
+            let prediction = null
+            if (kind === "outcomes") prediction = predictOutcomes(match, index)
+            if (kind === "advance") prediction = predictMatch(match, index)
+            return { ...match, prediction }
+        })
     } catch (error) {
         logger.warn("match_predictions_unavailable", {
             tournamentId: String(tournament?._id ?? tournament?.id ?? ""),
@@ -161,5 +223,7 @@ module.exports = {
     buildPredictionIndex,
     decorateMatchesWithPrediction,
     isSingleLegTournament,
+    predictionKind,
     predictMatch,
+    predictOutcomes,
 }

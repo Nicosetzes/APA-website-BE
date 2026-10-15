@@ -3,7 +3,7 @@ const {
 } = require("../../service/playerRatings/prediction")
 const defaultLogger = require("../../utils/logger")
 const {
-    retrieveAllMatches,
+    retrieveRatingMatches,
     retrievePlayoffMatchesByTournamentId,
     retrieveTournamentById,
 } = require("./../../service")
@@ -16,7 +16,7 @@ const createGetPlayoffMatchesByTournamentId = (dependencies = {}) => {
         dependencies.retrievePlayoffMatchesByTournamentId ||
         retrievePlayoffMatchesByTournamentId
     const retrieveEveryMatch =
-        dependencies.retrieveAllMatches || retrieveAllMatches
+        dependencies.retrieveAllMatches || retrieveRatingMatches
     const logger = dependencies.logger || defaultLogger
 
     return async (req, res) => {

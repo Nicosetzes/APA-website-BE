@@ -153,14 +153,22 @@ test("GET playoff adds prediction without changing the other fields", async () =
     assert.ok(upcomingPrediction.p1 > 0.5)
 })
 
-test("GET playoff returns null prediction outside the single-leg scope", async () => {
-    for (const tournament of [
-        { _id: "tournament", format: "champions_league" },
-        { _id: "tournament", format: "playoff", playoffMode: "two_legged" },
+test("GET playoff returns outcomes for matches that can end in a draw", async () => {
+    const twoLegged = {
+        _id: "tournament",
+        format: "playoff",
+        playoffMode: "two_legged",
+    }
+
+    for (const [tournament, extra] of [
+        [{ _id: "tournament", format: "champions_league" }, {}],
+        [twoLegged, { leg: 1 }],
+        [twoLegged, { leg: 2 }],
     ]) {
         let reads = 0
+        const source = bracketMatch(extra)
         const matches = await getMatches(
-            createPredictionController(tournament, [bracketMatch()], {
+            createPredictionController(tournament, [source], {
                 retrieveAllMatches: async () => {
                     reads += 1
                     return RATED_HISTORY
@@ -169,10 +177,63 @@ test("GET playoff returns null prediction outside the single-leg scope", async (
         )
 
         assert.equal(matches.length, 1)
-        assert.equal(matches[0].prediction, null)
-        assert.equal(matches[0]._id, "bracket")
-        assert.equal(reads, 0)
+        const { prediction, ...rest } = matches[0]
+        assert.deepEqual(rest, source)
+        assert.equal(prediction.kind, "outcomes")
+        assert.equal(prediction.basis, "current")
+        assert.equal(
+            Math.round(
+                (prediction.p1Win + prediction.draw + prediction.p2Win) * 1000
+            ),
+            1000
+        )
+        assert.equal(reads, 1)
     }
+})
+
+test("GET playoff returns null prediction without reading for the two-legged tie-break", async () => {
+    let reads = 0
+    const matches = await getMatches(
+        createPredictionController(
+            { _id: "tournament", format: "playoff", playoffMode: "two_legged" },
+            [bracketMatch({ leg: 3 })],
+            {
+                retrieveAllMatches: async () => {
+                    reads += 1
+                    return RATED_HISTORY
+                },
+            }
+        )
+    )
+
+    assert.equal(matches.length, 1)
+    assert.equal(matches[0].prediction, null)
+    assert.equal(matches[0]._id, "bracket")
+    assert.equal(reads, 0)
+})
+
+test("GET playoff stays successful with null predictions when a two-legged ratings read fails", async () => {
+    const warnings = []
+
+    const matches = await getMatches(
+        createPredictionController(
+            { _id: "tournament", format: "playoff", playoffMode: "two_legged" },
+            [bracketMatch({ leg: 1 })],
+            {
+                retrieveAllMatches: async () => {
+                    throw new Error("db caída")
+                },
+                logger: {
+                    warn: (event, fields) => warnings.push({ event, fields }),
+                },
+            }
+        )
+    )
+
+    assert.equal(matches[0].prediction, null)
+    assert.equal(matches[0]._id, "bracket")
+    assert.equal(warnings.length, 1)
+    assert.equal(warnings[0].event, "match_predictions_unavailable")
 })
 
 test("GET playoff returns null prediction for same player, invalid and empty sides", async () => {

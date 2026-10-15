@@ -1,31 +1,29 @@
+const { rankPlayers } = require("../../service/playerRatings")
 const {
     buildNameIndex,
     describeParameters,
     toRankingRow,
 } = require("../../service/playerRatings/presentation")
 const {
-    calculatePlayerRatings,
-    rankPlayers,
-    snapshotBefore,
-} = require("../../service/playerRatings")
-const { retrieveAllMatches, retrieveAllUsers } = require("./../../service")
+    retrieveAllUsers,
+    retrieveRatingMatches,
+    retrieveRatingsTimeline,
+} = require("./../../service")
 
 const createGetRatings = (dependencies = {}) => {
     const retrieveMatches =
-        dependencies.retrieveAllMatches || retrieveAllMatches
+        dependencies.retrieveAllMatches || retrieveRatingMatches
     const retrieveUsers = dependencies.retrieveAllUsers || retrieveAllUsers
 
     return async (req, res) => {
-        const [matches, users] = await Promise.all([
-            retrieveMatches(),
+        const [timeline, users] = await Promise.all([
+            retrieveRatingsTimeline({ retrieveMatches }),
             retrieveUsers(),
         ])
 
         const names = buildNameIndex(users || [])
-        const { events, config } = calculatePlayerRatings(matches || [])
-        const ranking = rankPlayers(
-            snapshotBefore(events, null, config.initialRating)
-        )
+        const { config } = timeline
+        const ranking = rankPlayers(timeline.snapshotAt(null))
 
         return res.json({
             success: true,

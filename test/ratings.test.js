@@ -214,7 +214,8 @@ test("ratings period with no matches still returns the standing with zero change
 })
 
 const withApp = async (t, callback) => {
-    t.mock.method(matchesModel, "find", async () => MATCHES)
+    // Los ratings leen el historial con `find(...).lean()`.
+    t.mock.method(matchesModel, "find", () => ({ lean: async () => MATCHES }))
     t.mock.method(usersModel, "find", async () => USERS)
 
     const app = createApp({

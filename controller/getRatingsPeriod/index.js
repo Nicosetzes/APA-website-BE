@@ -1,4 +1,5 @@
 const { getArgentinaDayRange } = require("../../utils/argentinaDay")
+const { rankPlayers } = require("../../service/playerRatings")
 const {
     buildNameIndex,
     describeParameters,
@@ -7,11 +8,10 @@ const {
     toIso,
 } = require("../../service/playerRatings/presentation")
 const {
-    calculatePlayerRatings,
-    rankPlayers,
-    snapshotBefore,
-} = require("../../service/playerRatings")
-const { retrieveAllMatches, retrieveAllUsers } = require("./../../service")
+    retrieveAllUsers,
+    retrieveRatingMatches,
+    retrieveRatingsTimeline,
+} = require("./../../service")
 
 // La sorpresa del período: el partido con ganador que el Elo menos esperaba.
 // Los empates y los penales no cuentan, y si el favorito ganó siempre no hay
@@ -60,7 +60,7 @@ const findBiggestUpset = (periodEvents, names) => {
 
 const createGetRatingsPeriod = (dependencies = {}) => {
     const retrieveMatches =
-        dependencies.retrieveAllMatches || retrieveAllMatches
+        dependencies.retrieveAllMatches || retrieveRatingMatches
     const retrieveUsers = dependencies.retrieveAllUsers || retrieveAllUsers
 
     return async (req, res) => {
@@ -68,19 +68,17 @@ const createGetRatingsPeriod = (dependencies = {}) => {
         const start = getArgentinaDayRange(dateFrom).start.getTime()
         const end = getArgentinaDayRange(dateTo).end.getTime()
 
-        const [matches, users] = await Promise.all([
-            retrieveMatches(),
+        const [timeline, users] = await Promise.all([
+            retrieveRatingsTimeline({ retrieveMatches }),
             retrieveUsers(),
         ])
 
         const names = buildNameIndex(users || [])
-        const { events, config } = calculatePlayerRatings(matches || [])
+        const { events, config } = timeline
         const initial = config.initialRating
 
-        const previousRanking = rankPlayers(
-            snapshotBefore(events, start, initial)
-        )
-        const currentRanking = rankPlayers(snapshotBefore(events, end, initial))
+        const previousRanking = rankPlayers(timeline.snapshotAt(start))
+        const currentRanking = rankPlayers(timeline.snapshotAt(end))
         const previousById = new Map(
             previousRanking.map((player) => [player.id, player])
         )

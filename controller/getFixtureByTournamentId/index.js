@@ -1,9 +1,20 @@
-const { retrieveFixtureByTournamentId } = require("./../../service")
+const {
+    decorateMatchesWithPrediction,
+} = require("../../service/playerRatings/prediction")
+const defaultLogger = require("../../utils/logger")
+const {
+    retrieveFixtureByTournamentId,
+    retrieveRatingMatches,
+} = require("./../../service")
 
 const createGetFixtureByTournamentId = (dependencies = {}) => {
     const retrieveFixture =
         dependencies.retrieveFixtureByTournamentId ||
         retrieveFixtureByTournamentId
+
+    const retrieveEveryMatch =
+        dependencies.retrieveAllMatches || retrieveRatingMatches
+    const logger = dependencies.logger || defaultLogger
 
     return async (req, res) => {
         const { tournament } = req.params
@@ -16,7 +27,21 @@ const createGetFixtureByTournamentId = (dependencies = {}) => {
             group
         )
 
-        return res.status(200).send(fixture)
+        if (!Array.isArray(fixture?.matches) || fixture.matches.length === 0) {
+            return res.status(200).send(fixture)
+        }
+
+        // Agrega victoria / empate / derrota (APA Rating 2.0) a cada partido de
+        // liga. Todos los partidos del fixture son `regular`.
+        const matches = await decorateMatchesWithPrediction({
+            matches: fixture.matches,
+            tournament: { _id: tournament },
+            retrieveAllMatches: retrieveEveryMatch,
+            logger,
+            options: dependencies.predictionOptions,
+        })
+
+        return res.status(200).send({ ...fixture, matches })
     }
 }
 

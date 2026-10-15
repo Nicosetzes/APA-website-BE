@@ -779,6 +779,14 @@ paths:
                                         description: >-
                                             Base 1, igual que el parámetro
                                             `page`: la primera página devuelve 1.
+                                    matches:
+                                        type: array
+                                        description: >-
+                                            Partidos de la página. Cada uno
+                                            incluye `prediction` (victoria /
+                                            empate / derrota) o `null`.
+                                        items:
+                                            $ref: "#/components/schemas/FixtureMatch"
                 "400":
                     $ref: "#/components/responses/BadRequest"
                 "500":
@@ -1231,7 +1239,14 @@ paths:
         get:
             tags: [Matches]
             summary: Lista los partidos de playoff; un array vacío es válido
-            description: Playoffs administrados agregan leg, series y mutation; legacy y Champions conservan su forma histórica. Todos incluyen `prediction` ("Prob. de éxito" según el APA Rating 2.0), que es `null` si no se puede calcular o el formato es de ida y vuelta.
+            description: >-
+                Playoffs administrados agregan leg, series y mutation; legacy y
+                Champions conservan su forma histórica. Todos incluyen
+                `prediction` según el APA Rating 2.0: "Prob. de éxito" (`p1` /
+                `p2`) en playoffs de partido único y victoria / empate /
+                derrota (`kind: outcomes`) en `champions_league` y en las patas
+                1 y 2 de un playoff `two_legged`. Es `null` si no se puede
+                calcular o en la pata 3 de un `two_legged`.
             parameters:
                 - $ref: "#/components/parameters/TournamentId"
             responses:
@@ -2384,17 +2399,108 @@ components:
                     $ref: "#/components/schemas/PlayoffSeriesError"
                 prediction:
                     allOf:
-                        - $ref: "#/components/schemas/MatchPrediction"
+                        - $ref: "#/components/schemas/AnyMatchPrediction"
                     nullable: true
                     description: >-
-                        "Prob. de éxito" de cada lado según el APA Rating 2.0.
-                        Solo la devuelve `GET .../playoff/matches` (no las
-                        respuestas de carga de resultado). Es `null` en
-                        `champions_league` y en playoffs `two_legged`, en
+                        Predicción del partido según el APA Rating 2.0. Solo la
+                        devuelve `GET .../playoff/matches` (no las respuestas
+                        de carga de resultado). En playoffs de partido único
+                        es la "Prob. de éxito" (`p1` / `p2`, sin `kind`). En
+                        playoffs de `champions_league` y en las patas 1 y 2 de
+                        un playoff `two_legged` es la predicción de victoria /
+                        empate / derrota (`kind: outcomes`). Es `null` en la
+                        pata 3 o sin pata de un playoff `two_legged`, en
                         partidos simulados o W.O. (`valid: false`), con un lado
                         vacío, con el mismo jugador en ambos lados o si el
                         cálculo falla.
             additionalProperties: true
+        MatchOutcomesPrediction:
+            type: object
+            required:
+                [
+                    kind,
+                    p1Win,
+                    draw,
+                    p2Win,
+                    basis,
+                    teamAdjusted,
+                    provisional,
+                    ratingVersion,
+                    drawModelVersion,
+                ]
+            description: >-
+                Probabilidad de victoria / empate / derrota de un partido donde
+                se puede empatar. Es solo de predicción: no cambia el rating.
+                `p1Win + draw + p2Win = 1` y `p1Win + draw / 2` es el puntaje
+                esperado del motor. Es por partido: no es la probabilidad de
+                avanzar en una serie.
+            properties:
+                kind:
+                    type: string
+                    enum: [outcomes]
+                p1Win:
+                    type: number
+                    minimum: 0
+                    maximum: 1
+                    description: Probabilidad de que gane P1, con 3 decimales.
+                draw:
+                    type: number
+                    minimum: 0
+                    maximum: 1
+                    description: Probabilidad de empate, con 3 decimales.
+                p2Win:
+                    type: number
+                    minimum: 0
+                    maximum: 1
+                    description: Probabilidad de que gane P2, con 3 decimales.
+                basis:
+                    type: string
+                    enum: [pre_match, current]
+                    description: >-
+                        `pre_match`: partido jugado, usa el evento del motor
+                        (odds previas al partido). `current`: partido por
+                        jugar, usa los ratings actuales y puede moverse.
+                teamAdjusted:
+                    type: boolean
+                    description: >-
+                        `false` si no se aplicó el término de equipo y el valor
+                        se calculó como en la 1.0.
+                provisional:
+                    type: boolean
+                    description: >-
+                        `true` si alguno de los dos jugadores tenía menos de
+                        `provisionalMatches` partidos.
+                ratingVersion:
+                    type: string
+                    example: "2.0"
+                drawModelVersion:
+                    type: string
+                    example: draw-1
+                    description: Versión del modelo de empate (config/drawModel.js).
+        AnyMatchPrediction:
+            description: >-
+                Predicción de un partido de playoff. Se distingue por la
+                presencia de `kind`: si es `outcomes` es
+                `MatchOutcomesPrediction`; si no tiene `kind` es
+                `MatchPrediction` (probabilidad de avanzar). No se declara un
+                discriminador porque la forma de avanzar no trae `kind`.
+            oneOf:
+                - $ref: "#/components/schemas/MatchPrediction"
+                - $ref: "#/components/schemas/MatchOutcomesPrediction"
+        FixtureMatch:
+            type: object
+            additionalProperties: true
+            description: Partido del fixture; conserva todos sus campos.
+            properties:
+                prediction:
+                    allOf:
+                        - $ref: "#/components/schemas/MatchOutcomesPrediction"
+                    nullable: true
+                    description: >-
+                        Victoria / empate / derrota del partido según el APA
+                        Rating 2.0. Es `null` en partidos simulados o W.O.
+                        (`valid: false`), con un lado vacío, con el mismo
+                        jugador en ambos lados o si el cálculo falla.
         MatchPrediction:
             type: object
             required: [p1, p2, basis, teamAdjusted, provisional, ratingVersion]
