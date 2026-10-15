@@ -1,7 +1,15 @@
-const { retrieveMatches } = require("./../../service")
+const {
+    decorateMatchesWithRatingChange,
+} = require("../../service/ratingsReadModel/decorateMatchesWithRatingChange")
+const defaultLogger = require("../../utils/logger")
+const { retrieveMatches, retrieveRatingChanges } = require("./../../service")
 
 const createGetMatches = (dependencies = {}) => {
     const retrieve = dependencies.retrieveMatches || retrieveMatches
+    const logger = dependencies.logger || defaultLogger
+    const retrieveChanges =
+        dependencies.retrieveRatingChanges ??
+        (dependencies.retrieveMatches ? undefined : retrieveRatingChanges)
 
     return async (req, res) => {
         const {
@@ -52,7 +60,16 @@ const createGetMatches = (dependencies = {}) => {
             played,
         })
 
-        return res.status(200).json(matchesData)
+        const payload = retrieveChanges
+            ? await decorateMatchesWithRatingChange({
+                  payload: matchesData,
+                  retrieveRatingChanges: retrieveChanges,
+                  readModelEnabled: dependencies.readModelEnabled,
+                  logger,
+              })
+            : matchesData
+
+        return res.status(200).json(payload)
     }
 }
 

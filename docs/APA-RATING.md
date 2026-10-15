@@ -276,6 +276,27 @@ Otras notas:
 -   **Primera vez tras el deploy.** Los documentos de la etapa 1 no tienen `source`, así que hay que re-correr `recompute:ratings -- --apply` una vez en dev y otra en PROD después del deploy. Hasta entonces la razón es `missing_source` y todo sigue en vivo. Con la etapa 3, la primera carga de un resultado también completa el `source` si el diff entra en el umbral (solo cambian los jugadores); si no entra, se saltea por `large_diff` y queda para el script.
 -   **Costo por pedido:** una agregación sobre `matches` (no transfiere documentos), una lectura de los jugadores y una de los eventos pedidos, en lugar de leer el historial completo.
 
+### Ranking (`GET /api/ratings`) desde los ratings persistidos
+
+El ranking sale de `player-ratings` y no del historial: cada fila (rating, pico, partidos, victorias, empates, derrotas, `lastPlayedAt` y `lastChange`) ya está guardada por jugador. La respuesta es la misma que la del cálculo en vivo (hay un test que lo comprueba con la misma historia, y se comprobó con datos reales de dev y PROD).
+
+-   **Lectura:** dos consultas en paralelo (el estado de los jugadores y el chequeo de frescura) más la de usuarios para los apodos, que ya se hacía. No se lee `matches` ni `rating-events`.
+-   **Frescura:** las mismas reglas que la lectura de predicciones (`assessFreshness`). Si lo guardado no está al día, la lectura falla, el documento está malformado o el interruptor `RATING_READ_MODEL` está apagado, calcula en vivo como antes, con el mismo resultado.
+-   **Log:** una línea `rating_read_model` con `endpoint: "ratings"`, `source` (`stored` o `live`), `reason`, `players` y `durationMs`. Solo se emite cuando el lector guardado está cableado (no en los tests que inyectan `retrieveAllMatches`).
+-   **Medido (desde una PC, en frío):** en PROD ~1.020 ms en vivo contra ~170 ms guardado; en dev ~490 ms contra ~170 ms. Desde Vercel los tiempos pueden ser menores.
+-   **Código:** `dao/findRankingPlayerRatings`, `service/ratingsReadModel/createRetrieveStoredRanking.js`, `service/retrieveStoredRanking` y `controller/getRatings`. `GET /api/ratings/period` sigue calculando en vivo.
+
+### Variación de Elo en `/matches`
+
+`GET /api/matches` agrega a cada partido el campo `ratingChange`: `{ p1, p2, ratingVersion }` con los puntos de rating que ganó o perdió cada jugador en ese partido, o `null`. El FE lo muestra en la columna "Elo" de la tabla de partidos.
+
+-   **Origen:** el `delta` guardado en `rating-events` (puntos que pasan hacia el jugador 1; el jugador 2 recibe lo opuesto). Ya incluye el término de equipo del 2.0. No se recalcula nada. `p1` y `p2` van redondeados a 2 decimales y `p2` es siempre `-p1` (nunca `-0`).
+-   **Lectura:** una consulta por índice con los `matchId` de la página (solo los partidos jugados, válidos y con dos jugadores distintos), en paralelo con las dos lecturas del chequeo de frescura. Si la página no tiene ninguno, no se lee nada.
+-   **Frescura:** las mismas reglas que la lectura de predicciones (etapa 2), más la huella de cada evento. Si lo guardado no está al día, la columna queda en `null` en toda la página; **no hay cálculo en vivo de reemplazo**. Una carga de resultado vuelve a sincronizar sola (etapa 3). Un partido sin evento (por ejemplo uno recién cargado que todavía no se sincronizó) queda en `null` sin afectar a los demás.
+-   **Es un adorno:** ante cualquier falla la respuesta sale igual (estado 200, mismos campos) con `ratingChange: null`. El interruptor `RATING_READ_MODEL=off` también deja la columna vacía.
+-   **Log:** una línea por respuesta, evento `matches_rating_change`, con `source` (`stored` o `none`), `reason`, `matches` y `durationMs`. Sin ids.
+-   **Código:** `dao/findRatingChangesByMatchIds`, `service/ratingsReadModel/{createRetrieveRatingChanges,decorateMatchesWithRatingChange}.js`, `service/retrieveRatingChanges` y `controller/getMatches`. Los tests de ese controller que inyectan solo `retrieveMatches` no leen la base ni ven el campo nuevo.
+
 ### Actualización al escribir (etapa 3)
 
 Cuando se carga, edita o borra un resultado, la API deja al día `player-ratings` y `rating-events` antes de responder. Así lo guardado vuelve a estar fresco (etapa 2) sin correr el script a mano.

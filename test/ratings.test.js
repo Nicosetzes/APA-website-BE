@@ -220,6 +220,15 @@ const withApp = async (t, callback) => {
     // El historial se guarda unos segundos en memoria: cada test parte de cero.
     invalidateRatingMatches()
     t.after(invalidateRatingMatches)
+    // Estos tests mockean solo `matches` y `users`: el ranking se lee en vivo, no
+    // de los ratings persistidos (que tocarían la base).
+    const previousReadModel = process.env.RATING_READ_MODEL
+    process.env.RATING_READ_MODEL = "off"
+    t.after(() => {
+        if (previousReadModel === undefined)
+            delete process.env.RATING_READ_MODEL
+        else process.env.RATING_READ_MODEL = previousReadModel
+    })
     // Los ratings leen el historial con `find(...).lean()`.
     t.mock.method(matchesModel, "find", () => ({ lean: async () => MATCHES }))
     t.mock.method(usersModel, "find", async () => USERS)

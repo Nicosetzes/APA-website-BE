@@ -308,6 +308,31 @@ paths:
                                                     $ref: "#/components/schemas/PlayedAt"
                                                 playedAtPrecision:
                                                     $ref: "#/components/schemas/PlayedAtPrecision"
+                                                ratingChange:
+                                                    type: object
+                                                    nullable: true
+                                                    description: >-
+                                                        Puntos de rating (APA Rating 2.0) que
+                                                        ganó o perdió cada jugador en este
+                                                        partido, leídos de los ratings
+                                                        persistidos. `p2` es siempre `-p1`
+                                                        (`0` si no hubo variación). `null`
+                                                        si el partido no tiene variación
+                                                        (pendiente, inválido, simulado, W.O. o
+                                                        mismo jugador en ambos lados), si lo
+                                                        guardado no está al día o si falla la
+                                                        lectura; en ese caso el resto de la
+                                                        respuesta no cambia.
+                                                    properties:
+                                                        p1:
+                                                            type: number
+                                                            description: Puntos para el jugador 1 (2 decimales).
+                                                        p2:
+                                                            type: number
+                                                            description: Puntos para el jugador 2 (2 decimales).
+                                                        ratingVersion:
+                                                            type: string
+                                                            example: "2.0"
                                             additionalProperties: true
                                     totalMatches:
                                         type: integer

@@ -40,3 +40,4 @@ const findRatingEventsByMatchIds = async (
 }
 module.exports = findRatingEventsByMatchIds
 module.exports.RATING_EVENTS_PROJECTION = RATING_EVENTS_PROJECTION
+module.exports.toObjectIds = toObjectIds
