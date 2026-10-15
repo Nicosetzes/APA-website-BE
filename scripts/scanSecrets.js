@@ -63,6 +63,21 @@ const ALLOWLIST = [
         reason: "el test setea un TOKEN_SECRET ficticio para firmar tokens y lo restaura al terminar",
     },
     {
+        file: "scripts/checkTeamRatings.js",
+        rule: "variable-sensible-con-valor",
+        reason: "copia la URI de la variable de entorno indicada con --uri-env a MONGO_URI para conectarse; no hay ningún valor literal",
+    },
+    {
+        file: "scripts/evaluateDraws.js",
+        rule: "variable-sensible-con-valor",
+        reason: "copia la URI de la variable de entorno indicada con --uri-env a MONGO_URI para conectarse; no hay ningún valor literal",
+    },
+    {
+        file: "scripts/measureRatingsRead.js",
+        rule: "variable-sensible-con-valor",
+        reason: "copia la URI de la variable de entorno indicada con --uri-env a MONGO_URI para conectarse; no hay ningún valor literal",
+    },
+    {
         file: "scripts/scanSecrets.js",
         rule: "*",
         reason: "este archivo contiene los patrones de búsqueda",

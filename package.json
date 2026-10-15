@@ -11,6 +11,8 @@
         "evaluate:ratings": "node scripts/evaluateRatings.js",
         "evaluate:draws": "node scripts/evaluateDraws.js",
         "measure:ratings-read": "node scripts/measureRatingsRead.js",
+        "recompute:ratings": "node scripts/recomputeRatings.js",
+        "verify:ratings": "node scripts/verifyRatings.js",
         "build:team-ratings": "node scripts/buildTeamRatings.js",
         "check:team-ratings": "node scripts/checkTeamRatings.js",
         "migrate": "node scripts/migrations/run.js",

@@ -137,7 +137,7 @@ Los mismos de la 1.0 (`GET /api/ratings` y `GET /api/ratings/period`). `paramete
 -   **Campos:** `p1` y `p2` (0 a 1, 3 decimales, suman 1), `basis`, `teamAdjusted` (`false` si no se aplicó el término de equipo y se calculó como la 1.0), `provisional` (algún jugador con menos de `provisionalMatches` partidos) y `ratingVersion`. `teamAdjusted` y `provisional` quedan solo en la API; el FE no los muestra.
 -   **Viva o previa (`basis`):** un partido jugado usa el evento que calculó el motor (`pre_match`, las odds de ese momento). Un partido por jugar con ambos lados cargados usa los ratings actuales (`current`): puede moverse si antes se juega otro partido de esos jugadores. Un jugador sin historial arranca en `initialRating` con 0 partidos.
 -   **`null`:** partido simulado o W.O. (`valid: false`), lado vacío (jugador o equipo), mismo jugador en ambos lados, partido jugado que el motor no puede calificar y cualquier falla del cálculo (se registra `match_predictions_unavailable` y la respuesta sigue en 200).
--   **No se guarda nada.** Cambiar `config/ratings.js` o `data/teamRatings.json` cambia también las odds mostradas de partidos ya jugados; por eso se incluye `ratingVersion`. Cada consulta lee todos los partidos, igual que `GET /api/ratings`.
+-   **No se guarda nada.** Cambiar `config/ratings.js` o `data/teamRatings.json` cambia también las odds mostradas de partidos ya jugados; por eso se incluye `ratingVersion`. Los endpoints de playoff y play-in leen los ratings persistidos cuando están al día y, si no, calculan en vivo sobre el historial completo (ver [Lectura desde los ratings persistidos (etapa 2)](#lectura-desde-los-ratings-persistidos-etapa-2)).
 
 ### Probabilidades de victoria, empate y derrota (capa de empate)
 
@@ -165,7 +165,7 @@ En un partido donde se puede empatar, el puntaje esperado E del motor no es la p
 -   **`null`:** partido simulado o W.O. (`valid: false`), lado vacío, mismo jugador en ambos lados, partido jugado que el motor no puede calificar y cualquier falla del cálculo (se registra `match_predictions_unavailable` y la respuesta sigue en 200).
 -   **Por partido, nunca de la serie.** No se estima la probabilidad de avanzar en un cruce de ida y vuelta.
 -   **No validado en ida y vuelta.** Los parámetros se ajustaron solo con partidos de liga. Se aplican a las patas de un playoff `two_legged` por suposición, sin haberlo medido.
--   **Costo:** el fixture suma una lectura liviana (`.lean()`) del historial completo por consulta, igual que las predicciones de playoff.
+-   **Costo:** con los ratings persistidos al día, el fixture hace una agregación, la lectura de los jugadores y la de los eventos pedidos. Si no están al día, suma una lectura liviana (`.lean()`) del historial completo por consulta (con el caché de 30 s), igual que las predicciones de playoff.
 -   **Cómo reajustar:** `npm run evaluate:draws -- --uri-env MONGO_URI_PROD` (solo lectura) imprime tasa de empate, lo observado por duelo, la validación cronológica y el mejor ajuste. El script no modifica nada: si hace falta cambiar los valores, editar `config/drawModel.js` a mano y subir `version`.
 
 ### Cómo se lee el historial (timeline)
@@ -184,13 +184,105 @@ El historial se lee con `dao/findRatingMatches`: `.lean()` (objetos planos, sin 
 -   **Límite:** el caché es por instancia. En Vercel cada instancia serverless tiene el suyo y se pierde cuando se enfría. Otra instancia puede mostrar datos viejos hasta que venza el TTL, y los cambios hechos fuera de la API (scripts de migración, ediciones directas en la base) se ven recién al vencer el TTL.
 -   **Compartido y congelado:** el arreglo que devuelve está congelado y lo comparten todos los llamadores; no hay que modificarlo (el motor lo filtra y ordena en copias).
 
+### Ratings persistidos (etapa 1)
+
+Se guarda la salida del motor en dos colecciones **derivadas**, para que más adelante las pantallas lean de ahí en vez de recalcular todo el historial. `matches` (`face-to-face`) sigue siendo la única fuente de verdad: las dos colecciones se pueden borrar y reconstruir en cualquier momento. Las escriben y verifican dos scripts; desde la etapa 2 tres endpoints las leen (ver [Lectura desde los ratings persistidos (etapa 2)](#lectura-desde-los-ratings-persistidos-etapa-2)). `/ratings`, `/ratings/period`, las estadísticas y `/matches` siguen sin leerlas.
+
+#### `player-ratings` (un documento por `(ratingVersion, id)`)
+
+-   `ratingVersion`, `id`, `name`, `rating`, `peak`, `matches`, `wins`, `draws`, `losses`, `lastPlayedAt`, `lastChange`.
+-   `eventCount`: cantidad de eventos del jugador (siempre igual a `matches`; sirve de chequeo de consistencia).
+-   `fingerprint` y `computedAt`.
+-   `source`: `{ ratedMatches, maxUpdatedAt }`, la huella de los partidos de los que salió la corrida (cantidad que cumple el filtro del motor y mayor `updatedAt`). Es el mismo valor en todos los jugadores de una corrida y los eventos no lo tienen. Lo usa la etapa 2 para saber si lo guardado sigue al día. Los documentos de la etapa 1 no lo tienen hasta que se re-corra `recompute:ratings -- --apply`.
+-   Solo hay jugadores con al menos un partido rateado.
+-   Índice: único `(ratingVersion, id)`.
+
+#### `rating-events` (un documento por `(ratingVersion, matchId)`)
+
+-   `matchId` es el `_id` del partido en `face-to-face` (`ObjectId`): así se une un evento con su partido.
+-   `seq`: posición cronológica del partido, desde 1, en el orden del motor (`playedAt` y luego `_id`).
+-   `time`, `tournament`, `type`, `scoreP1`, `scoreP2`, `expectedP1`, `resultP1`, `delta`, `teamAdjustment`.
+-   `p1` y `p2`: `id`, `name`, `before`, `after`, `games`, `team`, `teamOverall`. `after` se deriva igual que en el historial: `p1.after = p1.before + delta` y `p2.after = p2.before - delta`.
+-   `fingerprint` y `computedAt`.
+-   Índices: único `(ratingVersion, matchId)`; `(ratingVersion, seq)` **no único** (insertar un partido en el medio desplaza el `seq` de muchos eventos y un único fallaría de forma transitoria); `(ratingVersion, p1.id, seq)` y `(ratingVersion, p2.id, seq)` para leer la serie de un jugador.
+
+#### Fingerprint
+
+Es un SHA-256 del JSON canónico (claves ordenadas) de `config/ratings.js` (todos los parámetros, incluida `version`), `data/teamRatings.json`, `RATINGS_STORE_SCHEMA_VERSION` (cambia la forma de los documentos) y `RATINGS_ENGINE_VERSION` (se sube si cambia la lógica del motor sin tocar la configuración). Ambas constantes están en `service/ratingsStore/constants.js`. No depende de `computedAt` ni de `config/drawModel.js` (el modelo de empate es de predicción y no alimenta al motor). Si cambia, lo guardado quedó desactualizado y hay que re-correr `recompute:ratings`.
+
+#### Cómo correrlo
+
+-   `npm run recompute:ratings` es un **dry-run**: lee el historial, recalcula, compara con lo guardado e imprime el resumen del diff. No escribe nada.
+-   `npm run recompute:ratings -- --apply` crea los índices de las dos colecciones, aplica el diff (`bulkWrite` en tandas de 500) y vuelve a leer para comprobar que no quedó ninguna diferencia. Solo escribe en `player-ratings` y `rating-events`; `matches` no se toca. En una base que no es de pruebas exige además `--allow-production`.
+-   `npm run verify:ratings` es **solo lectura**: no acepta `--apply`, no crea índices y sale con código 1 si hay drift y 0 si coincide.
+-   Ambos aceptan `--uri-env MONGO_URI_PROD` (por defecto `MONGO_URI`) y `--sample <n>` (ids de ejemplo del resumen). La URI nunca se imprime, solo el nombre de la base.
+-   Una vez creadas, las colecciones no se actualizan solas: cada vez que cambien los partidos hay que re-correr `recompute:ratings -- --apply` (la actualización automática por escritura es la etapa 3).
+
+#### Qué es un drift
+
+Que lo guardado no coincide con lo que calcula hoy el código sobre los partidos: faltan eventos o jugadores, sobran (huérfanos, por ejemplo de un partido borrado), hay valores distintos (un resultado editado, otro `seq`), el `fingerprint` guardado no es el actual, o el `source` de los jugadores falta (documentos de la etapa 1) o no coincide con el de los partidos de hoy. `verify:ratings` lo informa con el motivo. El arreglo siempre es el mismo: volver a correr `npm run recompute:ratings -- --apply`.
+
+Excepción: si en una etapa futura el builder deja de emitir un campo (un rename o un campo eliminado), `recompute:ratings -- --apply` solo hace `$set` y nunca `$unset`, así que los documentos viejos conservarían el campo y el diff no convergería. Un cambio de forma de los documentos requiere vaciar `player-ratings` y `rating-events` antes de recomputar (son derivadas, se reconstruyen desde `matches`). Subir `RATINGS_STORE_SCHEMA_VERSION` cambia el fingerprint pero no separa los documentos viejos de los nuevos.
+
+#### Primera corrida
+
+El camino con la base real (casteo de `matchId` en `bulkWrite`, `$set` anidado, `createIndexes()`, `Date` y números) se probó solo con fakes. Antes de producción conviene hacer el dry-run y luego `--apply` sobre una base de desarrollo (`*-dev`), y recién después `npm run recompute:ratings -- --apply --uri-env MONGO_URI_PROD --allow-production`.
+
+#### Qué pasa al desplegar
+
+Desde la etapa 2 la app carga los modelos (`dao/models/playerRatings.js` y `dao/models/ratingEvents.js`) para leer, pero tienen `autoIndex` y `autoCreate` apagados. Las colecciones y sus índices no se crean al desplegar: solo cuando se corre el script con `--apply`. Mientras no existan (o estén desactualizadas) los endpoints usan el camino en vivo. El camino de escritura (`dao/applyRatingDiff`, `dao/findStoredRatingDocuments`, `service/ratingsStore/` salvo la frescura y el fingerprint) no lo carga la app.
+
+### Lectura desde los ratings persistidos (etapa 2)
+
+Tres endpoints leen las colecciones de la etapa 1 en vez de recalcular el historial completo: `GET /api/tournaments/:tournament/playoff/matches`, `GET /api/tournaments/:tournament/playin/matches` y `GET /api/tournaments/:tournament/fixture`. `/ratings`, `/ratings/period`, las estadísticas y `/matches` no cambian (siguen en vivo).
+
+-   **Qué se lee:** de un partido jugado, su evento guardado en `rating-events` (odds previas, `pre_match`); de uno pendiente, el estado actual de los dos jugadores en `player-ratings` (`current`). Solo se piden los eventos de los partidos jugados que el motor rateó; los pendientes, los no rateables (sin goles, SIM o W.O.) y los que no admiten predicción no piden evento.
+-   **Mismo payload.** El cuerpo de la respuesta es idéntico al del cálculo en vivo (claves, valores redondeados y `null`), así que no hay cambios en el FE ni en `docs/openapi.yaml`. Un test dorado compara ambos caminos.
+-   **Frescura.** Antes de usar lo guardado se lee una agregación liviana sobre `matches` (cantidad que cumple el filtro del motor y mayor `updatedAt`) y se compara con el `source` guardado. Se evalúan estas razones en orden y gana la primera que aplica:
+
+| Razón                  | Cuándo                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------ |
+| `no_players`           | No hay jugadores guardados                                                           |
+| `version_mismatch`     | Algún jugador es de otra `ratingVersion`                                             |
+| `inconsistent_players` | Los jugadores no comparten un único `fingerprint` o un único `source`                |
+| `fingerprint_mismatch` | El `fingerprint` guardado no es el del código actual (también si es el de un evento) |
+| `missing_source`       | Algún jugador no tiene `source` válido (documentos de la etapa 1)                    |
+| `stale_count`          | `ratedMatches` guardado distinto del actual                                          |
+| `stale_updated_at`     | `maxUpdatedAt` guardado distinto del actual                                          |
+| `ok`                   | Todo coincide                                                                        |
+
+Además de esas, si falta el evento de un partido jugado que debería estar, la razón es `missing_event`.
+
+-   **Fallback transparente.** Si lo guardado no está al día, falla la lectura, el interruptor lo apaga o hay `options` de predicción inyectadas (solo tests y evaluación), el endpoint calcula en vivo como antes y responde lo mismo. El cliente no se entera.
+-   **Interruptor:** `RATING_READ_MODEL=off` (también `0` o `false`, sin importar mayúsculas) fuerza el camino en vivo. Cualquier otro valor, o sin definir, deja la lectura guardada encendida. Se lee en cada pedido (ver `config/ratingReadModel.js`).
+-   **Log.** Cada respuesta decorada emite una línea `rating_read_model` (ninguna si no hay partidos que decorar), por ejemplo:
+
+    ```text
+    {"level":"info","event":"rating_read_model","source":"stored","reason":"ok","matches":9,"durationMs":14}
+    ```
+
+Campos de la línea:
+
+-   `source`: `stored` si se usó lo guardado o `live` si se calculó en vivo.
+-   `reason`: `ok` (guardado), una razón de la tabla de arriba o `missing_event`, `disabled` (interruptor apagado u `options` inyectadas) o `error` (la lectura guardada falló).
+-   `matches`: cantidad de partidos decorados. `durationMs`: tiempo de la decoración.
+-   Con `reason: "error"` el nivel es `warn` y se suma `errorName` (la clase del error, sin mensaje). Nunca lleva ids ni datos de los partidos.
+
+Otras notas:
+
+-   **`ratedMatches` y `eventCount`.** `ratedMatches` cuenta los partidos que cumplen el filtro del motor (jugados y válidos). Puede ser mayor que la cantidad de eventos porque ese filtro incluye partidos que el motor no califica (mismo jugador en ambos lados, goles no enteros, sin jugador). Se compara contra la misma consulta, no contra los eventos.
+-   **Limitación de `updatedAt`.** Las ediciones nativas o masivas que no actualizan `updatedAt` (scripts de migración, `updateMany` sin timestamps, cambios directos en la base) solo las detecta la cantidad. Si una edición cambia un resultado sin cambiar la cantidad ni `updatedAt`, lo guardado se sigue usando hasta el próximo recompute.
+-   **Qué hacer en la práctica.** Hasta la etapa 3 las colecciones no se actualizan solas: cada resultado cargado cambia la cantidad o el `updatedAt`, así que lo guardado queda desactualizado y los endpoints usan el camino en vivo (con el caché de 30 s) sin avisar. Después de cargar resultados o correr migraciones: `npm run recompute:ratings -- --apply --uri-env <VAR>` y luego `npm run verify:ratings -- --uri-env <VAR>`. El beneficio de la etapa 2 aparece entre un recompute y la siguiente carga.
+-   **Primera vez tras el deploy.** Los documentos de la etapa 1 no tienen `source`, así que hay que re-correr `recompute:ratings -- --apply` una vez en dev y otra en PROD después del deploy. Hasta entonces la razón es `missing_source` y todo sigue en vivo.
+-   **Costo por pedido:** una agregación sobre `matches` (no transfiere documentos), una lectura de los jugadores y una de los eventos pedidos, en lugar de leer el historial completo.
+
 ### Código
 
-`config/ratings.js` (parámetros), `service/playerRatings/` (motor, `timeline.js` con el punto de entrada único, `teamStrength.js` con el acceso a los datos, `prediction.js` con la Prob. de éxito de los duelos, presentación y evaluación), `service/retrieveRatingsTimeline/` y `dao/findRatingMatches/` (lectura del historial), `data/` (CSV fuente y JSON generado), `scripts/lib/teamRatingsData.js`, `scripts/buildTeamRatings.js`, `scripts/checkTeamRatings.js` y `scripts/evaluateRatings.js`. Capa de empate: `config/drawModel.js` (parámetros), `service/playerRatings/outcomes.js` (reparto en victoria / empate / derrota), `scripts/evaluateDraws.js` y `scripts/lib/drawEvaluation.js` (reajuste, solo lectura).
+`config/ratings.js` (parámetros), `service/playerRatings/` (motor, `timeline.js` con el punto de entrada único, `teamStrength.js` con el acceso a los datos, `prediction.js` con la Prob. de éxito de los duelos, presentación y evaluación), `service/retrieveRatingsTimeline/` y `dao/findRatingMatches/` (lectura del historial), `data/` (CSV fuente y JSON generado), `scripts/lib/teamRatingsData.js`, `scripts/buildTeamRatings.js`, `scripts/checkTeamRatings.js` y `scripts/evaluateRatings.js`. Capa de empate: `config/drawModel.js` (parámetros), `service/playerRatings/outcomes.js` (reparto en victoria / empate / derrota), `scripts/evaluateDraws.js` y `scripts/lib/drawEvaluation.js` (reajuste, solo lectura). Ratings persistidos: `service/ratingsStore/` (builder, fingerprint, diff y resumen, puros), `dao/models/playerRatings.js` y `dao/models/ratingEvents.js`, `dao/applyRatingDiff/`, `dao/findStoredRatingDocuments/`, `scripts/lib/ratingsStoreCli.js`, `scripts/recomputeRatings.js` y `scripts/verifyRatings.js`. Lectura persistida (etapa 2): `service/ratingsStore/freshness.js` (frescura, pura), `config/ratingReadModel.js` (interruptor), `service/ratingsReadModel/` (índice guardado con la misma forma que el del motor y su retriever), `service/retrieveStoredPredictionIndex/` (cableado con los DAOs), `dao/findRatingSourceStats/`, `dao/findPlayerRatings/`, `dao/findRatingEventsByMatchIds/` y `decorateMatchesWithPrediction` en `service/playerRatings/prediction.js`.
 
 ### Al publicar
 
-Publicar la 2.0 **reescribe todo el historial**: el rating se recalcula de cero en cada consulta, así que los números de la 1.0 dejan de existir (el ranking de arriba guarda la comparación). Después del commit, crear el tag `rating-v2.0` y subirlo, siguiendo el checklist.
+Publicar la 2.0 **reescribe todo el historial**: el rating se recalcula de cero en cada consulta, así que los números de la 1.0 dejan de existir (el ranking de arriba guarda la comparación). Después del commit, crear el tag `rating-v2.0` y subirlo, siguiendo el checklist. Con una versión nueva, volver a correr `npm run recompute:ratings -- --apply` para actualizar los ratings persistidos.
 
 ---
 

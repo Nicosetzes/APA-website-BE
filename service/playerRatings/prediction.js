@@ -1,6 +1,7 @@
 const { DRAW_MODEL } = require("../../config/drawModel")
+const { isReadModelEnabled } = require("../../config/ratingReadModel")
 const { buildRatingsTimeline } = require("./timeline")
-const { expectedForMatch } = require("./index")
+const { expectedForMatch, isRateable } = require("./index")
 const { outcomeProbabilities } = require("./outcomes")
 
 // Predicciones de un partido según el APA Rating 2.0. Hay dos formas, y
@@ -181,16 +182,79 @@ const predictionKind = ({ match, tournament }) => {
 const toPlain = (match) =>
     typeof match?.toJSON === "function" ? match.toJSON() : { ...match }
 
+// Ids (únicos, como string) de los partidos que EXIGEN un evento guardado: los
+// que admiten predicción, ya se jugaron y el motor los rateó (`isRateable`). Un
+// partido jugado que no es rateable (sin goles, SIM o W.O.) no exige evento: en
+// el camino en vivo también da `null`. Los pendientes no tienen evento.
+const collectRequiredEventIds = (plain, kinds) => {
+    const ids = new Set()
+    plain.forEach((match, position) => {
+        if (
+            kinds[position] !== null &&
+            match.played !== false &&
+            isRateable(match)
+        ) {
+            ids.add(String(match._id))
+        }
+    })
+    return [...ids]
+}
+
+const hasOwnKeys = (value) =>
+    value !== null && typeof value === "object" && Object.keys(value).length > 0
+
+const isStoredIndex = (index) =>
+    index !== null &&
+    typeof index === "object" &&
+    index.eventsByMatchId instanceof Map &&
+    index.snapshot instanceof Map
+
+// Intenta el índice guardado. Nunca lanza: devuelve `{ index }` si se puede usar
+// o `{ reason, errorName? }` con el motivo para caer al camino en vivo.
+const tryStoredIndex = async ({
+    retrieveStoredIndex,
+    readModelEnabled,
+    options,
+    matchIds,
+}) => {
+    // Las `options` (solo tests / evaluación) no son comparables con lo guardado,
+    // que se calculó con la configuración de producción.
+    try {
+        if (!readModelEnabled() || hasOwnKeys(options)) {
+            return { reason: "disabled" }
+        }
+
+        const response = await retrieveStoredIndex({ matchIds })
+        if (isStoredIndex(response?.index)) return { index: response.index }
+        if (typeof response?.stale === "string") {
+            return { reason: response.stale }
+        }
+        return { reason: "error", errorName: "MalformedStoredResponse" }
+    } catch (error) {
+        return { reason: "error", errorName: error?.name || "Error" }
+    }
+}
+
 // Agrega `prediction` a cada partido sin tocar el resto de sus campos. Es un
 // adorno: ante cualquier falla devuelve `prediction: null` para que la llave
 // nunca se rompa. Cada partido recibe la predicción que indica `predictionKind`.
 // No lee la base si no hay partidos o ninguno admite predicción.
+//
+// Si llega `retrieveStoredIndex`, primero prueba el índice armado desde los
+// ratings persistidos (etapa 2). Si está desactualizado, falla, el interruptor
+// `RATING_READ_MODEL` lo apaga o hay `options` inyectadas, calcula en vivo como
+// siempre (`retrieveAllMatches`). El resultado es el mismo en ambos caminos.
+// Emite UNA línea `rating_read_model` por respuesta decorada (sin ids), solo
+// cuando el índice guardado está cableado.
 const decorateMatchesWithPrediction = async ({
     matches,
     tournament,
     retrieveAllMatches,
+    retrieveStoredIndex,
+    readModelEnabled = isReadModelEnabled,
     logger,
     options,
+    clock = Date.now,
 }) => {
     const plain = (matches || []).map(toPlain)
     const withoutPrediction = () =>
@@ -201,9 +265,37 @@ const decorateMatchesWithPrediction = async ({
         return withoutPrediction()
     }
 
+    const useStored = typeof retrieveStoredIndex === "function"
+    const startedAt = clock()
+    let source = "live"
+    let reason = "disabled"
+    let errorName
+    let decorated
+
     try {
-        const index = buildPredictionIndex(await retrieveAllMatches(), options)
-        return plain.map((match, position) => {
+        let index
+        if (useStored) {
+            const stored = await tryStoredIndex({
+                retrieveStoredIndex,
+                readModelEnabled,
+                options,
+                matchIds: collectRequiredEventIds(plain, kinds),
+            })
+            if (stored.index) {
+                index = stored.index
+                source = "stored"
+                reason = "ok"
+            } else {
+                reason = stored.reason
+                errorName = stored.errorName
+            }
+        }
+
+        if (!index) {
+            index = buildPredictionIndex(await retrieveAllMatches(), options)
+        }
+
+        decorated = plain.map((match, position) => {
             const kind = kinds[position]
             let prediction = null
             if (kind === "outcomes") prediction = predictOutcomes(match, index)
@@ -215,12 +307,30 @@ const decorateMatchesWithPrediction = async ({
             tournamentId: String(tournament?._id ?? tournament?.id ?? ""),
             message: error.message,
         })
-        return withoutPrediction()
+        decorated = withoutPrediction()
     }
+
+    if (useStored) {
+        const fields = {
+            source,
+            reason,
+            matches: plain.length,
+            durationMs: Math.max(0, Math.round(clock() - startedAt)),
+        }
+        if (reason === "error") {
+            fields.errorName = errorName
+            logger.warn?.("rating_read_model", fields)
+        } else {
+            logger.info?.("rating_read_model", fields)
+        }
+    }
+
+    return decorated
 }
 
 module.exports = {
     buildPredictionIndex,
+    collectRequiredEventIds,
     decorateMatchesWithPrediction,
     isSingleLegTournament,
     predictionKind,

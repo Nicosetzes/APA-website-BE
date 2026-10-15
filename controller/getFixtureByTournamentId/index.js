@@ -5,6 +5,7 @@ const defaultLogger = require("../../utils/logger")
 const {
     retrieveFixtureByTournamentId,
     retrieveRatingMatches,
+    retrieveStoredPredictionIndex,
 } = require("./../../service")
 
 const createGetFixtureByTournamentId = (dependencies = {}) => {
@@ -15,6 +16,14 @@ const createGetFixtureByTournamentId = (dependencies = {}) => {
     const retrieveEveryMatch =
         dependencies.retrieveAllMatches || retrieveRatingMatches
     const logger = dependencies.logger || defaultLogger
+    // Lector de ratings persistidos por defecto, salvo que se inyecte solo el
+    // lector en vivo: así los tests que inyectan `retrieveAllMatches` no tocan
+    // el DAO real.
+    const retrieveStoredIndex =
+        dependencies.retrieveStoredPredictionIndex ??
+        (dependencies.retrieveAllMatches
+            ? undefined
+            : retrieveStoredPredictionIndex)
 
     return async (req, res) => {
         const { tournament } = req.params
@@ -37,6 +46,8 @@ const createGetFixtureByTournamentId = (dependencies = {}) => {
             matches: fixture.matches,
             tournament: { _id: tournament },
             retrieveAllMatches: retrieveEveryMatch,
+            retrieveStoredIndex,
+            readModelEnabled: dependencies.readModelEnabled,
             logger,
             options: dependencies.predictionOptions,
         })

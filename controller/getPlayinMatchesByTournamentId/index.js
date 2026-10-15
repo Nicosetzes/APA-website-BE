@@ -5,6 +5,7 @@ const {
 const {
     retrieveRatingMatches,
     retrievePlayinMatchesByTournamentId,
+    retrieveStoredPredictionIndex,
     retrieveTournamentById,
 } = require("./../../service")
 const { HttpError } = require("../../middleware/httpErrors")
@@ -18,6 +19,14 @@ const createGetPlayinMatchesByTournamentId = (dependencies = {}) => {
     const retrieveEveryMatch =
         dependencies.retrieveAllMatches || retrieveRatingMatches
     const logger = dependencies.logger || defaultLogger
+    // Lector de ratings persistidos por defecto, salvo que se inyecte solo el
+    // lector en vivo: así los tests que inyectan `retrieveAllMatches` no tocan
+    // el DAO real.
+    const retrieveStoredIndex =
+        dependencies.retrieveStoredPredictionIndex ??
+        (dependencies.retrieveAllMatches
+            ? undefined
+            : retrieveStoredPredictionIndex)
 
     return async (req, res) => {
         const { tournament } = req.params
@@ -37,6 +46,8 @@ const createGetPlayinMatchesByTournamentId = (dependencies = {}) => {
             matches,
             tournament: tournamentData,
             retrieveAllMatches: retrieveEveryMatch,
+            retrieveStoredIndex,
+            readModelEnabled: dependencies.readModelEnabled,
             logger,
             options: dependencies.predictionOptions,
         })
