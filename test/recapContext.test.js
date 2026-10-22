@@ -158,7 +158,15 @@ test("recap context returns rules, slim standings and the bracket per tournament
                     outcome: { draw: false },
                     series: { status: "awaiting_leg2", aggregate: [] },
                 }),
-                playoffMatch({ playoff_id: 31, leg: 2 }),
+                playoffMatch({
+                    playoff_id: 31,
+                    leg: 2,
+                    played: true,
+                    scoreP1: 0,
+                    scoreP2: 2,
+                    valid: false,
+                    outcome: { draw: false },
+                }),
                 // Ronda futura sin equipos: se omite.
                 {
                     type: "playoff",
@@ -196,13 +204,18 @@ test("recap context returns rules, slim standings and the bracket per tournament
     assert.equal(cup.bracket[0].round, "final")
     assert.equal(cup.bracket[0].series.status, "awaiting_leg2")
     assert.deepEqual(
-        cup.bracket[0].matches.map(({ leg, played }) => ({ leg, played })),
+        cup.bracket[0].matches.map(({ leg, played, valid }) => ({
+            leg,
+            played,
+            valid,
+        })),
         [
-            { leg: 1, played: true },
-            { leg: 2, played: false },
+            { leg: 1, played: true, valid: true },
+            // Cargado sólo para que avance el cuadro (W/O): valid false.
+            { leg: 2, played: true, valid: false },
         ]
     )
-    assert.equal(cup.bracket[0].matches[1].outcome, null)
+    assert.deepEqual(cup.bracket[0].matches[1].outcome, { draw: false })
 
     assert.equal(league.format, "league")
     assert.deepEqual(league.bracket, [])

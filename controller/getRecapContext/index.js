@@ -67,6 +67,7 @@ const slimMatch = (match) => ({
     playoffId: match.playoff_id ?? null,
     leg: match.leg ?? null,
     played: Boolean(match.played),
+    valid: match.valid !== false,
     playedAt: match.playedAt ?? null,
     playerP1: match.playerP1 ?? null,
     teamP1: match.teamP1 ?? null,

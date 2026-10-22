@@ -2063,6 +2063,13 @@ components:
                     nullable: true
                 played:
                     type: boolean
+                valid:
+                    type: boolean
+                    description: >-
+                        `false` si el resultado se cargó sólo para que avance el
+                        cuadro (por ejemplo un W/O o un desempate): el partido no
+                        cuenta para estadísticas ni para el recap. Es `true`
+                        salvo que el partido tenga `valid: false`.
                 playedAt:
                     type: string
                     format: date-time
