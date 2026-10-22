@@ -8,6 +8,8 @@ const { createApp } = require("../app")
 const matchesModel = require("../dao/models/matches")
 const { createGetRecapContext } = require("../controller/getRecapContext")
 const { describeTournamentFormat } = require("../config/tournamentFormatRules")
+const retrieveRatingMatches = require("../service/retrieveRatingMatches")
+const { findMatchesPlayedOnDate } = require("../dao")
 
 const createResponse = () => ({
     body: null,
@@ -82,19 +84,25 @@ test("every tournament format has rules and the playoff mode changes the knockou
             format: "playoff",
             playoffMode: "two_legged",
         }).knockout,
-        /ida y vuelta/
+        /ida y vuelta.*gol de oro/
     )
     assert.match(
         describeTournamentFormat({ format: "playoff", playoffMode: "single" })
             .knockout,
-        /partido único/
+        /partido único.*gol de plata.*penales/
     )
     assert.deepEqual(describeTournamentFormat({ format: "legacy" }).stages, [])
 })
 
+const noInsights = {
+    retrieveRatingsTimeline: async () => ({ events: [] }),
+    retrieveMatchesPlayedOnDate: async () => [],
+}
+
 test("recap context returns rules, slim standings and the bracket per tournament", async () => {
     const calls = { standings: [], playin: [], playoff: [] }
     const controller = createGetRecapContext({
+        ...noInsights,
         retrieveTournamentIdsPlayedOnDate: async (date) => {
             calls.date = date
             return ["t-playoff", "t-league", "t-gone"]
@@ -217,6 +225,8 @@ test("recap context returns rules, slim standings and the bracket per tournament
     )
     assert.deepEqual(cup.bracket[0].matches[1].outcome, { draw: false })
 
+    assert.deepEqual(cup.matchInsights, [])
+    assert.deepEqual(league.matchInsights, [])
     assert.equal(league.format, "league")
     assert.deepEqual(league.bracket, [])
     assert.deepEqual(calls.playoff, ["t-playoff"])
@@ -254,6 +264,7 @@ test("recap context returns rules, slim standings and the bracket per tournament
 test("recap context loads the play-in only for league_playin_playoff", async () => {
     const calls = { playin: [] }
     const controller = createGetRecapContext({
+        ...noInsights,
         retrieveTournamentIdsPlayedOnDate: async () => ["t1"],
         retrieveTournamentById: async () => ({
             name: "Liga APA",
@@ -308,6 +319,11 @@ test("recap context answers an empty list when nobody played", async () => {
         data: [],
     })
 })
+
+// `matchesModel.find(...)` se puede esperar directo o encadenar `.lean()`
+// (historial de ratings y partidos del día para `matchInsights`).
+const query = (rows) =>
+    Object.assign(Promise.resolve(rows), { lean: async () => rows })
 
 const withApp = async (callback) => {
     const app = createApp({
@@ -400,10 +416,11 @@ test("recap context reuses the real standings controller for a league", async (t
         outcome: { draw: false, teamThatWon: teamA, teamThatLost: teamB },
     }
 
+    retrieveRatingMatches.invalidate()
     t.mock.method(matchesModel, "distinct", async () => ["t1"])
     t.mock.method(tournamentsModel, "findById", async () => tournament)
-    t.mock.method(matchesModel, "find", async (filter) =>
-        filter.played ? [played] : []
+    t.mock.method(matchesModel, "find", (filter) =>
+        query(filter.played ? [played] : [])
     )
 
     await withApp(async (baseUrl) => {
@@ -454,6 +471,7 @@ test("recap context leaves out matches played after the date and reports the pre
         outcome: { draw: false, teamThatWon: winner, teamThatLost: loser },
     })
 
+    retrieveRatingMatches.invalidate()
     t.mock.method(matchesModel, "distinct", async () => ["t1"])
     t.mock.method(tournamentsModel, "findById", async () => ({
         name: "Liga APA",
@@ -461,15 +479,17 @@ test("recap context leaves out matches played after the date and reports the pre
         ongoing: true,
         teams: [entry(teamA, 1), entry(teamB, 2), entry(teamC, 3)],
     }))
-    t.mock.method(matchesModel, "find", async (filter) =>
-        filter.played
-            ? [
-                  // Antes del día, el día y después del día (hora Argentina).
-                  result(teamA, teamB, 3, "2026-10-10T20:00:00Z"),
-                  result(teamB, teamC, 1, "2026-10-11T20:00:00Z"),
-                  result(teamC, teamA, 5, "2026-10-12T20:00:00Z"),
-              ]
-            : []
+    t.mock.method(matchesModel, "find", (filter) =>
+        query(
+            filter.played
+                ? [
+                      // Antes del día, el día y después del día (hora Argentina).
+                      result(teamA, teamB, 3, "2026-10-10T20:00:00Z"),
+                      result(teamB, teamC, 1, "2026-10-11T20:00:00Z"),
+                      result(teamC, teamA, 5, "2026-10-12T20:00:00Z"),
+                  ]
+                : []
+        )
     )
 
     await withApp(async (baseUrl) => {
@@ -501,6 +521,7 @@ test("recap context leaves out matches played after the date and reports the pre
 
 test("recap context gives no previousPosition when nobody had played before that day", async () => {
     const controller = createGetRecapContext({
+        ...noInsights,
         retrieveTournamentIdsPlayedOnDate: async () => ["t1"],
         retrieveTournamentById: async () => ({
             name: "Liga APA",
@@ -529,4 +550,284 @@ test("recap context gives no previousPosition when nobody had played before that
         ),
         [null, null]
     )
+})
+
+const insightEvent = (matchId, time, overrides = {}) => ({
+    matchId,
+    time: Date.parse(time),
+    tournament: "x",
+    type: "regular",
+    scoreP1: 2,
+    scoreP2: 1,
+    expectedP1: 0.3,
+    resultP1: 1,
+    delta: 6,
+    teamAdjustment: 4,
+    p1: { id: "1", name: "Jugador 1", before: 1000, games: 5, teamOverall: 80 },
+    p2: { id: "2", name: "Jugador 2", before: 1100, games: 5, teamOverall: 84 },
+    ...overrides,
+})
+
+const insightMatch = (id, tournamentId, overrides = {}) => ({
+    _id: id,
+    tournament: { id: tournamentId },
+    type: "regular",
+    scoreP1: 2,
+    scoreP2: 1,
+    playerP1: player(1),
+    teamP1: team(11),
+    playerP2: player(2),
+    teamP2: team(12),
+    outcome: { draw: false, playerThatWon: { id: 1 } },
+    ...overrides,
+})
+
+const insightTournaments = {
+    "t-league": { name: "Liga", format: "league", ongoing: true },
+    "t-cup": {
+        name: "Copa",
+        format: "playoff",
+        playoffMode: "single",
+        ongoing: true,
+    },
+    "t-twolegs": {
+        name: "Copa ida y vuelta",
+        format: "playoff",
+        playoffMode: "two_legged",
+        ongoing: true,
+    },
+    "t-empty": { name: "Sin partidos", format: "playoff", ongoing: true },
+}
+
+test("recap context adds matchInsights per tournament from one day-wide read", async () => {
+    const calls = { timeline: 0, dayMatches: [] }
+    const controller = createGetRecapContext({
+        retrieveTournamentIdsPlayedOnDate: async () => [
+            "t-league",
+            "t-cup",
+            "t-twolegs",
+            "t-empty",
+        ],
+        retrieveTournamentById: async (id) => insightTournaments[id],
+        retrieveStandings: async () => ({ standings: [] }),
+        retrievePlayinMatchesByTournamentId: async () => [],
+        retrievePlayoffMatchesByTournamentId: async () => [],
+        retrieveRatingsTimeline: async () => {
+            calls.timeline += 1
+            return {
+                events: [
+                    // 02:59:59Z del 21: es del día anterior en Argentina.
+                    insightEvent("before", "2026-10-21T02:59:59Z"),
+                    // 03:00:00Z del 21: primer instante del día (entra).
+                    insightEvent("league-1", "2026-10-21T03:00:00Z"),
+                    insightEvent("cup-1", "2026-10-21T20:00:00Z", {
+                        type: "playoff",
+                        scoreP1: 1,
+                        scoreP2: 1,
+                        resultP1: 0.5,
+                        delta: -1.5,
+                    }),
+                    insightEvent("twolegs-1", "2026-10-22T00:13:40Z", {
+                        type: "playoff",
+                        scoreP1: 1,
+                        scoreP2: 1,
+                        resultP1: 0.5,
+                    }),
+                    // 02:59:59Z del 22: último instante del día (entra).
+                    insightEvent("league-2", "2026-10-22T02:59:59Z", {
+                        scoreP1: 0,
+                        scoreP2: 7,
+                        resultP1: 0,
+                        expectedP1: 0.79,
+                        delta: -9.5,
+                    }),
+                    // 03:00:00Z del 22: ya es el día siguiente.
+                    insightEvent("after", "2026-10-22T03:00:00Z"),
+                ],
+            }
+        },
+        retrieveMatchesPlayedOnDate: async (date) => {
+            calls.dayMatches.push(date)
+            return [
+                insightMatch("league-2", "t-league", {
+                    scoreP1: 0,
+                    scoreP2: 7,
+                    outcome: { draw: false, playerThatWon: { id: 2 } },
+                }),
+                insightMatch("league-1", "t-league"),
+                insightMatch("cup-1", "t-cup", {
+                    type: "playoff",
+                    playoff_id: 31,
+                    leg: 1,
+                    scoreP1: 1,
+                    scoreP2: 1,
+                    outcome: {
+                        draw: true,
+                        penalties: true,
+                        playerThatWon: { id: 2 },
+                    },
+                }),
+                insightMatch("twolegs-1", "t-twolegs", {
+                    type: "playoff",
+                    playoff_id: 31,
+                    leg: 1,
+                    scoreP1: 1,
+                    scoreP2: 1,
+                    outcome: { draw: true },
+                }),
+                // valid:false (W.O., gol de oro): no tiene evento del motor.
+                insightMatch("twolegs-wo", "t-twolegs", {
+                    type: "playoff",
+                    playoff_id: 31,
+                    leg: 3,
+                    scoreP1: 0,
+                    scoreP2: 1,
+                }),
+            ]
+        },
+    })
+    const response = createResponse()
+
+    await controller({ query: { date: "2026-10-21" } }, response)
+
+    assert.equal(calls.timeline, 1)
+    assert.deepEqual(calls.dayMatches, ["2026-10-21"])
+
+    const byName = Object.fromEntries(
+        response.body.data.map((context) => [context.tournament, context])
+    )
+
+    // Orden por playedAt ascendente, aunque la consulta traiga otro orden.
+    assert.deepEqual(
+        byName.Liga.matchInsights.map(({ matchId, playedAt }) => [
+            matchId,
+            playedAt,
+        ]),
+        [
+            ["league-1", "2026-10-21T03:00:00.000Z"],
+            ["league-2", "2026-10-22T02:59:59.000Z"],
+        ]
+    )
+    const [, upset] = byName.Liga.matchInsights
+    assert.equal(upset.winner, "p2")
+    assert.equal(upset.expectedP1, 0.79)
+    assert.equal(upset.winnerExpectedScore, 0.21)
+    assert.equal(upset.ratingSwing, 9.5)
+    assert.equal(upset.kind, "expected_points")
+    assert.equal(upset.p1.teamOverall, 80)
+    assert.equal(upset.teamAdjustment, 4)
+
+    const [penalties] = byName.Copa.matchInsights
+    assert.equal(byName.Copa.matchInsights.length, 1)
+    assert.equal(penalties.kind, "advance")
+    assert.equal(penalties.playoffId, 31)
+    assert.equal(penalties.scoreP1, penalties.scoreP2)
+    assert.equal(penalties.winner, "p2")
+    assert.equal(penalties.winnerExpectedScore, 0.7)
+
+    const [draw] = byName["Copa ida y vuelta"].matchInsights
+    assert.equal(byName["Copa ida y vuelta"].matchInsights.length, 1)
+    assert.equal(draw.kind, "expected_points")
+    assert.equal(draw.leg, 1)
+    assert.equal(draw.winner, "draw")
+    assert.equal(draw.winnerExpectedScore, null)
+
+    assert.deepEqual(byName["Sin partidos"].matchInsights, [])
+})
+
+test("recap context does not read the day's matches when no event falls in the day", async () => {
+    let dayMatchesCalls = 0
+    const controller = createGetRecapContext({
+        retrieveTournamentIdsPlayedOnDate: async () => ["t-league"],
+        retrieveTournamentById: async (id) => insightTournaments[id],
+        retrieveStandings: async () => ({ standings: [] }),
+        retrieveRatingsTimeline: async () => ({
+            events: [
+                insightEvent("other-day", "2026-10-25T12:00:00Z"),
+                {
+                    ...insightEvent("no-date", "2026-10-21T12:00:00Z"),
+                    time: null,
+                },
+            ],
+        }),
+        retrieveMatchesPlayedOnDate: async () => {
+            dayMatchesCalls += 1
+            return []
+        },
+    })
+    const response = createResponse()
+
+    await controller({ query: { date: "2026-10-21" } }, response)
+
+    assert.equal(dayMatchesCalls, 0)
+    assert.deepEqual(response.body.data[0].matchInsights, [])
+})
+
+test("recap context does not touch ratings when nobody played", async () => {
+    const controller = createGetRecapContext({
+        retrieveTournamentIdsPlayedOnDate: async () => [],
+        retrieveRatingsTimeline: async () => {
+            throw new Error("no debería leer ratings")
+        },
+        retrieveMatchesPlayedOnDate: async () => {
+            throw new Error("no debería leer partidos")
+        },
+    })
+    const response = createResponse()
+
+    await controller({ query: { date: "2026-10-21" } }, response)
+
+    assert.deepEqual(response.body.data, [])
+})
+
+test("recap context fails instead of hiding a ratings read error", async () => {
+    const controller = createGetRecapContext({
+        retrieveTournamentIdsPlayedOnDate: async () => ["t-league"],
+        retrieveTournamentById: async (id) => insightTournaments[id],
+        retrieveStandings: async () => ({ standings: [] }),
+        retrieveRatingsTimeline: async () => {
+            throw new Error("ratings caídos")
+        },
+    })
+
+    await assert.rejects(
+        controller({ query: { date: "2026-10-21" } }, createResponse()),
+        /ratings caídos/
+    )
+})
+
+test("findMatchesPlayedOnDate queries played, valid matches of the Argentina day once", async (t) => {
+    const calls = { find: [], lean: 0 }
+    t.mock.method(matchesModel, "find", (filter, projection) => {
+        calls.find.push({ filter, projection })
+        return {
+            lean: async () => {
+                calls.lean += 1
+                return [{ _id: "m1" }]
+            },
+        }
+    })
+
+    const rows = await findMatchesPlayedOnDate("2026-10-11")
+
+    assert.deepEqual(rows, [{ _id: "m1" }])
+    assert.equal(calls.find.length, 1)
+    assert.equal(calls.lean, 1)
+    assert.deepEqual(calls.find[0].filter, {
+        played: true,
+        valid: { $ne: false },
+        playedAt: {
+            $gte: new Date("2026-10-11T03:00:00.000Z"),
+            $lt: new Date("2026-10-12T03:00:00.000Z"),
+        },
+    })
+    for (const field of [
+        "tournament.id",
+        "playoff_id",
+        "leg",
+        "outcome.playerThatWon.id",
+        "teamP1.name",
+    ]) {
+        assert.ok(calls.find[0].projection.split(" ").includes(field), field)
+    }
 })

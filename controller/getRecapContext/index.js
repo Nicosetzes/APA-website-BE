@@ -1,6 +1,8 @@
 const {
+    retrieveMatchesPlayedOnDate,
     retrievePlayinMatchesByTournamentId,
     retrievePlayoffMatchesByTournamentId,
+    retrieveRatingsTimeline,
     retrieveTournamentById,
     retrieveTournamentIdsPlayedOnDate,
 } = require("./../../service")
@@ -15,6 +17,7 @@ const {
     createGetStandingsTableByTournamentId,
 } = require("../getStandingsTableByTournamentId")
 const { getArgentinaDayRange } = require("../../utils/argentinaDay")
+const { buildMatchInsights } = require("./matchInsights")
 
 const fetchStandings = async (tournamentId, playedBefore) => {
     let body
@@ -117,8 +120,40 @@ const createGetRecapContext = (dependencies = {}) => {
     const retrievePlayoff =
         dependencies.retrievePlayoffMatchesByTournamentId ||
         retrievePlayoffMatchesByTournamentId
+    const retrieveTimeline =
+        dependencies.retrieveRatingsTimeline || retrieveRatingsTimeline
+    const retrieveDayMatches =
+        dependencies.retrieveMatchesPlayedOnDate || retrieveMatchesPlayedOnDate
 
-    const buildTournamentContext = async (tournamentId, date, dayRange) => {
+    const loadInsightSources = async (date, dayRange) => {
+        const start = dayRange.start.getTime()
+        const end = dayRange.end.getTime()
+        const { events } = await retrieveTimeline()
+        const dayEvents = events.filter(
+            (event) =>
+                event.time !== null && event.time >= start && event.time < end
+        )
+        const matchesByTournament = new Map()
+
+        if (dayEvents.length > 0) {
+            for (const match of await retrieveDayMatches(date)) {
+                const key = String(match.tournament?.id)
+                if (!matchesByTournament.has(key)) {
+                    matchesByTournament.set(key, [])
+                }
+                matchesByTournament.get(key).push(match)
+            }
+        }
+
+        return { events: dayEvents, matchesByTournament }
+    }
+
+    const buildTournamentContext = async (
+        tournamentId,
+        date,
+        dayRange,
+        sources
+    ) => {
         const tournament = await retrieveTournament(tournamentId)
 
         if (!tournament) return null
@@ -169,6 +204,12 @@ const createGetRecapContext = (dependencies = {}) => {
                 )
             ),
             bracket: buildBracket(format, playoffMatches),
+            matchInsights: buildMatchInsights({
+                events: sources.events,
+                matches:
+                    sources.matchesByTournament.get(String(tournamentId)) ?? [],
+                tournament,
+            }),
         }
     }
 
@@ -176,9 +217,13 @@ const createGetRecapContext = (dependencies = {}) => {
         const { date } = req.query
         const dayRange = getArgentinaDayRange(date)
         const tournamentIds = await retrieveTournamentIds(date)
+        const sources =
+            tournamentIds.length > 0
+                ? await loadInsightSources(date, dayRange)
+                : null
         const contexts = await Promise.all(
             tournamentIds.map((tournamentId) =>
-                buildTournamentContext(tournamentId, date, dayRange)
+                buildTournamentContext(tournamentId, date, dayRange, sources)
             )
         )
 

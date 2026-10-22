@@ -1685,10 +1685,15 @@ paths:
                 en ese grupo todavía no se había jugado). El play-in y el
                 cuadro muestran siempre el estado actual (`asOf`), por lo que
                 el endpoint es confiable para recaps del mismo día. No incluye
-                los partidos de ese día (se piden con `/api/matches`) ni
-                calcula consecuencias (quién clasificó o necesita ganar), salvo
-                los flags `eliminated`, `directlyQualified` y `playinQualified`
-                que ya trae la tabla. Sin partidos ese día devuelve `data: []`.
+                los resultados completos de ese día (se piden con
+                `/api/matches`) ni calcula consecuencias (quién clasificó o
+                necesita ganar), salvo los flags `eliminated`,
+                `directlyQualified` y `playinQualified` que ya trae la tabla.
+                Sí trae `matchInsights`: por cada partido rateado de ese día,
+                las odds previas del Rating APA 2.0 y el overall de cada
+                equipo, lo mínimo para detectar sorpresas. Los números son
+                crudos: las etiquetas (favorito, sorpresa) las pone quien
+                consume. Sin partidos ese día devuelve `data: []`.
             parameters:
                 - in: query
                   name: date
@@ -2052,6 +2057,144 @@ components:
                                 type: array
                                 items:
                                     $ref: "#/components/schemas/RecapContextMatch"
+                matchInsights:
+                    type: array
+                    description: >-
+                        Un ítem por partido rateado de este torneo jugado en
+                        `date` (día de Argentina), ordenado por `playedAt`
+                        ascendente. Vacío si no hubo partidos rateados. No
+                        incluye partidos `valid: false` (W/O, gol de oro,
+                        simulados), sin jugar ni sin goles: el motor de ratings
+                        no los califica.
+                    items:
+                        $ref: "#/components/schemas/RecapMatchInsight"
+        RecapMatchInsightSide:
+            type: object
+            required: [player, team, ratingBefore, teamOverall]
+            properties:
+                player:
+                    type: object
+                    required: [id, name]
+                    properties:
+                        id:
+                            type: string
+                        name:
+                            type: string
+                team:
+                    type: object
+                    required: [id, name]
+                    properties:
+                        id:
+                            type: integer
+                            nullable: true
+                        name:
+                            type: string
+                            nullable: true
+                ratingBefore:
+                    type: number
+                    description: Rating del jugador justo antes del partido (1 decimal)
+                teamOverall:
+                    type: number
+                    nullable: true
+                    description: >-
+                        Overall del equipo (Sofifa). `null` si falta el de
+                        cualquiera de los dos equipos: en ese caso el partido se
+                        calculó sin término de equipo y `teamAdjustment` es 0.
+        RecapMatchInsight:
+            type: object
+            description: >-
+                Datos crudos de un partido rateado, para que el consumidor
+                decida qué es una sorpresa. Sin etiquetas ni umbrales.
+            required:
+                - matchId
+                - playedAt
+                - type
+                - playoffId
+                - leg
+                - p1
+                - p2
+                - scoreP1
+                - scoreP2
+                - expectedP1
+                - teamAdjustment
+                - kind
+                - winner
+                - winnerExpectedScore
+                - ratingSwing
+            properties:
+                matchId:
+                    type: string
+                playedAt:
+                    type: string
+                    format: date-time
+                type:
+                    type: string
+                    enum: [regular, playin, playoff]
+                playoffId:
+                    type: integer
+                    nullable: true
+                leg:
+                    type: integer
+                    nullable: true
+                p1:
+                    $ref: "#/components/schemas/RecapMatchInsightSide"
+                p2:
+                    $ref: "#/components/schemas/RecapMatchInsightSide"
+                scoreP1:
+                    type: integer
+                scoreP2:
+                    type: integer
+                expectedP1:
+                    type: number
+                    minimum: 0
+                    maximum: 1
+                    description: >-
+                        Puntaje esperado de P1 antes del partido (3 decimales),
+                        con el término de fuerza de equipo incluido. No es la
+                        probabilidad de ganar salvo cuando `kind` es `advance`.
+                teamAdjustment:
+                    type: number
+                    description: >-
+                        Puntos Elo a favor de P1 que sumó el término de equipo
+                        (1 decimal). 0 si no se aplicó.
+                kind:
+                    type: string
+                    nullable: true
+                    enum: [advance, expected_points]
+                    description: >-
+                        Cómo leer `expectedP1`. `advance`: cruce de partido
+                        único, es la probabilidad de avanzar (el empate se
+                        define por alargue y penales); incluye el play-in de los
+                        formatos que no son `champions_league`.
+                        `expected_points`: el partido puede terminar empatado
+                        (liga, patas 1 y 2 de un cruce de ida y vuelta,
+                        playoffs de `champions_league`) y el empate vale 0,5, de
+                        modo que NO es la probabilidad de ganar. `null`: sin
+                        predicción con sentido (pata 3 que desempata a gol de
+                        oro, play-in de `champions_league`). Sale de
+                        `predictionKind` (`service/playerRatings/prediction.js`).
+                winner:
+                    type: string
+                    enum: [p1, p2, draw]
+                    description: >-
+                        Sale de `outcome` y no del marcador: un cruce definido
+                        por penales tiene goles iguales pero ganador. `draw` solo
+                        si el partido terminó realmente empatado.
+                winnerExpectedScore:
+                    type: number
+                    nullable: true
+                    description: >-
+                        Puntaje esperado del lado ganador antes del partido
+                        (`expectedP1` si ganó P1, `1 - expectedP1` si ganó P2;
+                        3 decimales). `null` si fue empate. Un valor bajo indica
+                        que ganó el menos favorecido.
+                ratingSwing:
+                    type: number
+                    minimum: 0
+                    description: >-
+                        Puntos de rating que cambió el partido, `abs(delta)` (1
+                        decimal). Misma unidad que `ratingSwing` de
+                        `highlights.biggestUpset` en `/api/ratings/period`.
         RecapContextMatch:
             type: object
             properties:

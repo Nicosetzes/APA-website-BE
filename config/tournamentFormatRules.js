@@ -5,7 +5,7 @@ const TABLE_TIEBREAK =
     "Tabla: 3 puntos por victoria y 1 por empate. Desempate por diferencia de gol, goles a favor y menos goles en contra."
 
 const KNOCKOUT_SINGLE_MATCH =
-    "Cada cruce es un partido único; si empatan se define por penales."
+    "Cada cruce es un partido único; si empatan hay alargue (gol de plata) y, si sigue igualado, se define por penales."
 
 const BEST_THIRDS_PAIRING =
     "Los terceros se ordenan entre sí con el mismo criterio que la tabla (puntos, diferencia de gol, goles a favor y menos goles en contra). Sólo algunos primeros del cuadro (`firstsFacingThirds`) enfrentan a un tercero; se ordenan igual, y el mejor de esos primeros enfrenta al peor de los terceros clasificados, el segundo mejor al segundo peor, y así. Dos equipos del mismo grupo no pueden cruzarse en la primera ronda del playoff: si el emparejamiento lo produce, ese cruce se reasigna al siguiente tercero disponible."
@@ -58,7 +58,7 @@ const describeTournamentFormat = ({ format, playoffMode } = {}) => {
             tableTiebreak: null,
             qualification: null,
             knockout: twoLegged
-                ? "Cada cruce es de ida y vuelta, definido por el marcador global. Si el global empata se juega un tercer partido de desempate, que se define por penales si termina igualado."
+                ? "Cada cruce es de ida y vuelta, definido por el marcador global. Si el global empata se juega un tercer partido de desempate a gol de oro: avanza quien convierte primero (no hay penales)."
                 : KNOCKOUT_SINGLE_MATCH,
         }
     }
