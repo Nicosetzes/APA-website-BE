@@ -1,9 +1,11 @@
+const {
+    PERFORMANCE_MIN_RATED_MATCHES,
+} = require("../../config/tournamentRecap")
 const { round } = require("../../service/playerRatings/presentation")
 
 const STAGES = ["regular", "playin", "playoff"]
 
-const CRITERION =
-    "V/E/D según el resultado del partido: quien gana por penales suma una victoria y los penales se informan aparte (penaltyShootouts). Puntos: 3 por victoria y 1 por empate. Solo cuentan partidos válidos entre jugadores distintos."
+const CRITERION = `V/E/D según el resultado del partido: quien gana por penales suma una victoria y los penales se informan aparte (penaltyShootouts). Puntos: 3 por victoria y 1 por empate. Solo cuentan partidos válidos entre jugadores distintos. performanceVsExpectedPct compara los puntos reales con los esperados según el Elo en los mismos partidos con predicción: +24 es 24 % más puntos de los esperados y -40 es 40 % menos; null si hay menos de ${PERFORMANCE_MIN_RATED_MATCHES} partidos con predicción.`
 
 const emptyLine = () => ({
     P: 0,
@@ -29,6 +31,12 @@ const finishLine = (line) => ({
 // - "advance": el partido no termina empatado (los penales dan ganador), así
 //   que la victoria es la probabilidad de avanzar: 3 * P(avanzar).
 // Sin odds (partido sin predicción) no aporta puntos esperados.
+//
+// Ambas formas están en la misma escala que los puntos reales (3 por victoria,
+// 1 por empate, 0 por derrota), así que se pueden dividir. Con "advance" el
+// partido siempre tiene ganador (los penales cuentan como victoria, igual que
+// en los puntos reales) y la esperanza de puntos de ese lado es
+// 3 * P(avanzar). Con "expected_points" es 3 * P(victoria) + P(empate).
 const expectedPointsOf = (odds, side) => {
     if (!odds) return null
 
@@ -37,6 +45,19 @@ const expectedPointsOf = (odds, side) => {
     }
 
     return 3 * (side === "p1" ? odds.advanceP1 : odds.advanceP2)
+}
+
+// Rendimiento contra lo esperado, en porcentaje entero con signo:
+// (reales / esperados - 1) * 100, con los puntos reales y los esperados de los
+// MISMOS partidos (los que tienen predicción). `null` si no hay base para
+// compararlo: menos de PERFORMANCE_MIN_RATED_MATCHES partidos con predicción o
+// esperados en 0 (no se puede dividir).
+const performanceVsExpectedPct = ({ actual, expected, matches }) => {
+    if (matches < PERFORMANCE_MIN_RATED_MATCHES) return null
+    if (!Number.isFinite(expected) || expected <= 0) return null
+
+    // `+ 0` evita el -0.
+    return Math.round((actual / expected - 1) * 100) + 0
 }
 
 const resultFor = (winner, side) => {
@@ -197,6 +218,11 @@ const buildPlayerStats = ({ entries, players }) => {
                     actualPoints,
                     actualPointsInRatedMatches: stats.actualInRated,
                 },
+                performanceVsExpectedPct: performanceVsExpectedPct({
+                    actual: stats.actualInRated,
+                    expected: stats.expected,
+                    matches: stats.expectedMatches,
+                }),
                 byStage: Object.fromEntries(
                     STAGES.map((stage) => [
                         stage,

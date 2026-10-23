@@ -128,7 +128,7 @@ test("the legacy formats american_cup and club_world_cup are described and need 
         // Sin etapas conocidas el recap solo exige el campeón y la historia.
         assert.deepEqual(getRequiredRecapSections(rules), [
             ["El campeón"],
-            ["En la historia"],
+            ["Salón de la fama", "En la historia"],
         ])
     }
     assert.match(
@@ -175,19 +175,19 @@ test("getRequiredRecapSections follows the stages of each format", () => {
     assert.deepEqual(sectionsOf("league"), [
         ["El campeón"],
         ["Fase regular", "Fase de grupos"],
-        ["En la historia"],
+        ["Salón de la fama", "En la historia"],
     ])
     assert.deepEqual(sectionsOf("league_playin_playoff"), [
         ["El campeón"],
         ["Fase regular", "Fase de grupos"],
         ["Play-in"],
         ["Playoffs"],
-        ["En la historia"],
+        ["Salón de la fama", "En la historia"],
     ])
     assert.deepEqual(sectionsOf("playoff"), [
         ["El campeón"],
         ["Playoffs"],
-        ["En la historia"],
+        ["Salón de la fama", "En la historia"],
     ])
     for (const format of [
         "world_cup",
@@ -199,7 +199,7 @@ test("getRequiredRecapSections follows the stages of each format", () => {
             ["El campeón"],
             ["Fase regular", "Fase de grupos"],
             ["Playoffs"],
-            ["En la historia"],
+            ["Salón de la fama", "En la historia"],
         ])
     }
 })
@@ -222,7 +222,7 @@ const fullRecap = [
     "Texto.",
     "## Playoffs",
     "Final contra Max y Chelsea.",
-    "## En la historia",
+    "## Salón de la Fama",
     "Cierre.",
 ].join("\n")
 
@@ -236,6 +236,35 @@ test("checkRecapCoherence accepts a complete recap", () => {
     })
 })
 
+test("checkRecapCoherence accepts Salón de la fama and the former En la historia", () => {
+    for (const title of [
+        "Salón de la fama",
+        "SALON DE LA FAMA: Leo",
+        "En la historia",
+    ]) {
+        assert.equal(
+            checkRecapCoherence({
+                recap: fullRecap.replace("## Salón de la Fama", `## ${title}`),
+                result,
+                rules,
+            }).ok,
+            true,
+            title
+        )
+    }
+
+    // Sin ninguna de las dos, el error nombra primero el título canónico.
+    const missing = checkRecapCoherence({
+        recap: fullRecap.replace("## Salón de la Fama", "## Cierre"),
+        result,
+        rules,
+    })
+
+    assert.deepEqual(missing.missingSections, [
+        "Salón de la fama / En la historia",
+    ])
+})
+
 test("checkRecapCoherence lists missing sections and names", () => {
     const check = checkRecapCoherence({
         recap: "## El campeón\nSolo Nico.\n## Playoffs\nTexto",
@@ -246,7 +275,7 @@ test("checkRecapCoherence lists missing sections and names", () => {
     assert.equal(check.ok, false)
     assert.deepEqual(check.missingSections, [
         "Fase regular / Fase de grupos",
-        "En la historia",
+        "Salón de la fama / En la historia",
     ])
     assert.deepEqual(check.missingNames, [
         "campeón (equipo): Liverpool",
@@ -290,7 +319,7 @@ test("checkRecapCoherence checks a player who is champion and runner-up once", (
         "x",
         "## Playoffs",
         "x",
-        "## En la historia",
+        "## Salón de la fama",
         "x",
     ].join("\n")
     const leaguePlayin = describeTournamentFormat({

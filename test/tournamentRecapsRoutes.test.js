@@ -41,7 +41,7 @@ const validRecap = [
     "Nico llevó a Liverpool al título.",
     "## Playoffs",
     "En la final venció a Max y su Chelsea.",
-    "## En la historia",
+    "## Salón de la fama",
     "Su primer título.",
 ].join("\n")
 
@@ -53,7 +53,7 @@ const validBody = (overrides = {}) => ({
     generation: {
         model: "claude-sonnet-5-5",
         promptVersion: "tournament-recap-v1",
-        contextVersion: "tournament-recap-2",
+        contextVersion: "tournament-recap-3",
         ratingVersion: "2.0",
         drawModelVersion: "draw-1",
         contextHash: "abc123",
@@ -324,7 +324,11 @@ test("POST /api/tournament-recaps rejects a recap without the required sections 
 
         const messages = body.error.details.map(({ message }) => message)
 
-        assert.ok(messages.includes('Falta la sección "## En la historia"'))
+        assert.ok(
+            messages.includes(
+                'Falta la sección "## Salón de la fama / En la historia"'
+            )
+        )
         assert.ok(messages.some((message) => message.includes("Max")))
         assert.ok(messages.some((message) => message.includes("Chelsea")))
         assert.equal(

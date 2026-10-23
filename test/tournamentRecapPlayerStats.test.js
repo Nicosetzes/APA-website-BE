@@ -3,6 +3,7 @@ process.env.LOG_LEVEL = "silent"
 const assert = require("node:assert/strict")
 const test = require("node:test")
 
+const { PERFORMANCE_MIN_RATED_MATCHES } = require("../config/tournamentRecap")
 const {
     buildMatchEntries,
 } = require("../controller/getTournamentRecapContext/matchLog")
@@ -284,6 +285,109 @@ test("expected points come from the odds of each match and only count rated matc
     // Lo esperado de ambos lados de una liga suma 3 * (1 - draw) + 2 * draw por
     // partido cuando hay empate posible; en el cruce, 3 en total.
     assert.ok(max.overall.expectedPoints > 0)
+})
+
+const duel = (n, s1, s2, config = {}) =>
+    mkMatch({
+        n,
+        p1: NICO,
+        t1: T.nico,
+        s1,
+        p2: MAX,
+        t2: T.max,
+        s2,
+        ...config,
+    })
+
+test("performanceVsExpectedPct compares actual and expected points of the same rated matches", () => {
+    // Nico gana 3 partidos de liga parejos (esperados 3 * 0,39 + 0,22 = 1,39 cada
+    // uno) y pierde un cuarto sin evento: ese no entra ni en lo real ni en lo
+    // esperado.
+    const matches = [duel(1, 1, 0), duel(2, 2, 0), duel(3, 3, 1), duel(4, 0, 1)]
+    const result = stats(matches, [
+        stubEvent(matches[0], { expectedP1: 0.5 }),
+        stubEvent(matches[1], { expectedP1: 0.5 }),
+        stubEvent(matches[2], { expectedP1: 0.5 }),
+    ])
+    const nico = byName(result, "Nico")
+    const max = byName(result, "Max")
+
+    assert.equal(nico.overall.actualPoints, 9)
+    assert.equal(nico.overall.actualPointsInRatedMatches, 9)
+    assert.equal(nico.overall.expectedMatches, 3)
+    // 9 reales contra 4,17 esperados: 9 / 4,17 - 1 = +115,83 %.
+    assert.equal(nico.performanceVsExpectedPct, 116)
+    // Max suma 3 (la victoria sin evento no cuenta) contra 4,17: -100 %.
+    assert.equal(max.overall.actualPoints, 3)
+    assert.equal(max.overall.actualPointsInRatedMatches, 0)
+    assert.equal(max.performanceVsExpectedPct, -100)
+    // Sin partidos: no hay con qué comparar.
+    assert.equal(byName(result, "Leo").performanceVsExpectedPct, null)
+})
+
+test("performanceVsExpectedPct is on the same scale in single-match knockouts (kind advance)", () => {
+    // Cruces de partido único a 50 %: lo esperado es 3 * 0,5 = 1,5 por cruce y
+    // ganar vale 3 (también por penales). Dos victorias y una por penales: 9
+    // reales contra 4,5 esperados.
+    const matches = [
+        ko(1, 13, { p1: NICO, t1: T.nico, s1: 2, p2: MAX, t2: T.max, s2: 1 }),
+        ko(2, 14, { p1: NICO, t1: T.nico, s1: 1, p2: MAX, t2: T.max, s2: 0 }),
+        ko(3, 15, {
+            p1: NICO,
+            t1: T.nico,
+            s1: 1,
+            p2: MAX,
+            t2: T.max,
+            s2: 1,
+            pens: [5, 4],
+        }),
+    ]
+    const result = stats(
+        matches,
+        matches.map((match) => stubEvent(match, { expectedP1: 0.5 }))
+    )
+
+    assert.equal(byName(result, "Nico").performanceVsExpectedPct, 100)
+    assert.equal(byName(result, "Max").performanceVsExpectedPct, -100)
+    // Ganar exactamente lo esperado es 0 y no -0.
+    const even = [
+        ko(1, 13, { p1: NICO, t1: T.nico, s1: 1, p2: MAX, t2: T.max, s2: 0 }),
+        ko(2, 14, { p1: NICO, t1: T.nico, s1: 0, p2: MAX, t2: T.max, s2: 1 }),
+        ko(3, 15, { p1: NICO, t1: T.nico, s1: 1, p2: MAX, t2: T.max, s2: 0 }),
+        ko(4, 15, { p1: NICO, t1: T.nico, s1: 0, p2: MAX, t2: T.max, s2: 1 }),
+    ]
+    const evenResult = stats(
+        even,
+        even.map((match) => stubEvent(match, { expectedP1: 0.5 }))
+    )
+
+    assert.ok(Object.is(byName(evenResult, "Nico").performanceVsExpectedPct, 0))
+})
+
+test("performanceVsExpectedPct is null with too few rated matches or no expected points", () => {
+    const two = [duel(1, 1, 0), duel(2, 1, 0)]
+    const fewResult = stats(
+        two,
+        two.map((match) => stubEvent(match, { expectedP1: 0.5 }))
+    )
+
+    // Menos que PERFORMANCE_MIN_RATED_MATCHES (3) partidos con predicción.
+    assert.equal(PERFORMANCE_MIN_RATED_MATCHES, 3)
+    assert.equal(byName(fewResult, "Nico").performanceVsExpectedPct, null)
+    assert.equal(byName(fewResult, "Max").performanceVsExpectedPct, null)
+
+    // Nico no tenía ninguna chance (esperados 0): no se divide por cero.
+    const three = [duel(1, 1, 0), duel(2, 1, 0), duel(3, 0, 1)]
+    const zeroResult = stats(
+        three,
+        three.map((match) => stubEvent(match, { expectedP1: 0 }))
+    )
+
+    assert.equal(byName(zeroResult, "Nico").overall.expectedPoints, 0)
+    assert.equal(byName(zeroResult, "Nico").performanceVsExpectedPct, null)
+    // Max esperaba 9 (3 por partido) y sumó 3: -66,7 %.
+    assert.equal(byName(zeroResult, "Max").performanceVsExpectedPct, -67)
+    assert.match(zeroResult.criterion, /performanceVsExpectedPct/)
 })
 
 test("best and worst team need at least two matches and differ", () => {

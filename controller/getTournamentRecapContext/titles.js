@@ -13,6 +13,11 @@ const playerKey = (player) =>
 
 const identity = (player) => player?.name ?? null
 
+// Aclaración que viaja en el contexto para que el agente no malinterprete los
+// contadores (ver `emptyCounters`).
+const COUNTS_SCOPE =
+    "Los contadores incluyen este torneo; `beforeThisTournament` es lo mismo sin él. `runnerUps`: subcampeonatos de cualquier formato (también `league`) en torneos que el jugador no ganó. `titlesAndRunnerUps` = titles + runnerUps, torneos distintos. `finals*`: solo formatos con final (todos menos `league`). `sameCompetition`: lo mismo solo en la familia de `competition`."
+
 // Orden de títulos: `closedAt` ascendente y, a igual fecha, `_id`. Un torneo
 // sin `closedAt` va primero (se asume viejo) y genera una advertencia.
 const compareTournaments = (a, b) => {
@@ -40,13 +45,14 @@ const isHallOfFameTournament = (tournament) =>
     tournament.valid !== false &&
     Boolean(tournament.outcome?.champion?.player)
 
-// Ranking: más títulos primero y, a igual cantidad, más finales. A igual
-// (títulos, finales) comparten posición (1, 2, 2, 4).
+// Ranking: más títulos primero y, a igual cantidad, más torneos con título o
+// subcampeonato. A igual (títulos, títulos y subcampeonatos) comparten posición
+// (1, 2, 2, 4).
 const rankRows = (rows) => {
     const sorted = [...rows].sort(
         (a, b) =>
             b.titles - a.titles ||
-            b.finals - a.finals ||
+            b.titlesAndRunnerUps - a.titlesAndRunnerUps ||
             String(a.player.name).localeCompare(String(b.player.name))
     )
 
@@ -57,7 +63,7 @@ const rankRows = (rows) => {
         const tied =
             previous &&
             previous.titles === row.titles &&
-            previous.finals === row.finals
+            previous.titlesAndRunnerUps === row.titlesAndRunnerUps
 
         ranked.push({ ...row, rank: tied ? previous.rank : index + 1 })
     })
@@ -65,8 +71,52 @@ const rankRows = (rows) => {
     return ranked
 }
 
-// Títulos y finales acumulados de una secuencia de torneos ya ordenados.
-// También incluye (con 0) a cada jugador inscripto en alguno de ellos.
+const emptyCounters = () => ({
+    titles: 0,
+    runnerUps: 0,
+    titlesAndRunnerUps: 0,
+    finalsPlayed: 0,
+    finalsWon: 0,
+    finalsLost: 0,
+})
+
+const COUNTER_FIELDS = Object.keys(emptyCounters())
+
+const hasFinal = (tournament) => tournament.format !== "league"
+
+const addTournament = (counters, tournament, key) => {
+    const isChampion = playerKey(tournament.outcome?.champion?.player) === key
+    const finalist = tournament.outcome?.finalist?.player
+    const isFinalist = Boolean(finalist) && playerKey(finalist) === key
+
+    if (!isChampion && !isFinalist) return
+
+    counters.titlesAndRunnerUps += 1
+
+    if (isChampion) counters.titles += 1
+    else counters.runnerUps += 1
+
+    if (hasFinal(tournament)) {
+        counters.finalsPlayed += 1
+
+        if (isChampion) counters.finalsWon += 1
+        else counters.finalsLost += 1
+    }
+}
+
+const tally = (sequence, key) => {
+    const counters = emptyCounters()
+
+    for (const tournament of sequence) addTournament(counters, tournament, key)
+
+    return counters
+}
+
+const pickCounters = (source) =>
+    Object.fromEntries(COUNTER_FIELDS.map((field) => [field, source[field]]))
+
+// Contadores de cada jugador de una secuencia de torneos ya ordenados. También
+// incluye (con 0) a cada jugador inscripto en alguno de ellos.
 const accumulate = (sequence, nameOf) => {
     const rows = new Map()
     const ensure = (player) => {
@@ -75,8 +125,7 @@ const accumulate = (sequence, nameOf) => {
         if (!rows.has(key)) {
             rows.set(key, {
                 player: { id: player.id ?? null, name: nameOf(player) },
-                titles: 0,
-                finals: 0,
+                ...emptyCounters(),
             })
         }
 
@@ -88,16 +137,15 @@ const accumulate = (sequence, nameOf) => {
 
         const champion = tournament.outcome?.champion?.player
         const finalist = tournament.outcome?.finalist?.player
+        const involved = new Map()
 
-        if (champion) {
-            const row = ensure(champion)
-            row.titles += 1
-            row.finals += 1
+        // Campeón y finalista pueden ser el mismo jugador: se cuenta una vez.
+        for (const player of [champion, finalist]) {
+            if (player) involved.set(playerKey(player), player)
         }
-        // Si campeón y finalista son el mismo jugador (dos equipos suyos), la
-        // final cuenta una sola vez.
-        if (finalist && playerKey(finalist) !== playerKey(champion)) {
-            ensure(finalist).finals += 1
+
+        for (const [key, player] of involved) {
+            addTournament(ensure(player), tournament, key)
         }
     }
 
@@ -272,6 +320,11 @@ const buildTitleContext = ({ tournaments, tournament, nameOf = identity }) => {
         ? rowOf(ranking, playerKey(finalistPlayer))
         : null
 
+    const recordsOf = (key) => ({
+        beforeThisTournament: tally(before, key),
+        sameCompetition: tally(sameCompetition, key),
+    })
+
     return {
         titleContext: {
             asOf: current.closedAt
@@ -279,11 +332,12 @@ const buildTitleContext = ({ tournaments, tournament, nameOf = identity }) => {
                 : null,
             tournamentsConsidered: upTo.length,
             includesLegacy: true,
-            ranking: ranking.map(({ player, titles, finals, rank }) => ({
-                player,
-                titles,
-                finals,
-                rank,
+            countsIncludeThisTournament: true,
+            countsScope: COUNTS_SCOPE,
+            ranking: ranking.map((row) => ({
+                player: row.player,
+                ...pickCounters(row),
+                rank: row.rank,
             })),
             champion: {
                 player: championRow.player,
@@ -304,19 +358,25 @@ const buildTitleContext = ({ tournaments, tournament, nameOf = identity }) => {
                         playerKey(lastEdition.outcome.champion.player) ===
                             championKey
                 ),
-                finalsPlayed: championRow.finals,
                 titlesSameCompetition: {
                     key: competition.key,
                     label: competition.label,
                     count: championCompetitionTitles.length,
                     ordinal: championCompetitionTitles.length,
                 },
+                ...pickCounters(championRow),
+                ...recordsOf(championKey),
             },
             runnerUp: finalistRow
                 ? {
                       player: finalistRow.player,
-                      finalsPlayed: finalistRow.finals,
-                      titles: finalistRow.titles,
+                      // El finalista es también el campeón (dos equipos suyos
+                      // o, en `league`, primero y segundo): ese torneo cuenta
+                      // como título, no como subcampeonato.
+                      isAlsoChampion: playerKey(finalistPlayer) === championKey,
+                      rank: finalistRow.rank,
+                      ...pickCounters(finalistRow),
+                      ...recordsOf(playerKey(finalistPlayer)),
                   }
                 : null,
             competition: {

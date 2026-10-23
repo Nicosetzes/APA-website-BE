@@ -259,6 +259,22 @@ const prodTournaments = () => [
 
 const byNumber = (tournaments, number) => tournaments[number - 1]
 
+const counters = ({
+    titles,
+    runnerUps,
+    titlesAndRunnerUps,
+    finalsPlayed,
+    finalsWon,
+    finalsLost,
+}) => ({
+    titles,
+    runnerUps,
+    titlesAndRunnerUps,
+    finalsPlayed,
+    finalsWon,
+    finalsLost,
+})
+
 const titlesOf = (ranking) =>
     Object.fromEntries(
         ranking.map(({ player, titles }) => [player.name, titles])
@@ -369,8 +385,35 @@ test("the champion context of Nico's 2025 Superliga: 4th title, 3rd place, 4 beh
     assert.equal(champion.consecutiveTitles, 1)
     // Ganó también la edición anterior de la familia Superliga (Inglesa 2024).
     assert.equal(champion.wasDefendingChampion, true)
-    // 4 títulos y la final perdida de 2022/23.
-    assert.equal(champion.finalsPlayed, 5)
+    // 4 títulos y el subcampeonato de 2022/23, que fue una liga (no tiene
+    // final): 5 torneos con título o subcampeonato, pero solo 4 finales.
+    assert.deepEqual(counters(champion), {
+        titles: 4,
+        runnerUps: 1,
+        titlesAndRunnerUps: 5,
+        finalsPlayed: 4,
+        finalsWon: 4,
+        finalsLost: 0,
+    })
+    assert.equal("finals" in champion, false)
+    assert.deepEqual(champion.beforeThisTournament, {
+        titles: 3,
+        runnerUps: 1,
+        titlesAndRunnerUps: 4,
+        finalsPlayed: 3,
+        finalsWon: 3,
+        finalsLost: 0,
+    })
+    assert.deepEqual(champion.sameCompetition, {
+        titles: 4,
+        runnerUps: 0,
+        titlesAndRunnerUps: 4,
+        finalsPlayed: 4,
+        finalsWon: 4,
+        finalsLost: 0,
+    })
+    assert.equal(titleContext.countsIncludeThisTournament, true)
+    assert.match(titleContext.countsScope, /incluyen este torneo/)
     // La familia sale del formato: sus 4 títulos de league_playin_playoff.
     assert.equal("titlesSameFormat" in champion, false)
     assert.deepEqual(champion.titlesSameCompetition, {
@@ -379,11 +422,183 @@ test("the champion context of Nico's 2025 Superliga: 4th title, 3rd place, 4 beh
         count: 4,
         ordinal: 4,
     })
+    // Leo: 8 títulos + 4 subcampeonatos (Torneo Argentino 2016 es una liga),
+    // 12 torneos distintos. Sus dos torneos con campeón y finalista del mismo
+    // jugador (Torneo Argentino 2021/22 y Mundial de Ferraris) cuentan una vez.
     assert.deepEqual(titleContext.runnerUp, {
         player: { id: "u-leo", name: "Leo" },
-        finalsPlayed: 12,
+        isAlsoChampion: false,
+        rank: 1,
         titles: 8,
+        runnerUps: 4,
+        titlesAndRunnerUps: 12,
+        finalsPlayed: 8,
+        finalsWon: 5,
+        finalsLost: 3,
+        beforeThisTournament: {
+            titles: 8,
+            runnerUps: 3,
+            titlesAndRunnerUps: 11,
+            finalsPlayed: 7,
+            finalsWon: 5,
+            finalsLost: 2,
+        },
+        sameCompetition: {
+            titles: 0,
+            runnerUps: 1,
+            titlesAndRunnerUps: 1,
+            finalsPlayed: 1,
+            finalsWon: 0,
+            finalsLost: 1,
+        },
     })
+})
+
+test("counters as of Copa Argentina 2025/26 include it and count each tournament once", () => {
+    const tournaments = prodTournaments()
+    const { titleContext } = buildTitleContext({
+        tournaments,
+        tournament: byNumber(tournaments, 14),
+    })
+
+    assert.deepEqual(
+        Object.fromEntries(
+            titleContext.ranking.map((row) => [row.player.name, counters(row)])
+        ),
+        {
+            Leo: {
+                titles: 9,
+                runnerUps: 4,
+                titlesAndRunnerUps: 13,
+                finalsPlayed: 9,
+                finalsWon: 6,
+                finalsLost: 3,
+            },
+            Max: {
+                titles: 6,
+                runnerUps: 4,
+                titlesAndRunnerUps: 10,
+                finalsPlayed: 8,
+                finalsWon: 4,
+                finalsLost: 4,
+            },
+            Nico: {
+                titles: 4,
+                runnerUps: 2,
+                titlesAndRunnerUps: 6,
+                finalsPlayed: 5,
+                finalsWon: 4,
+                finalsLost: 1,
+            },
+            Santi: {
+                titles: 1,
+                runnerUps: 4,
+                titlesAndRunnerUps: 5,
+                finalsPlayed: 4,
+                finalsWon: 1,
+                finalsLost: 3,
+            },
+            Lucho: {
+                titles: 0,
+                runnerUps: 0,
+                titlesAndRunnerUps: 0,
+                finalsPlayed: 0,
+                finalsWon: 0,
+                finalsLost: 0,
+            },
+        }
+    )
+    assert.equal(titleContext.countsIncludeThisTournament, true)
+
+    const { champion, runnerUp } = titleContext
+
+    // Leo: 13 con esta Copa Argentina, 12 antes.
+    assert.equal(champion.titlesAndRunnerUps, 13)
+    assert.equal(champion.beforeThisTournament.titlesAndRunnerUps, 12)
+    assert.equal(champion.beforeThisTournament.titles, 8)
+    // Familia Eliminatoria: Copa Argentina 2018 (subcampeón) y esta (campeón).
+    assert.deepEqual(champion.sameCompetition, {
+        titles: 1,
+        runnerUps: 1,
+        titlesAndRunnerUps: 2,
+        finalsPlayed: 2,
+        finalsWon: 1,
+        finalsLost: 1,
+    })
+    assert.equal(titleContext.competition.key, "playoff")
+    assert.equal(titleContext.competition.label, "Eliminatoria")
+    assert.equal(runnerUp.player.name, "Nico")
+    assert.equal(runnerUp.isAlsoChampion, false)
+    assert.deepEqual(runnerUp.sameCompetition, {
+        titles: 0,
+        runnerUps: 1,
+        titlesAndRunnerUps: 1,
+        finalsPlayed: 1,
+        finalsWon: 0,
+        finalsLost: 1,
+    })
+})
+
+test("a league has a champion and a runner-up but no final", () => {
+    const tournaments = [
+        t(1, "Liga A 2020", "league", "nico", "leo", "2020-01-01T00:00:00Z"),
+        t(2, "Copa A 2021", "playoff", "nico", "leo", "2021-01-01T00:00:00Z"),
+    ]
+    const { titleContext } = buildTitleContext({
+        tournaments,
+        tournament: tournaments[1],
+    })
+    const rowOf = (name) =>
+        titleContext.ranking.find(({ player }) => player.name === name)
+
+    assert.deepEqual(counters(rowOf("Leo")), {
+        titles: 0,
+        runnerUps: 2,
+        titlesAndRunnerUps: 2,
+        finalsPlayed: 1,
+        finalsWon: 0,
+        finalsLost: 1,
+    })
+    assert.deepEqual(counters(rowOf("Nico")), {
+        titles: 2,
+        runnerUps: 0,
+        titlesAndRunnerUps: 2,
+        finalsPlayed: 1,
+        finalsWon: 1,
+        finalsLost: 0,
+    })
+})
+
+test("a human who is champion and runner-up of the same tournament counts once, as a title and a final won", () => {
+    for (const format of ["league", "playoff", "world_cup"]) {
+        const tournaments = [
+            t(1, "Torneo A", format, "max", "max", "2020-01-01T00:00:00Z"),
+        ]
+        const { titleContext } = buildTitleContext({
+            tournaments,
+            tournament: tournaments[0],
+        })
+        const hasFinal = format !== "league"
+
+        assert.deepEqual(
+            counters(titleContext.champion),
+            {
+                titles: 1,
+                runnerUps: 0,
+                titlesAndRunnerUps: 1,
+                finalsPlayed: hasFinal ? 1 : 0,
+                finalsWon: hasFinal ? 1 : 0,
+                finalsLost: 0,
+            },
+            format
+        )
+        assert.equal(titleContext.runnerUp.isAlsoChampion, true, format)
+        assert.deepEqual(
+            counters(titleContext.runnerUp),
+            counters(titleContext.champion),
+            format
+        )
+    }
 })
 
 test("previous winners of the competition are ordered and exclude the current edition", () => {
@@ -516,7 +731,7 @@ test("a first title, and ranks that tie share a position", () => {
     assert.equal(titleContext.champion.titlesSameCompetition.ordinal, 1)
 })
 
-test("equal titles and finals share the rank and the next one skips positions", () => {
+test("equal titles and titles-plus-runner-ups share the rank and the next one skips positions", () => {
     const tournaments = [
         t(1, "Liga A 2020", "league", "nico", "leo", "2020-01-01T00:00:00Z"),
         t(2, "Liga A 2021", "league", "leo", "nico", "2021-01-01T00:00:00Z"),
@@ -524,12 +739,12 @@ test("equal titles and finals share the rank and the next one skips positions", 
     ]
     const ranking = computeTitleRanking(tournaments)
 
-    // Nico: 1 título y 2 finales. Leo: 1 título y 3 finales. Max: 1 título y 1 final.
+    // Nico: 1 título y 2 torneos con título o subcampeonato. Leo: 1 y 3. Max: 1 y 1.
     assert.deepEqual(
-        ranking.map(({ player, titles, finals, rank }) => [
+        ranking.map(({ player, titles, titlesAndRunnerUps, rank }) => [
             player.name,
             titles,
-            finals,
+            titlesAndRunnerUps,
             rank,
         ]),
         [
@@ -556,14 +771,28 @@ test("equal titles and finals share the rank and the next one skips positions", 
     )
 })
 
-test("a finalist who is also the champion counts one final", () => {
+test("a finalist who is also the champion counts one title and no runner-up", () => {
     const [ranking] = computeTitleRanking([
-        t(1, "Liga A 2020", "league", "max", "max", "2020-01-01T00:00:00Z"),
+        t(
+            1,
+            "Mundial A 2020",
+            "world_cup",
+            "max",
+            "max",
+            "2020-01-01T00:00:00Z"
+        ),
     ])
 
     assert.equal(ranking.player.name, "Max")
-    assert.equal(ranking.titles, 1)
-    assert.equal(ranking.finals, 1)
+    assert.deepEqual(counters(ranking), {
+        titles: 1,
+        runnerUps: 0,
+        titlesAndRunnerUps: 1,
+        finalsPlayed: 1,
+        finalsWon: 1,
+        finalsLost: 0,
+    })
+    assert.equal("finals" in ranking, false)
 })
 
 test("lead change: new leader, tied for the lead, or none", () => {

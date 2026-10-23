@@ -51,13 +51,20 @@ const winnerFirstScore = (entry) =>
 
 // Lo que el modelo esperaba del ganador, dicho como corresponde a su tipo:
 // solo un cruce de partido único tiene una probabilidad de avanzar que se pueda
-// citar; en el resto el empate vale 0,5 y se habla de rendimiento.
-const underdogText = (entry) =>
-    entry.odds?.kind === "advance"
+// citar; en el resto el empate vale 0,5 y se habla de rendimiento. En la final
+// no se avanza de ronda: se queda con el título.
+const underdogText = (entry) => {
+    if (entry.odds?.kind !== "advance")
+        return "rindió por encima de lo esperado"
+
+    return entry.round === "final"
         ? `el modelo le daba ${percent(
               entry.expectedWinner
-          )}% de pasar de ronda`
-        : "rindió por encima de lo esperado"
+          )}% de quedarse con el título`
+        : `el modelo le daba ${percent(
+              entry.expectedWinner
+          )}% de avanzar en el cuadro`
+}
 
 const makeFact = (
     type,
@@ -137,6 +144,12 @@ const titleMilestone = ({ titleContext, tournament }) => {
             consecutiveTitles: champion.consecutiveTitles,
             wasDefendingChampion: champion.wasDefendingChampion,
             titlesSameCompetition: champion.titlesSameCompetition,
+            // Contadores a la fecha de cierre, ESTE torneo incluido.
+            runnerUps: champion.runnerUps,
+            titlesAndRunnerUps: champion.titlesAndRunnerUps,
+            finalsPlayed: champion.finalsPlayed,
+            finalsWon: champion.finalsWon,
+            finalsLost: champion.finalsLost,
         },
     })
 }
@@ -708,19 +721,24 @@ const playerFacts = ({ playerStats, entries }) => {
             over.overall.actualPointsInRatedMatches -
             over.overall.expectedPoints
 
-        if (diff >= STANDINGS_OVERPERFORMANCE_MIN_POINTS) {
+        // Se informa en porcentaje (`performanceVsExpectedPct`): los puntos
+        // crudos contra esperados no se entienden. Sin porcentaje (pocos
+        // partidos con predicción) no se emite el hecho.
+        if (
+            diff >= STANDINGS_OVERPERFORMANCE_MIN_POINTS &&
+            over.performanceVsExpectedPct !== null &&
+            over.performanceVsExpectedPct !== undefined
+        ) {
             facts.push(
                 makeFact(
                     "standings_overperformance",
                     3,
-                    `${over.player.name} sumó ${round(
-                        diff
-                    )} puntos más de los que se esperaban según el Elo (${
-                        over.overall.actualPointsInRatedMatches
-                    } reales contra ${over.overall.expectedPoints} esperados).`,
+                    `${over.player.name} rindió un ${over.performanceVsExpectedPct}% por encima de lo esperado según las predicciones del Elo.`,
                     {
                         data: {
                             player: over.player.name,
+                            performanceVsExpectedPct:
+                                over.performanceVsExpectedPct,
                             actual: over.overall.actualPointsInRatedMatches,
                             expected: over.overall.expectedPoints,
                         },

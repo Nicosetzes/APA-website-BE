@@ -259,7 +259,7 @@ test("the context of a pure league has the documented keys and null stage blocks
         key: "league",
         label: "Liga",
     })
-    assert.equal(body.contextVersion, "tournament-recap-2")
+    assert.equal(body.contextVersion, "tournament-recap-3")
     assert.deepEqual(Object.keys(data.ratingMovement), [
         "scope",
         "players",
@@ -341,6 +341,23 @@ test("result matches tournament.outcome", async () => {
         team: { id: finalist.team.id, name: finalist.team.name },
     })
     assert.equal(data.titleContext.champion.player.id, champion.player.id)
+    // Contadores a la fecha de cierre, este torneo incluido.
+    assert.equal(data.titleContext.countsIncludeThisTournament, true)
+    assert.ok(data.titleContext.champion.titles >= 1)
+    assert.equal(
+        data.titleContext.champion.beforeThisTournament.titles,
+        data.titleContext.champion.titles - 1
+    )
+    assert.equal(
+        data.titleContext.champion.titlesAndRunnerUps,
+        data.titleContext.champion.titles + data.titleContext.champion.runnerUps
+    )
+    assert.equal("finals" in data.titleContext.ranking[0], false)
+    assert.ok(
+        data.playerStats.players.every(
+            (player) => "performanceVsExpectedPct" in player
+        )
+    )
 })
 
 test("the context hash is stable across calls and changes with one score", async () => {

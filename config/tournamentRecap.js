@@ -6,7 +6,7 @@
 
 // Se publica en cada contexto y se guarda en `generation.contextVersion`. Subirla
 // cuando cambie la forma del contexto.
-const CONTEXT_VERSION = "tournament-recap-2"
+const CONTEXT_VERSION = "tournament-recap-3"
 
 // `pending`
 const DEFAULT_PENDING_WINDOW_DAYS = 7
@@ -18,8 +18,8 @@ const MAX_PENDING_LIMIT = 20
 // ventana diaria (`data`) ni al contexto: con un `tournamentId` explícito el
 // recap de estos torneos se puede generar igual.
 const BACKFILL_EXCLUDED_TOURNAMENTS = {
-    // Chempions 2019/20 (champions_league): su contexto compact mide 62.087
-    // caracteres, por encima de CONTEXT_COMPACT_MAX_CHARS.
+    // Chempions 2019/20 (champions_league): se deja afuera por decisión del
+    // usuario (los torneos viejos del backfill se eligen a mano)
     "64697ac9d542ff4ada3038d3": "Chempions 2019/20",
 }
 
@@ -47,10 +47,14 @@ const CLEAN_SHEETS_LEADER_MIN = 5
 const RATING_MOVE_MIN_DELTA = 10
 // Partidos mínimos de un equipo en la tabla para opinar de su ataque o defensa.
 const TEAM_STATS_MIN_MATCHES = 10
+// Partidos con predicción (rateados) mínimos de un jugador para informar su
+// rendimiento contra lo esperado en porcentaje (`performanceVsExpectedPct`):
+// con menos, el cociente es puro azar y se informa `null`.
+const PERFORMANCE_MIN_RATED_MATCHES = 3
 
 // Tamaño del contexto
 const COMPACT_REGULAR_MATCH_LIMIT = 15
-const CONTEXT_COMPACT_MAX_CHARS = 60000
+const CONTEXT_COMPACT_MAX_CHARS = 70000
 const LOW_MATCH_COUNT_WARNING = 10
 
 // Hitos de avance de la tabla (porcentaje de partidos del grupo).
@@ -68,11 +72,13 @@ const BASE_IMPORTANCE = {
 }
 
 // Secciones `##` que debe tener el Markdown. Cada elemento es una lista de
-// alternativas: alcanza con que esté una. Opcionales (se piden en el prompt
+// alternativas: alcanza con que esté una; la primera es el título canónico (el
+// que muestran los mensajes de error). "En la historia" es el nombre anterior
+// de "Salón de la fama" y se sigue aceptando. Opcionales (se piden en el prompt
 // pero no se exigen): "Cómo se jugó", "Partidos destacados", "Números del
 // torneo", "El Elo del torneo".
 const REQUIRED_RECAP_SECTIONS = {
-    always: [["El campeón"], ["En la historia"]],
+    always: [["El campeón"], ["Salón de la fama", "En la historia"]],
     regular: ["Fase regular", "Fase de grupos"],
     playin: ["Play-in"],
     playoff: ["Playoffs"],
@@ -235,6 +241,7 @@ module.exports = {
     LONG_WIN_STREAK_MIN,
     LOW_MATCH_COUNT_WARNING,
     MAX_PENDING_LIMIT,
+    PERFORMANCE_MIN_RATED_MATCHES,
     RATING_MOVE_MIN_DELTA,
     REQUIRED_RECAP_SECTIONS,
     STANDINGS_OVERPERFORMANCE_MIN_POINTS,

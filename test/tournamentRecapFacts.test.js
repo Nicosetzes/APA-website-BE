@@ -203,9 +203,38 @@ test("biggest_upset needs a winner below the threshold and quotes % only for adv
     )
 
     assert.match(advance.text, /Max \(Chelsea\) a Nico \(Liverpool\) 2-1/)
-    assert.match(advance.text, /el modelo le daba 15% de pasar de ronda/)
+    // playoffId 15 es la final: no se "avanza de ronda", se queda con el título.
+    assert.equal(advance.data.round, "final")
+    assert.match(
+        advance.text,
+        /el modelo le daba 15% de quedarse con el título/
+    )
+    assert.doesNotMatch(advance.text, /de ronda/)
     assert.equal(advance.importance, 5)
     assert.equal(advance.data.odds.kind, "advance")
+
+    // En cualquier otra ronda del cuadro sí se avanza.
+    const upsetQuarterfinal = entriesFrom([
+        ko({
+            playoffId: 9,
+            p1: NICO,
+            t1: T.nico,
+            s1: 1,
+            p2: MAX,
+            t2: T.max,
+            s2: 2,
+            event: { expectedP1: 0.85 },
+        }),
+    ])
+    const [quarterfinal] = facts({ entries: upsetQuarterfinal }).filter(
+        ({ type }) => type === "biggest_upset"
+    )
+
+    assert.equal(quarterfinal.data.round, "quarterfinal")
+    assert.match(
+        quarterfinal.text,
+        /el modelo le daba 15% de avanzar en el cuadro/
+    )
 
     const upsetLeague = entriesFrom([
         {
@@ -746,6 +775,8 @@ const playerLine = (name, overrides = {}) => ({
         actualPointsInRatedMatches: 0,
         ...overrides.overall,
     },
+    performanceVsExpectedPct: null,
+    ...overrides.top,
     bestWinStreak: { length: 0, fromSeq: null, toSeq: null },
     bestUnbeaten: { length: 0, fromSeq: null, toSeq: null },
     worstLosingStreak: { length: 0, fromSeq: null, toSeq: null },
@@ -799,6 +830,11 @@ test("clean_sheets_leader and standings_overperformance respect their thresholds
                     expectedMatches: 20,
                     actualPointsInRatedMatches: actual,
                 },
+                top: {
+                    performanceVsExpectedPct: Math.round(
+                        (actual / 30 - 1) * 100
+                    ),
+                },
             }),
             playerLine("Max", {
                 overall: {
@@ -816,13 +852,19 @@ test("clean_sheets_leader and standings_overperformance respect their thresholds
             .text,
         /Nico fue quien más veces dejó el arco en cero: 5 partidos/
     )
-    assert.match(
-        find(
-            facts({ playerStats: players(5, 34) }),
-            "standings_overperformance"
-        ).text,
-        /4 puntos más de los que se esperaban según el Elo \(34 reales contra 30 esperados\)/
+    const overperformance = find(
+        facts({ playerStats: players(5, 34) }),
+        "standings_overperformance"
     )
+
+    // 34 reales contra 30 esperados: 13 % por encima, sin hablar de puntos.
+    assert.match(
+        overperformance.text,
+        /Nico rindió un 13% por encima de lo esperado según las predicciones del Elo/
+    )
+    assert.doesNotMatch(overperformance.text, /puntos/)
+    assert.equal(overperformance.data.performanceVsExpectedPct, 13)
+    assert.equal(overperformance.data.actual, 34)
     assert.equal(
         find(facts({ playerStats: players(4, 33) }), "clean_sheets_leader"),
         undefined

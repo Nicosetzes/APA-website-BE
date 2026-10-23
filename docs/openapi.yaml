@@ -1917,6 +1917,33 @@ paths:
                 aparte, con una advertencia en `dataQuality.warnings`.
 
 
+                Los contadores de `titleContext` (`ranking[]`, `champion` y
+                `runnerUp`) INCLUYEN este torneo (`countsIncludeThisTournament`)
+                y se cuentan por torneo, una sola vez por jugador:
+                `titles` (campeonatos), `runnerUps` (subcampeonatos de
+                cualquier formato, también `league`, en torneos que el
+                jugador no ganó), `titlesAndRunnerUps` (torneos distintos con
+                título o subcampeonato, igual a `titles + runnerUps`) y
+                `finalsPlayed` / `finalsWon` / `finalsLost` (solo formatos con
+                final: todos menos `league`, que tiene campeón y subcampeón
+                pero no final). Un jugador con los dos equipos de la final es
+                campeón: cuenta un título y una final ganada, no un
+                subcampeonato. `beforeThisTournament` repite los seis
+                contadores sin este torneo y `sameCompetition` solo para
+                torneos de la misma familia (la de `competition`).
+
+
+                `playerStats.players[].performanceVsExpectedPct` es el
+                rendimiento del jugador contra lo que predecía el Elo, en
+                porcentaje entero con signo: `(reales / esperados - 1) * 100`
+                sobre los puntos (3 por victoria, 1 por empate) de los mismos
+                partidos con predicción. `+24` es 24 % más puntos de los
+                esperados y `-40`, 40 % menos. En un cruce de partido único la
+                escala es la misma (ganar vale 3, también por penales, y lo
+                esperado es 3 por la probabilidad de avanzar). Es `null`
+                con menos de 3 partidos con predicción o sin puntos esperados.
+
+
                 Todo número de movimiento de Elo del torneo sale solo de los
                 eventos de rating de los partidos de este torneo: `delta` es
                 lo que cada jugador ganó o perdió en el torneo (y la única
@@ -2019,7 +2046,8 @@ paths:
                 torneo exista (404), esté terminado (409) y tenga partidos
                 jugados y válidos (422 `TOURNAMENT_WITHOUT_MATCHES`), y que el
                 texto tenga los títulos `##` que exige el formato (siempre "El
-                campeón" y "En la historia"; "Fase regular" o "Fase de grupos",
+                campeón" y "Salón de la fama", que también acepta con el
+                nombre anterior "En la historia"; "Fase regular" o "Fase de grupos",
                 "Play-in" y "Playoffs" según las etapas) y nombre al campeón y
                 al subcampeón, jugador y equipo (422
                 `TOURNAMENT_RECAP_CONTENT_INVALID`, con lo que falta en
@@ -2686,7 +2714,7 @@ components:
                     type: boolean
                 contextVersion:
                     type: string
-                    example: tournament-recap-2
+                    example: tournament-recap-3
                 detail:
                     type: string
                     enum: [compact, full]
@@ -2821,6 +2849,10 @@ components:
                                 goles, vallas, efectividad, puntos esperados
                                 contra reales, rachas, mejor y peor resultado,
                                 equipo más y menos efectivo y penales.
+                                `performanceVsExpectedPct` (entero con signo
+                                o `null`) es el rendimiento contra lo
+                                esperado según el Elo: `+24` son 24 % más
+                                puntos de los esperados, `-40` son 40 % menos.
                                 `criterion` explica cómo se cuenta.
                         headToHead:
                             type: array
@@ -2836,15 +2868,25 @@ components:
                             nullable: true
                             additionalProperties: true
                             description: >-
-                                Títulos al cierre de este torneo: `ranking`
-                                (títulos y finales, empates comparten
-                                posición) y `champion` (`titleNumber`, `rank`,
-                                `gapToLeader`, `leadChange`, `isFirstTitle`,
+                                Títulos al cierre de este torneo, ESTE
+                                INCLUIDO (`countsIncludeThisTournament`;
+                                `countsScope` explica los contadores):
+                                `ranking` (por jugador `titles`, `runnerUps`,
+                                `titlesAndRunnerUps`, `finalsPlayed`,
+                                `finalsWon`, `finalsLost` y `rank`; empates
+                                comparten posición) y `champion`
+                                (`titleNumber`, `rank`, `gapToLeader`,
+                                `leadChange`, `isFirstTitle`,
                                 `consecutiveTitles`, `wasDefendingChampion`,
-                                `finalsPlayed`, `titlesSameCompetition` con
+                                los seis contadores,
+                                `beforeThisTournament` con los mismos sin este
+                                torneo, `sameCompetition` con los mismos solo
+                                para la familia de este torneo y
+                                `titlesSameCompetition` con
                                 `key`, `label`, `count` y `ordinal`: los
                                 títulos del campeón en torneos del mismo
-                                formato), `runnerUp` y `competition` (`key`,
+                                formato), `runnerUp` (igual, más
+                                `isAlsoChampion`) y `competition` (`key`,
                                 `label` y `previousWinners`: campeones de las
                                 ediciones anteriores del mismo formato, de más
                                 viejo a más nuevo).
