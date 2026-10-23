@@ -14,7 +14,9 @@ const { getFinalPlayoffId } = require("../config/playoffFormats")
 const { PLAYED_AT_PRECISIONS } = require("../utils/playedAt")
 
 const FORMATS = new Set([
+    "american_cup",
     "champions_league",
+    "club_world_cup",
     "league",
     "league_playin_playoff",
     "playoff",

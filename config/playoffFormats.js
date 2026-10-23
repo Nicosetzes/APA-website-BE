@@ -2,7 +2,8 @@
 // carga de resultados (`putMatchByTournamentId`), que avanza el bracket.
 //
 // El fallback de 16 preserva el comportamiento histórico de los formatos que no
-// están en la tabla, como el legacy `club_world_cup`.
+// están en la tabla, como los legacy `club_world_cup` y `american_cup` (no se
+// pueden crear: si algún día se usan con partidos, hay que tabular su bracket).
 const DEFAULT_PLAYOFF_START_SIZE = 16
 
 const PLAYOFF_START_SIZE_BY_FORMAT = {
@@ -95,6 +96,12 @@ const getPlayoffRoundIdRange = (format, round) => {
     return [size - teams + 1, size - teams / 2]
 }
 
+const getPlayoffRoundForId = (format, playoffId) =>
+    PLAYOFF_ROUNDS.find((round) => {
+        const range = getPlayoffRoundIdRange(format, round)
+        return range && playoffId >= range[0] && playoffId <= range[1]
+    }) ?? null
+
 module.exports = {
     DEFAULT_PLAYOFF_START_SIZE,
     FINAL_PLAYOFF_ID_BY_FORMAT,
@@ -102,6 +109,7 @@ module.exports = {
     PLAYOFF_ROUND_IDS_BY_FORMAT,
     PLAYOFF_START_SIZE_BY_FORMAT,
     getFinalPlayoffId,
+    getPlayoffRoundForId,
     getPlayoffRoundIdRange,
     getPlayoffStartSize,
     hasTabulatedFinalPlayoffId,

@@ -83,6 +83,16 @@ const ALLOWLIST = [
         reason: "este archivo contiene los patrones de búsqueda",
     },
     {
+        file: "test/matchesRatingChange.test.js",
+        rule: "mongo-uri-con-credenciales",
+        reason: "el test lanza un error con una URI ficticia (mongodb://u:p@h) para comprobar que el log no filtra credenciales",
+    },
+    {
+        file: "test/ratingsRankingReadModel.test.js",
+        rule: "mongo-uri-con-credenciales",
+        reason: "el test lanza un error con una URI ficticia (mongodb://u:p@h) para comprobar que el log no filtra credenciales",
+    },
+    {
         file: "test/scanSecrets.test.js",
         rule: "*",
         reason: "los casos de prueba del scanner son secretos sintéticos, necesarios para verificar que las reglas disparen",

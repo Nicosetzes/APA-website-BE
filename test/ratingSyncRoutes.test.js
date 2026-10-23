@@ -26,6 +26,7 @@ const WRITE_ROUTES = {
     "POST /api/edits": "not_rated:edits_collection",
     "DELETE /api/edits/:id": "not_rated:edits_collection",
     "POST /api/recaps": "not_rated:recaps_collection",
+    "POST /api/tournament-recaps": "not_rated:tournament_recaps_collection",
     "POST /api/users/login": "not_rated:no_write",
 }
 
@@ -69,7 +70,7 @@ const enumerateWriteRoutes = () => {
 test("toda ruta de escritura del router está clasificada, y no sobran clasificaciones", () => {
     const found = enumerateWriteRoutes().sort()
     assert.deepEqual(found, Object.keys(WRITE_ROUTES).sort())
-    assert.equal(found.length, 11)
+    assert.equal(found.length, 12)
 })
 
 test("las rutas rated llaman al hook con su disparador; las demás no lo mencionan", () => {

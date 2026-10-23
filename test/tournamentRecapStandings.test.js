@@ -1,0 +1,586 @@
+process.env.LOG_LEVEL = "silent"
+
+const assert = require("node:assert/strict")
+const test = require("node:test")
+
+const {
+    createGetStandingsTableByTournamentId,
+} = require("../controller/getStandingsTableByTournamentId")
+const {
+    buildStandingsProgress,
+} = require("../controller/getTournamentRecapContext/standingsProgress")
+const { describeTournamentFormat } = require("../config/tournamentFormatRules")
+const {
+    LEO,
+    MAX,
+    NICO,
+    SANTI,
+    mkMatch,
+    mkTournament,
+    team,
+} = require("./fixtures/tournamentRecap")
+
+const TEAMS = {
+    liverpool: team(1, "Liverpool"),
+    chelsea: team(2, "Chelsea"),
+    bayern: team(3, "Bayern"),
+    milan: team(4, "Milan"),
+    ajax: team(5, "Ajax"),
+    porto: team(6, "Porto"),
+}
+
+const entry = (teamRef, player, group) => ({ team: teamRef, player, group })
+
+const leagueTeams = [
+    entry(TEAMS.liverpool, NICO),
+    entry(TEAMS.chelsea, MAX),
+    entry(TEAMS.bayern, LEO),
+    entry(TEAMS.milan, SANTI),
+]
+
+// Liga de 4 equipos, todos contra todos (6 partidos).
+const leagueMatches = () => {
+    const pairs = [
+        [NICO, TEAMS.liverpool, 2, MAX, TEAMS.chelsea, 0],
+        [LEO, TEAMS.bayern, 1, SANTI, TEAMS.milan, 1],
+        [NICO, TEAMS.liverpool, 0, LEO, TEAMS.bayern, 1],
+        [MAX, TEAMS.chelsea, 3, SANTI, TEAMS.milan, 1],
+        [NICO, TEAMS.liverpool, 1, SANTI, TEAMS.milan, 0],
+        [MAX, TEAMS.chelsea, 2, LEO, TEAMS.bayern, 0],
+    ]
+
+    return pairs.map(([p1, t1, s1, p2, t2, s2], index) =>
+        mkMatch({ n: index + 1, p1, t1, s1, p2, t2, s2 })
+    )
+}
+
+const rulesOf = (format) => describeTournamentFormat({ format })
+
+const progress = ({ tournament, matches, playoffTeamIds }) =>
+    buildStandingsProgress({
+        tournament,
+        matches,
+        rules: rulesOf(tournament.format),
+        playoffTeamIds,
+    })
+
+test("the final table orders by points, goal difference and goals for", () => {
+    const tournament = mkTournament({ teams: leagueTeams })
+    const { standings } = progress({
+        tournament,
+        matches: leagueMatches(),
+    })
+    const [group] = standings.final
+
+    assert.equal(group.group, null)
+    // Liverpool y Chelsea: 6 pts y +2; Chelsea metió 5 goles y Liverpool 3.
+    assert.deepEqual(
+        group.teams.map(({ team: name, points, gd }) => [name, points, gd]),
+        [
+            ["Chelsea", 6, 2],
+            ["Liverpool", 6, 2],
+            ["Bayern", 4, -1],
+            ["Milan", 1, -3],
+        ]
+    )
+    assert.deepEqual(
+        group.teams.map(({ position }) => position),
+        [1, 2, 3, 4]
+    )
+    assert.deepEqual(Object.keys(group.teams[0]), [
+        "position",
+        "team",
+        "teamId",
+        "player",
+        "played",
+        "wins",
+        "draws",
+        "losses",
+        "gf",
+        "ga",
+        "gd",
+        "points",
+        "qualification",
+    ])
+})
+
+test("a tie on points and goal difference is broken by goals for", () => {
+    const tournament = mkTournament({ teams: leagueTeams.slice(0, 3) })
+    // Los tres suman 3 puntos; Chelsea y Bayern empatan también la diferencia.
+    const matches = [
+        mkMatch({
+            n: 1,
+            p1: NICO,
+            t1: TEAMS.liverpool,
+            s1: 3,
+            p2: MAX,
+            t2: TEAMS.chelsea,
+            s2: 2,
+        }),
+        mkMatch({
+            n: 2,
+            p1: LEO,
+            t1: TEAMS.bayern,
+            s1: 3,
+            p2: NICO,
+            t2: TEAMS.liverpool,
+            s2: 0,
+        }),
+        mkMatch({
+            n: 3,
+            p1: MAX,
+            t1: TEAMS.chelsea,
+            s1: 2,
+            p2: LEO,
+            t2: TEAMS.bayern,
+            s2: 0,
+        }),
+    ]
+    const { standings } = progress({ tournament, matches })
+
+    // Bayern y Chelsea: 3 pts y +1; Chelsea metió 4 goles y Bayern 3.
+    assert.deepEqual(
+        standings.final[0].teams.map(({ team: name, points, gd, gf }) => [
+            name,
+            points,
+            gd,
+            gf,
+        ]),
+        [
+            ["Chelsea", 3, 1, 4],
+            ["Bayern", 3, 1, 3],
+            ["Liverpool", 3, -2, 3],
+        ]
+    )
+})
+
+test("matches with valid false count in the table, like the table endpoint", () => {
+    const tournament = mkTournament({ teams: leagueTeams.slice(0, 2) })
+    const matches = [
+        mkMatch({
+            n: 1,
+            p1: NICO,
+            t1: TEAMS.liverpool,
+            s1: 3,
+            p2: MAX,
+            t2: TEAMS.chelsea,
+            s2: 0,
+            valid: false,
+        }),
+    ]
+    const { standings } = progress({ tournament, matches })
+
+    assert.deepEqual(
+        standings.final[0].teams.map(({ team: name, points }) => [
+            name,
+            points,
+        ]),
+        [
+            ["Liverpool", 3],
+            ["Chelsea", 0],
+        ]
+    )
+})
+
+test("leader progress is reported at 25, 50, 75 and 100 percent of the matches", () => {
+    const tournament = mkTournament({ teams: leagueTeams })
+    const { standings } = progress({ tournament, matches: leagueMatches() })
+
+    assert.deepEqual(
+        standings.progress.map(({ afterPct }) => afterPct),
+        [25, 50, 75, 100]
+    )
+    // 6 partidos: 25 % = 2, 50 % = 3, 75 % = 5, 100 % = 6.
+    assert.deepEqual(
+        standings.progress.map(({ leaders }) => leaders[0].team),
+        ["Liverpool", "Bayern", "Liverpool", "Chelsea"]
+    )
+    // El liderato cambia de manos 3 veces desde el primer cuarto de la tabla.
+    assert.equal(standings.leaderChanges.all, 3)
+    assert.deepEqual(standings.progress[3].leaders[0], {
+        group: null,
+        team: "Chelsea",
+        player: "Max",
+        points: 6,
+    })
+})
+
+test("progress handles groups with a different number of matches", () => {
+    const teams = [
+        entry(TEAMS.liverpool, NICO, "A"),
+        entry(TEAMS.chelsea, MAX, "A"),
+        entry(TEAMS.bayern, LEO, "B"),
+        entry(TEAMS.milan, SANTI, "B"),
+        entry(TEAMS.ajax, NICO, "B"),
+    ]
+    const tournament = mkTournament({
+        format: "world_cup",
+        teams,
+        groups: [{}, {}],
+    })
+    const matches = [
+        mkMatch({
+            n: 1,
+            group: "A",
+            p1: NICO,
+            t1: TEAMS.liverpool,
+            s1: 1,
+            p2: MAX,
+            t2: TEAMS.chelsea,
+            s2: 0,
+        }),
+        mkMatch({
+            n: 2,
+            group: "B",
+            p1: LEO,
+            t1: TEAMS.bayern,
+            s1: 0,
+            p2: SANTI,
+            t2: TEAMS.milan,
+            s2: 2,
+        }),
+        mkMatch({
+            n: 3,
+            group: "B",
+            p1: LEO,
+            t1: TEAMS.bayern,
+            s1: 2,
+            p2: NICO,
+            t2: TEAMS.ajax,
+            s2: 0,
+        }),
+        mkMatch({
+            n: 4,
+            group: "B",
+            p1: SANTI,
+            t1: TEAMS.milan,
+            s1: 1,
+            p2: NICO,
+            t2: TEAMS.ajax,
+            s2: 3,
+        }),
+    ]
+    const { standings } = progress({ tournament, matches })
+
+    assert.deepEqual(
+        standings.final.map(({ group }) => group),
+        ["A", "B"]
+    )
+    // Grupo A: 1 partido (todas las marcas son el mismo). Grupo B: 3 partidos.
+    assert.deepEqual(
+        standings.progress.map(({ leaders }) =>
+            leaders.map(({ group, team: name }) => `${group}:${name}`)
+        ),
+        [
+            ["A:Liverpool", "B:Milan"],
+            ["A:Liverpool", "B:Milan"],
+            ["A:Liverpool", "B:Milan"],
+            ["A:Liverpool", "B:Milan"],
+        ]
+    )
+    assert.deepEqual(Object.keys(standings.leaderChanges).sort(), ["A", "B"])
+})
+
+test("leader changes are counted after the first quarter of the matches", () => {
+    const tournament = mkTournament({ teams: leagueTeams })
+    // Doce partidos (ida y vuelta) con el liderato alternando entre Liverpool y
+    // Chelsea: el arranque no cuenta.
+    const matches = [
+        [NICO, TEAMS.liverpool, 1, MAX, TEAMS.chelsea, 0],
+        [MAX, TEAMS.chelsea, 3, LEO, TEAMS.bayern, 0],
+        [LEO, TEAMS.bayern, 0, NICO, TEAMS.liverpool, 0],
+        [SANTI, TEAMS.milan, 0, MAX, TEAMS.chelsea, 1],
+        [NICO, TEAMS.liverpool, 0, SANTI, TEAMS.milan, 3],
+        [MAX, TEAMS.chelsea, 0, NICO, TEAMS.liverpool, 4],
+    ].map(([p1, t1, s1, p2, t2, s2], index) =>
+        mkMatch({ n: index + 1, p1, t1, s1, p2, t2, s2 })
+    )
+    const { standings } = progress({ tournament, matches })
+
+    assert.equal(typeof standings.leaderChanges.all, "number")
+    assert.ok(standings.leaderChanges.all >= 1)
+    assert.equal(standings.closeRace.length, 1)
+    assert.equal(standings.closeRace[0].afterPct, 90)
+})
+
+test("qualification follows the format rules", () => {
+    // league_playin_playoff: 1 a 6 directo, 7 a 10 play-in, el resto eliminado.
+    const teams = Array.from({ length: 12 }, (_, index) =>
+        entry(team(index + 1, `Equipo ${index + 1}`), NICO, "A")
+    )
+    const matches = []
+    for (let i = 0; i < 12; i++) {
+        // Equipo i+1 le gana a todos los de abajo: tabla sin empates.
+        for (let j = i + 1; j < 12; j++) {
+            matches.push(
+                mkMatch({
+                    n: matches.length + 1,
+                    group: "A",
+                    p1: NICO,
+                    t1: teams[i].team,
+                    s1: 1,
+                    p2: LEO,
+                    t2: teams[j].team,
+                    s2: 0,
+                })
+            )
+        }
+    }
+    const { standings } = progress({
+        tournament: mkTournament({
+            format: "league_playin_playoff",
+            teams,
+            groups: [{}],
+        }),
+        matches,
+    })
+
+    assert.deepEqual(
+        standings.final[0].teams.map(({ qualification }) => qualification),
+        [
+            ...Array(6).fill("direct"),
+            ...Array(4).fill("playin"),
+            "eliminated",
+            "eliminated",
+        ]
+    )
+
+    // Fase de grupos con cuadro: 2 directos; el tercero que juega el playoff es
+    // "best_third" y el que no, eliminado. Una liga no tiene clasificación.
+    const groupTeams = [
+        entry(TEAMS.liverpool, NICO, "A"),
+        entry(TEAMS.chelsea, MAX, "A"),
+        entry(TEAMS.bayern, LEO, "A"),
+        entry(TEAMS.milan, SANTI, "A"),
+    ]
+    const groupMatches = leagueMatches().map((match) => ({
+        ...match,
+        group: "A",
+    }))
+    const withThirds = progress({
+        tournament: mkTournament({
+            format: "world_cup_2026",
+            teams: groupTeams,
+            groups: [{}],
+        }),
+        matches: groupMatches,
+        playoffTeamIds: new Set(["3"]),
+    })
+
+    assert.deepEqual(
+        withThirds.standings.final[0].teams.map(
+            ({ team: name, qualification }) => [name, qualification]
+        ),
+        [
+            ["Chelsea", "direct"],
+            ["Liverpool", "direct"],
+            ["Bayern", "best_third"],
+            ["Milan", "eliminated"],
+        ]
+    )
+
+    const league = progress({
+        tournament: mkTournament({ teams: leagueTeams }),
+        matches: leagueMatches(),
+    })
+
+    assert.ok(
+        league.standings.final[0].teams.every(
+            ({ qualification }) => qualification === null
+        )
+    )
+})
+
+test("formats without a regular phase have no standings", () => {
+    const result = progress({
+        tournament: mkTournament({ format: "playoff", teams: leagueTeams }),
+        matches: [],
+    })
+
+    assert.equal(result.standings, null)
+    assert.equal(result.topTwoByGroup.size, 0)
+})
+
+test("topTwoByGroup lists the final top two team ids of each group", () => {
+    const { topTwoByGroup } = progress({
+        tournament: mkTournament({ teams: leagueTeams }),
+        matches: leagueMatches(),
+    })
+
+    assert.deepEqual([...topTwoByGroup.get(null)].sort(), ["1", "2"])
+})
+
+// --- Paridad con el endpoint de la tabla ------------------------------------
+
+const fetchControllerTable = async (tournament, matches) => {
+    let body
+    const handler = createGetStandingsTableByTournamentId({
+        retrieveTournamentById: async () => tournament,
+        orderMatchesFromTournamentById: async (tournamentId, group) =>
+            matches.filter((match) => !group || match.group === group),
+        retrieveAllNotPlayedMatchesByTournamentId: async () => [],
+    })
+
+    await handler(
+        { params: { tournament: String(tournament._id) }, query: {} },
+        {
+            status() {
+                return this
+            },
+            send(payload) {
+                body = payload
+            },
+        }
+    )
+
+    return body.standings
+}
+
+const comparable = (rows) =>
+    rows.map((row) => [
+        row.team.id ?? row.teamId,
+        row.played,
+        row.wins,
+        row.draws,
+        row.losses,
+        row.goalsFor ?? row.gf,
+        row.goalsAgainst ?? row.ga,
+        row.points,
+    ])
+
+test("parity: the final table equals createGetStandingsTableByTournamentId for one group", async () => {
+    const tournament = mkTournament({
+        _id: "aaaaaaaaaaaaaaaaaaaaaaaa",
+        teams: leagueTeams,
+    })
+    // Partidos con empate, W.O. (`valid: false`) y desempates.
+    const matches = [
+        ...leagueMatches(),
+        mkMatch({
+            n: 7,
+            p1: LEO,
+            t1: TEAMS.bayern,
+            s1: 2,
+            p2: SANTI,
+            t2: TEAMS.milan,
+            s2: 2,
+        }),
+        mkMatch({
+            n: 8,
+            p1: NICO,
+            t1: TEAMS.liverpool,
+            s1: 0,
+            p2: MAX,
+            t2: TEAMS.chelsea,
+            s2: 0,
+            valid: false,
+        }),
+    ]
+    const expected = (await fetchControllerTable(tournament, matches))[0].teams
+    const { standings } = progress({ tournament, matches })
+
+    assert.deepEqual(comparable(standings.final[0].teams), comparable(expected))
+    assert.deepEqual(
+        standings.progress[3].leaders[0].team,
+        expected[0].team.name
+    )
+})
+
+test("parity: the final table equals the endpoint for two groups", async () => {
+    const teams = [
+        entry(TEAMS.liverpool, NICO, "A"),
+        entry(TEAMS.chelsea, MAX, "A"),
+        entry(TEAMS.bayern, LEO, "A"),
+        entry(TEAMS.milan, SANTI, "B"),
+        entry(TEAMS.ajax, NICO, "B"),
+        entry(TEAMS.porto, LEO, "B"),
+    ]
+    const tournament = mkTournament({
+        _id: "bbbbbbbbbbbbbbbbbbbbbbbb",
+        format: "league_playin_playoff",
+        teams,
+        groups: [{}, {}],
+    })
+    const matches = [
+        mkMatch({
+            n: 1,
+            group: "A",
+            p1: NICO,
+            t1: TEAMS.liverpool,
+            s1: 2,
+            p2: MAX,
+            t2: TEAMS.chelsea,
+            s2: 2,
+        }),
+        mkMatch({
+            n: 2,
+            group: "A",
+            p1: LEO,
+            t1: TEAMS.bayern,
+            s1: 1,
+            p2: NICO,
+            t2: TEAMS.liverpool,
+            s2: 1,
+        }),
+        mkMatch({
+            n: 3,
+            group: "A",
+            p1: MAX,
+            t1: TEAMS.chelsea,
+            s1: 1,
+            p2: LEO,
+            t2: TEAMS.bayern,
+            s2: 1,
+        }),
+        mkMatch({
+            n: 4,
+            group: "B",
+            p1: SANTI,
+            t1: TEAMS.milan,
+            s1: 3,
+            p2: NICO,
+            t2: TEAMS.ajax,
+            s2: 0,
+        }),
+        mkMatch({
+            n: 5,
+            group: "B",
+            p1: NICO,
+            t1: TEAMS.ajax,
+            s1: 1,
+            p2: LEO,
+            t2: TEAMS.porto,
+            s2: 0,
+        }),
+        mkMatch({
+            n: 6,
+            group: "B",
+            p1: LEO,
+            t1: TEAMS.porto,
+            s1: 0,
+            p2: SANTI,
+            t2: TEAMS.milan,
+            s2: 3,
+            valid: false,
+        }),
+    ]
+    const expected = await fetchControllerTable(tournament, matches)
+    const { standings } = progress({ tournament, matches })
+
+    assert.deepEqual(
+        standings.final.map(({ group }) => group),
+        expected.map(({ group }) => group)
+    )
+    standings.final.forEach((table, index) => {
+        assert.deepEqual(
+            comparable(table.teams),
+            comparable(expected[index].teams),
+            `group ${table.group}`
+        )
+    })
+    // Grupo A empatado en todo: conserva el orden de `tournament.teams`.
+    assert.deepEqual(
+        standings.final[0].teams.map(({ team: name }) => name),
+        expected[0].teams.map(({ team: name }) => name.name)
+    )
+})

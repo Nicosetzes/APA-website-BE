@@ -106,6 +106,22 @@ const FIELD_LABELS = {
     "tournaments.matchesByStage.playin": ["los partidos de play-in", "mp"],
     "tournaments.matchesByStage.regular": ["los partidos regulares", "mp"],
     createdAt: ["la fecha de creación", "f"],
+
+    // Recaps de torneo
+    closedAfter: ["la fecha de cierre mínima", "f"],
+    limit: ["el límite", "m"],
+    detail: ["el nivel de detalle", "m"],
+    headline: ["el titular", "m"],
+    summary: ["la bajada", "f"],
+    language: ["el idioma", "m"],
+    generation: ["los datos de generación", "mp"],
+    "generation.model": ["el modelo", "m"],
+    "generation.promptVersion": ["la versión del prompt", "f"],
+    "generation.contextVersion": ["la versión del contexto", "f"],
+    "generation.ratingVersion": ["la versión del rating", "f"],
+    "generation.drawModelVersion": ["la versión del modelo de empate", "f"],
+    "generation.contextHash": ["el hash del contexto", "m"],
+
     matches: ["el parámetro matches", "m"],
     status: ["el estado", "m"],
     legacy: ["el parámetro legacy", "m"],

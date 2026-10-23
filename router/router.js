@@ -51,6 +51,10 @@ const {
     getRecap,
     getRecapDates,
     getRecapContext,
+    getTournamentRecap,
+    getTournamentRecapContext,
+    getTournamentRecapsPending,
+    postTournamentRecap,
     getRatings,
     getRatingsPeriod,
     putCompleteTournamentById,
@@ -106,6 +110,30 @@ root.post(
     postRecaps
 )
 
+root.get(
+    "/tournament-recaps/pending",
+    recapRateLimit,
+    requireRecapSecret,
+    validate("getTournamentRecapsPending"),
+    getTournamentRecapsPending
+)
+
+root.get(
+    "/tournament-recaps/context",
+    recapRateLimit,
+    requireRecapSecret,
+    validate("getTournamentRecapContext"),
+    getTournamentRecapContext
+)
+
+root.post(
+    "/tournament-recaps",
+    recapRateLimit,
+    requireRecapSecret,
+    validate("postTournamentRecap"),
+    postTournamentRecap
+)
+
 root.get("/ratings", validate("getRatings"), getRatings)
 
 root.get("/ratings/period", validate("getRatingsPeriod"), getRatingsPeriod)
@@ -140,6 +168,12 @@ tournaments.get(
     "/:tournament/summary",
     validate("getTournamentResource"),
     getTournamentSummaryByTournamentId
+)
+
+tournaments.get(
+    "/:tournament/recap",
+    validate("getTournamentResource"),
+    getTournamentRecap
 )
 
 tournaments.get(

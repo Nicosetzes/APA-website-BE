@@ -56,6 +56,23 @@ test("new v1 tournaments accept the current creation contract", async () => {
     assert.equal(tournament.format, "league")
 })
 
+test("the legacy formats american_cup and club_world_cup are valid in the model", () => {
+    for (const format of ["american_cup", "club_world_cup"]) {
+        const tournament = new tournamentsModel({
+            ...validTournament,
+            format,
+            schemaVersion: 1,
+        })
+        assert.equal(tournament.validateSync(), undefined, format)
+        assert.equal(tournament.format, format)
+    }
+    const invalid = new tournamentsModel({
+        ...validTournament,
+        format: "copa_america",
+        schemaVersion: 1,
+    })
+    assert.ok(invalid.validateSync().errors.format)
+})
 test("unversioned legacy tournaments are not retroactively rejected", async () => {
     const tournament = tournamentsModel.hydrate({
         name: "Historical tournament",

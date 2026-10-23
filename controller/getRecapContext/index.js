@@ -1,3 +1,12 @@
+const { buildMatchInsights } = require("./matchInsights")
+const {
+    createGetStandingsTableByTournamentId,
+} = require("../getStandingsTableByTournamentId")
+const {
+    describeTournamentFormat,
+} = require("../../config/tournamentFormatRules")
+const { getArgentinaDayRange } = require("../../utils/argentinaDay")
+const { getPlayoffRoundForId } = require("../../config/playoffFormats")
 const {
     retrieveMatchesPlayedOnDate,
     retrievePlayinMatchesByTournamentId,
@@ -6,18 +15,6 @@ const {
     retrieveTournamentById,
     retrieveTournamentIdsPlayedOnDate,
 } = require("./../../service")
-const {
-    PLAYOFF_ROUNDS,
-    getPlayoffRoundIdRange,
-} = require("../../config/playoffFormats")
-const {
-    describeTournamentFormat,
-} = require("../../config/tournamentFormatRules")
-const {
-    createGetStandingsTableByTournamentId,
-} = require("../getStandingsTableByTournamentId")
-const { getArgentinaDayRange } = require("../../utils/argentinaDay")
-const { buildMatchInsights } = require("./matchInsights")
 
 const fetchStandings = async (tournamentId, playedBefore) => {
     let body
@@ -60,12 +57,6 @@ const slimStandingsRow = (row, index, previousPositions) => {
     }
 }
 
-const roundOf = (format, playoffId) =>
-    PLAYOFF_ROUNDS.find((round) => {
-        const range = getPlayoffRoundIdRange(format, round)
-        return range && playoffId >= range[0] && playoffId <= range[1]
-    }) ?? null
-
 const slimMatch = (match) => ({
     playoffId: match.playoff_id ?? null,
     leg: match.leg ?? null,
@@ -101,7 +92,7 @@ const buildBracket = (format, playoffMatches) => {
         .sort(([a], [b]) => a - b)
         .map(([playoffId, matches]) => ({
             playoffId,
-            round: roundOf(format, playoffId),
+            round: getPlayoffRoundForId(format, playoffId),
             series: matches.find((match) => match.series)?.series ?? null,
             matches: matches.map(slimMatch),
         }))

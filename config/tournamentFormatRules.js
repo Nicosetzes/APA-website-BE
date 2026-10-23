@@ -17,6 +17,13 @@ const GROUP_FORMAT_LABELS = {
     champions_league: "grupos de la A a la H",
 }
 
+const LEGACY_FORMAT_DESCRIPTIONS = {
+    american_cup:
+        "Copa América: formato propio, distinto de la eliminatoria pura. El backend no define sus fases ni sus reglas; hoy solo existe en un torneo legacy.",
+    club_world_cup:
+        "Mundial de Clubes: formato propio, distinto del Mundial de selecciones. El backend no define sus fases ni sus reglas; hoy solo existe en un torneo legacy.",
+}
+
 // Reglas fijas por formato, escritas a mano a partir de cómo el backend arma
 // la fase de grupos y el cuadro.
 
@@ -60,6 +67,16 @@ const describeTournamentFormat = ({ format, playoffMode } = {}) => {
             knockout: twoLegged
                 ? "Cada cruce es de ida y vuelta, definido por el marcador global. Si el global empata se juega un tercer partido de desempate a gol de oro: avanza quien convierte primero (no hay penales)."
                 : KNOCKOUT_SINGLE_MATCH,
+        }
+    }
+
+    if (LEGACY_FORMAT_DESCRIPTIONS[format]) {
+        return {
+            stages: [],
+            description: LEGACY_FORMAT_DESCRIPTIONS[format],
+            tableTiebreak: null,
+            qualification: null,
+            knockout: null,
         }
     }
 

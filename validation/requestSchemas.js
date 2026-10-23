@@ -1,6 +1,10 @@
 const Joi = require("joi")
 const { MATCH_RULE_MESSAGES } = require("./errorMessages")
 const { PLAYOFF_ROUNDS } = require("../config/playoffFormats")
+const {
+    DEFAULT_PENDING_LIMIT,
+    MAX_PENDING_LIMIT,
+} = require("../config/tournamentRecap")
 const { assertDirectPlayoffGeometry } = require("../service/playoffSeries")
 
 const emptyObject = Joi.object({}).unknown(false)
@@ -224,6 +228,9 @@ const totalGoalsFilterValue = Joi.number()
 
 const teamNameFilter = Joi.string().trim().min(1).max(100).allow("").optional()
 
+// Campos de `generation` (modelo, versiones y hash del contexto).
+const generationField = Joi.string().trim().min(1).max(100)
+
 module.exports = {
     getMatches: {
         query: Joi.object({
@@ -353,6 +360,51 @@ module.exports = {
                     }).unknown(false)
                 )
                 .max(100)
+                .required(),
+            createdAt: Joi.date().iso().required(),
+        }).unknown(false),
+    },
+    getTournamentRecapsPending: {
+        params: emptyObject,
+        query: Joi.object({
+            closedAfter: calendarDate.optional(),
+            limit: Joi.number()
+                .integer()
+                .min(1)
+                .max(MAX_PENDING_LIMIT)
+                .default(DEFAULT_PENDING_LIMIT),
+        }).unknown(false),
+        body: emptyObject,
+    },
+    getTournamentRecapContext: {
+        params: emptyObject,
+        query: Joi.object({
+            tournamentId: mongoId.required(),
+            detail: Joi.string().valid("compact", "full").default("compact"),
+        }).unknown(false),
+        body: emptyObject,
+    },
+    postTournamentRecap: {
+        params: emptyObject,
+        query: emptyObject,
+        body: Joi.object({
+            tournamentId: mongoId.required(),
+            headline: Joi.string().trim().min(1).max(140).required(),
+            summary: Joi.string().trim().min(1).max(500).required(),
+            recap: Joi.string().trim().min(1).max(50000).required(),
+            language: Joi.string()
+                .trim()
+                .pattern(/^[a-z]{2}(-[A-Z]{2})?$/)
+                .default("es-AR"),
+            generation: Joi.object({
+                model: generationField.required(),
+                promptVersion: generationField.required(),
+                contextVersion: generationField.required(),
+                ratingVersion: generationField.required(),
+                drawModelVersion: generationField.required(),
+                contextHash: generationField.required(),
+            })
+                .unknown(false)
                 .required(),
             createdAt: Joi.date().iso().required(),
         }).unknown(false),

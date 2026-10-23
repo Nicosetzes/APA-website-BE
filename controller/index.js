@@ -13,6 +13,9 @@ const getPlayoffsTableByTournamentId = require("./getPlayoffsTableByTournamentId
 const getStandingsTableByTournamentId = require("./getStandingsTableByTournamentId")
 const getStatistics = require("./getStatistics")
 const getTournamentById = require("./getTournamentById")
+const getTournamentRecap = require("./getTournamentRecap")
+const getTournamentRecapContext = require("./getTournamentRecapContext")
+const getTournamentRecapsPending = require("./getTournamentRecapsPending")
 const getTournamentImages = require("./getTournamentImages")
 const getTournamentSummaryByTournamentId = require("./getTournamentSummaryByTournamentId")
 const getTournaments = require("./getTournaments")
@@ -22,6 +25,7 @@ const postFixtureByTournamentId = require("./postFixtureByTournamentId")
 const postLogin = require("./postLogin")
 const postPlayinByTournamentId = require("./postPlayinByTournamentId")
 const postPlayoffByTournamentId = require("./postPlayoffByTournamentId")
+const postTournamentRecap = require("./postTournamentRecap")
 const postTournaments = require("./postTournaments")
 const putMatchByTournamentId = require("./putMatchByTournamentId")
 const putRemoveMatchByTournamentId = require("./putRemoveMatchByTournamentId")
@@ -50,6 +54,9 @@ module.exports = {
     getStandingsTableByTournamentId,
     getStatistics,
     getTournamentById,
+    getTournamentRecap,
+    getTournamentRecapContext,
+    getTournamentRecapsPending,
     getTournamentImages,
     getTournamentSummaryByTournamentId,
     getTournaments,
@@ -59,6 +66,7 @@ module.exports = {
     postLogin,
     postPlayinByTournamentId,
     postPlayoffByTournamentId,
+    postTournamentRecap,
     postTournaments,
     putMatchByTournamentId,
     putRemoveMatchByTournamentId,

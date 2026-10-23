@@ -745,6 +745,29 @@ paths:
                         application/json:
                             schema:
                                 $ref: "#/components/schemas/ErrorResponse"
+    /api/tournaments/{tournament}/recap:
+        get:
+            tags: [Recaps]
+            summary: Devuelve el recap de un torneo terminado
+            description: >-
+                Lo consume la vista del torneo en el FE. Público. `data.recap`
+                es Markdown (sin título principal: el titular va en
+                `data.headline`). 404 `TOURNAMENT_RECAP_NOT_FOUND` si el torneo
+                no tiene recap (todavía, o nunca: los torneos legacy no tienen
+                partidos).
+            parameters:
+                - $ref: "#/components/parameters/TournamentId"
+            responses:
+                "200":
+                    description: Recap del torneo
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/TournamentRecapResponse"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "404":
+                    $ref: "#/components/responses/NotFound"
     /api/tournaments/{tournament}/fixture:
         get:
             tags: [Matches]
@@ -1781,6 +1804,286 @@ paths:
                 "404":
                     $ref: "#/components/responses/NotFound"
 
+    /api/tournament-recaps/pending:
+        get:
+            tags: [Recaps]
+            summary: Torneos terminados que todavía no tienen recap
+            description: >-
+                Lo llama el workflow de n8n una vez por día. Devuelve los
+                torneos terminados (`ongoing: false`), válidos, no legacy y
+                con campeón que no tienen recap, con `closedAt` dentro de
+                `[closedAfter, hoy)` (días calendario de Argentina; un torneo
+                que cierra hoy entra mañana) y con al menos un partido jugado
+                y válido. Se ordenan por `closedAt` ascendente y se cortan en
+                `limit`. Sin `closedAfter` la ventana es de 7 días.
+
+
+                `counts` explica la diferencia con el total: los torneos sin
+                `closedAt` (`skippedWithoutClosedAt`) no se pueden ubicar en la
+                ventana y se cuentan en lugar de perderse en silencio.
+                `backlog` lista, sin ventana ni límite, los torneos terminados
+                con partidos y sin recap (solo identificación, de más viejo a
+                más nuevo): es el listado para un backfill controlado, uno por
+                vez, pasando el `tournamentId` al contexto. `backlog` no lista
+                los torneos de `BACKFILL_EXCLUDED_TOURNAMENTS`
+                (`config/tournamentRecap.js`; hoy Chempions 2019/20, cuyo
+                contexto compact supera el tope de tamaño): son torneos viejos
+                que se eligen a mano. La exclusión solo afecta a `backlog`: no
+                cambia la ventana diaria (`data`), ni `counts`, ni el
+                contexto, que sigue respondiendo para ese `tournamentId`.
+                Solo lectura.
+            security:
+                - recapSecret: []
+            parameters:
+                - in: query
+                  name: closedAfter
+                  required: false
+                  description: >-
+                      Primer día (inclusive, YYYY-MM-DD) de la ventana de cierre.
+                      Por defecto, hoy menos 7 días.
+                  schema:
+                      type: string
+                      pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+                      example: "2026-10-14"
+                - in: query
+                  name: limit
+                  required: false
+                  schema:
+                      type: integer
+                      minimum: 1
+                      maximum: 20
+                      default: 3
+            responses:
+                "200":
+                    description: Torneos a procesar y listado de backfill
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/TournamentRecapPending"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    description: Secreto ausente o inválido (INVALID_RECAP_SECRET)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "429":
+                    description: Demasiados secretos inválidos desde la misma IP (TOO_MANY_RECAP_ATTEMPTS)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "503":
+                    description: El secreto no está configurado en el servidor (RECAP_SECRET_NOT_CONFIGURED)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/tournament-recaps/context:
+        get:
+            tags: [Recaps]
+            summary: Contexto completo de un torneo terminado para escribir su recap
+            description: >-
+                Lo llama el workflow de n8n por cada torneo. El servidor
+                calcula todo lo que es número, orden, racha, récord o conteo
+                histórico y entrega una lista priorizada de hechos (`facts`);
+                el modelo de lenguaje solo redacta. Una lectura de los partidos
+                del torneo, una de la lista de torneos y el historial de
+                ratings cacheado.
+
+
+                Las probabilidades (`odds`) son por partido, nunca por serie:
+                en liga y en las patas 1 y 2 de un cruce a dos partidos son
+                victoria / empate / derrota (`expected_points`); en un cruce de
+                partido único es la probabilidad de avanzar (`advance`); sin
+                predicción con sentido (pata 3 a gol de oro, play-in de la
+                Champions) o sin evento de rating (`valid: false`), `null`.
+                V/E/D se cuenta por `outcome` (quien gana por penales suma
+                una victoria; los penales se informan aparte), a diferencia de
+                `/api/tournaments/{tournament}/summary`, que cuenta por signo
+                del marcador.
+
+
+                `titleContext` cuenta todos los torneos del Salón de la Fama
+                (terminados, válidos, con campeón, legacy incluidos) hasta el
+                cierre de este torneo. La competencia ("su 4ta Superliga") sale
+                del `format` del torneo y no de su nombre: `league_playin_playoff`
+                es Superliga, `league` Liga, `playoff` Eliminatoria,
+                `world_cup` y `world_cup_2026` Mundial, `champions_league`
+                Champions, `super_cup` Supercopa, `american_cup` Copa América y
+                `club_world_cup` Mundial de Clubes (estos dos últimos son formatos
+                legacy: no se pueden crear, pero cuentan como familia propia). Un formato ausente o desconocido queda en una familia
+                aparte, con una advertencia en `dataQuality.warnings`.
+
+
+                Todo número de movimiento de Elo del torneo sale solo de los
+                eventos de rating de los partidos de este torneo: `delta` es
+                lo que cada jugador ganó o perdió en el torneo (y la única
+                cifra para decirlo), y `bestCumulativeDelta` /
+                `worstCumulativeDelta` son el punto más alto y el más bajo de
+                ese delta acumulado desde 0. Los ratings globales
+                (`globalRatingBeforeFirstMatch`, `globalRatingAfterLastMatch`,
+                `globalPeakRating`) y `leaderboard` pueden incluir partidos de
+                otros torneos jugados en el medio (`dataQuality.warnings`
+                informa cuántos) y no son lo ganado en el torneo.
+
+
+                Los partidos `valid: false` (por ejemplo entre dos equipos del
+                mismo jugador, cargados para avanzar el cuadro) no cuentan en
+                ninguna estadística: `playerStats`, `headToHead`,
+                `ratingMovement` y `facts` los ignoran y `compact` no los
+                destaca entre los regulares. La tabla de `standings` sí los
+                cuenta (la tabla de la liga los necesita) y lo aclara en
+                `standings.criterion`: su `played` puede no coincidir con
+                el PJ de `playerStats`.
+
+
+                Con `detail=compact` (por defecto) van todos los partidos de
+                play-in y playoff y los partidos regulares destacados (hasta
+                15); `matchesOmitted` dice cuántos quedaron afuera. Con `full`,
+                todos. `meta.contextHash` es el sha256 del JSON de `data`; no
+                incluye la hora de la consulta, así que dos pedidos sin cambios
+                dan el mismo hash (y `compact` y `full` dan hashes distintos).
+                Solo lectura.
+            security:
+                - recapSecret: []
+            parameters:
+                - in: query
+                  name: tournamentId
+                  required: true
+                  schema:
+                      type: string
+                      pattern: "^[a-fA-F0-9]{24}$"
+                - in: query
+                  name: detail
+                  required: false
+                  schema:
+                      type: string
+                      enum: [compact, full]
+                      default: compact
+            responses:
+                "200":
+                    description: Contexto del torneo
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/TournamentRecapContext"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    description: Secreto ausente o inválido (INVALID_RECAP_SECRET)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "409":
+                    description: El torneo todavía no terminó (TOURNAMENT_NOT_FINISHED)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "422":
+                    description: El torneo no tiene partidos jugados y válidos, por ejemplo un legacy (TOURNAMENT_WITHOUT_MATCHES)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "429":
+                    description: Demasiados secretos inválidos desde la misma IP (TOO_MANY_RECAP_ATTEMPTS)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "503":
+                    description: El secreto no está configurado en el servidor (RECAP_SECRET_NOT_CONFIGURED)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/tournament-recaps:
+        post:
+            tags: [Recaps]
+            summary: Guarda el recap de un torneo generado por n8n
+            description: >-
+                Lo llama el workflow de n8n, no el FE. Hay un recap por
+                `tournamentId`: reenviar el de un torneo que ya tiene uno lo
+                reemplaza (200, `revision` suma 1) en lugar de duplicarlo (201
+                al crearlo, `revision` 1). `tournament`, `format` y `closedAt`
+                se copian del torneo, no se aceptan en el body.
+
+
+                Además de validar el body, comprueba contra la base que el
+                torneo exista (404), esté terminado (409) y tenga partidos
+                jugados y válidos (422 `TOURNAMENT_WITHOUT_MATCHES`), y que el
+                texto tenga los títulos `##` que exige el formato (siempre "El
+                campeón" y "En la historia"; "Fase regular" o "Fase de grupos",
+                "Play-in" y "Playoffs" según las etapas) y nombre al campeón y
+                al subcampeón, jugador y equipo (422
+                `TOURNAMENT_RECAP_CONTENT_INVALID`, con lo que falta en
+                `error.details`). Es una defensa contra respuestas vacías o
+                cortadas, no contra errores de hecho.
+            security:
+                - recapSecret: []
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/TournamentRecapRequest"
+            responses:
+                "200":
+                    description: Ya existía un recap de ese torneo y fue reemplazado
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/TournamentRecapSaved"
+                "201":
+                    description: Recap creado
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/TournamentRecapSaved"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    description: Secreto ausente o inválido (INVALID_RECAP_SECRET)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "409":
+                    description: El torneo todavía no terminó (TOURNAMENT_NOT_FINISHED)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "422":
+                    description: >-
+                        El torneo no tiene partidos jugados y válidos
+                        (TOURNAMENT_WITHOUT_MATCHES) o el texto no cumple el
+                        contrato de contenido (TOURNAMENT_RECAP_CONTENT_INVALID)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "429":
+                    description: Demasiados secretos inválidos desde la misma IP (TOO_MANY_RECAP_ATTEMPTS)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "503":
+                    description: El secreto no está configurado en el servidor (RECAP_SECRET_NOT_CONFIGURED)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+
 components:
     securitySchemes:
         bearerAuth:
@@ -1964,7 +2267,9 @@ components:
                     type: string
                     enum:
                         [
+                            american_cup,
                             champions_league,
+                            club_world_cup,
                             league,
                             league_playin_playoff,
                             playoff,
@@ -1972,6 +2277,10 @@ components:
                             world_cup,
                             world_cup_2026,
                         ]
+                    description: |
+                        `american_cup` y `club_world_cup` son formatos legacy: existen
+                        en torneos legacy y son válidos en el modelo, pero no se pueden
+                        crear (`CreateTournamentRequest.format` no los acepta).
                 ongoing:
                     type: boolean
                     description: Valor actual, no el de `date`
@@ -2249,6 +2558,459 @@ components:
                     type: object
                     nullable: true
                     additionalProperties: true
+        TournamentRecapRef:
+            type: object
+            description: Jugador o equipo por id y nombre
+            required: [id, name]
+            properties:
+                id:
+                    oneOf:
+                        - type: string
+                        - type: integer
+                name:
+                    type: string
+                    nullable: true
+        TournamentRecapPendingItem:
+            type: object
+            required: [tournamentId, name, format, closedAt, champion, runnerUp]
+            properties:
+                tournamentId:
+                    type: string
+                name:
+                    type: string
+                format:
+                    type: string
+                playoffMode:
+                    type: string
+                    nullable: true
+                closedAt:
+                    type: string
+                    format: date-time
+                    nullable: true
+                closedAtPrecision:
+                    type: string
+                    nullable: true
+                champion:
+                    type: object
+                    properties:
+                        player:
+                            $ref: "#/components/schemas/TournamentRecapRef"
+                        team:
+                            $ref: "#/components/schemas/TournamentRecapRef"
+                runnerUp:
+                    type: object
+                    properties:
+                        player:
+                            $ref: "#/components/schemas/TournamentRecapRef"
+                        team:
+                            $ref: "#/components/schemas/TournamentRecapRef"
+        TournamentRecapPending:
+            type: object
+            required:
+                [success, closedAfter, before, limit, data, counts, backlog]
+            properties:
+                success:
+                    type: boolean
+                closedAfter:
+                    type: string
+                    description: Valor efectivo (por defecto, hoy menos 7 días)
+                    example: "2026-10-14"
+                before:
+                    type: string
+                    description: Hoy (día de Argentina); límite superior exclusivo
+                    example: "2026-10-21"
+                limit:
+                    type: integer
+                data:
+                    type: array
+                    items:
+                        $ref: "#/components/schemas/TournamentRecapPendingItem"
+                counts:
+                    type: object
+                    required:
+                        - finishedEligible
+                        - withRecap
+                        - inWindowWithoutRecap
+                        - skippedWithoutClosedAt
+                        - skippedWithoutMatches
+                        - returned
+                    properties:
+                        finishedEligible:
+                            type: integer
+                            description: Terminados, válidos, no legacy y con campeón (toda la historia)
+                        withRecap:
+                            type: integer
+                        inWindowWithoutRecap:
+                            type: integer
+                            description: Dentro de la ventana y sin recap, antes del límite y del filtro de partidos
+                        skippedWithoutClosedAt:
+                            type: integer
+                            description: Sin recap y sin `closedAt`, que no se pueden ubicar en la ventana
+                        skippedWithoutMatches:
+                            type: integer
+                            description: Dentro de la ventana, sin partidos jugados y válidos
+                        returned:
+                            type: integer
+                backlog:
+                    type: object
+                    description: >-
+                        Torneos terminados con partidos y sin recap, sin ventana
+                        ni límite (backfill controlado), sin los de
+                        `BACKFILL_EXCLUDED_TOURNAMENTS` (Chempions 2019/20).
+                        `count` cuenta solo los listados.
+                    required: [count, tournaments]
+                    properties:
+                        count:
+                            type: integer
+                        tournaments:
+                            type: array
+                            items:
+                                type: object
+                                required: [tournamentId, name, format, closedAt]
+                                properties:
+                                    tournamentId:
+                                        type: string
+                                    name:
+                                        type: string
+                                    format:
+                                        type: string
+                                    closedAt:
+                                        type: string
+                                        format: date-time
+                                        nullable: true
+        TournamentRecapContext:
+            type: object
+            required: [success, contextVersion, detail, meta, data]
+            properties:
+                success:
+                    type: boolean
+                contextVersion:
+                    type: string
+                    example: tournament-recap-2
+                detail:
+                    type: string
+                    enum: [compact, full]
+                meta:
+                    type: object
+                    properties:
+                        ratingVersion:
+                            type: string
+                            example: "2.0"
+                        drawModelVersion:
+                            type: string
+                            example: draw-1
+                        contextHash:
+                            type: string
+                            description: sha256 (hex) del JSON de `data`
+                data:
+                    type: object
+                    properties:
+                        tournament:
+                            type: object
+                            description: >-
+                                Datos del torneo: `competition` (`key` y
+                                `label` de la familia, que sale del formato:
+                                ej. Superliga), fechas y
+                                precisión, `durationDays`, `matchCounts`
+                                (regular, playin, playoff, total, validFalse) y
+                                `rules` (reglas del formato en texto).
+                            additionalProperties: true
+                        participants:
+                            type: array
+                            description: >-
+                                Jugadores con `ratingProvisional` (menos de 10
+                                partidos antes del torneo) y sus equipos con
+                                `overall` (null si no hay dato) y `group`.
+                            items:
+                                type: object
+                                additionalProperties: true
+                        result:
+                            type: object
+                            description: >-
+                                `champion` y `runnerUp` ({ player, team }),
+                                `source` ("final" si lo decidió la final,
+                                "table" si salió de la tabla) y `final` (el
+                                partido que decidió la final: `matchSeq`,
+                                `score`, `penalties`, `odds`, `winner`,
+                                `upset`, `decidedBy`, `aggregate`), `null` en
+                                una liga pura.
+                            additionalProperties: true
+                        standings:
+                            type: object
+                            nullable: true
+                            description: >-
+                                `null` si el formato no tiene fase regular. Si
+                                no: `criterion` (la tabla cuenta todos los
+                                partidos regulares, también los `valid: false`;
+                                no usarla para estadísticas de jugadores),
+                                `final` (tabla final por grupo, por
+                                equipo, con `qualification` direct, playin,
+                                best_third, eliminated o null), `progress`
+                                (líder de cada grupo al 25 / 50 / 75 / 100 %),
+                                `leaderChanges` por grupo (luego del primer
+                                25 %) y `closeRace` (líder y ventaja sobre el
+                                segundo al 90 %).
+                            additionalProperties: true
+                        playin:
+                            type: object
+                            nullable: true
+                            description: "`{ matchSeqs }`: referencias a `matches` por `seq`"
+                            additionalProperties: true
+                        playoffs:
+                            type: object
+                            nullable: true
+                            description: >-
+                                `rounds` -> `ties`: cada cruce con `teams`
+                                (jugador, equipo y seed por nombre), `winner`,
+                                `decidedBy` (single_match, aggregate,
+                                penalties, golden_goal, walkover,
+                                same_player_pick), `aggregate` (ida y vuelta)
+                                y `matchSeqs`.
+                            additionalProperties: true
+                        championPath:
+                            type: object
+                            description: >-
+                                Camino del campeón: posición en la fase
+                                regular, play-in si lo jugó y cada cruce
+                                (rival, marcador y odds orientados al
+                                campeón).
+                            additionalProperties: true
+                        matches:
+                            type: array
+                            description: >-
+                                Log cronológico. Cada partido: `seq`,
+                                `matchId`, `playedAt`, `stage`, `group`,
+                                `round`, `playoffId`, `leg`, `p1` y `p2`
+                                ({ player, team, teamId, ovr, ratingBefore,
+                                provisional }), `score`, `penalties`, `valid`,
+                                `winner` (p1, p2 o draw, por `outcome`),
+                                `odds`, `ratingDelta` firmado (null sin
+                                evento), `upset`, `importance` (1 a 5) y
+                                `notable`.
+                            items:
+                                type: object
+                                additionalProperties: true
+                        matchesOmitted:
+                            type: integer
+                            description: Partidos que `compact` dejó afuera (0 en `full`)
+                        ratingMovement:
+                            type: object
+                            additionalProperties: true
+                            description: >-
+                                `scope` (texto que aclara qué cifras son del
+                                torneo y cuáles globales) y, por jugador:
+                                `matches`; del torneo, `delta` (suma de los
+                                cambios de Elo de los partidos de este torneo),
+                                `bestCumulativeDelta` y
+                                `worstCumulativeDelta` (punto más alto y más
+                                bajo del delta acumulado, desde 0);
+                                `ratingProvisional`; y globales,
+                                `globalRatingBeforeFirstMatch`,
+                                `globalRatingAfterLastMatch`,
+                                `globalPeakRating` y `leaderboard` (`before`
+                                y `after` del ranking global e
+                                `isNewAllTimePeak`). Más `biggestGainer` y
+                                `biggestLoser` (por `delta`) y
+                                `overtakes` (adelantamientos en el ranking de
+                                Elo con solo los cambios del torneo).
+                        playerStats:
+                            type: object
+                            additionalProperties: true
+                            description: >-
+                                Por jugador y por etapa: PJ / PG / PE / PP,
+                                goles, vallas, efectividad, puntos esperados
+                                contra reales, rachas, mejor y peor resultado,
+                                equipo más y menos efectivo y penales.
+                                `criterion` explica cómo se cuenta.
+                        headToHead:
+                            type: array
+                            description: >-
+                                Por pareja que se cruzó: récord en el torneo y
+                                `allTimeBefore` (historial por marcador antes
+                                del torneo), más `isFinal`.
+                            items:
+                                type: object
+                                additionalProperties: true
+                        titleContext:
+                            type: object
+                            nullable: true
+                            additionalProperties: true
+                            description: >-
+                                Títulos al cierre de este torneo: `ranking`
+                                (títulos y finales, empates comparten
+                                posición) y `champion` (`titleNumber`, `rank`,
+                                `gapToLeader`, `leadChange`, `isFirstTitle`,
+                                `consecutiveTitles`, `wasDefendingChampion`,
+                                `finalsPlayed`, `titlesSameCompetition` con
+                                `key`, `label`, `count` y `ordinal`: los
+                                títulos del campeón en torneos del mismo
+                                formato), `runnerUp` y `competition` (`key`,
+                                `label` y `previousWinners`: campeones de las
+                                ediciones anteriores del mismo formato, de más
+                                viejo a más nuevo).
+                        facts:
+                            type: array
+                            description: >-
+                                Hechos ya detectados, de mayor a menor
+                                `importance` (1 a 5), hasta 30. `text` es una
+                                oración en español rioplatense de apoyo; los
+                                números salen de `data`.
+                            items:
+                                type: object
+                                required:
+                                    [id, type, importance, matchIds, data, text]
+                                properties:
+                                    id:
+                                        type: string
+                                    type:
+                                        type: string
+                                    importance:
+                                        type: integer
+                                        minimum: 1
+                                        maximum: 5
+                                    matchIds:
+                                        type: array
+                                        items:
+                                            type: string
+                                    data:
+                                        type: object
+                                        additionalProperties: true
+                                    text:
+                                        type: string
+                        dataQuality:
+                            type: object
+                            description: >-
+                                `warnings`, `ratedMatches`, `unratedMatchIds`,
+                                `datesApproximate` y `provisionalPlayers`.
+                            additionalProperties: true
+        TournamentRecapRequest:
+            type: object
+            required:
+                [tournamentId, headline, summary, recap, generation, createdAt]
+            additionalProperties: false
+            properties:
+                tournamentId:
+                    type: string
+                    pattern: "^[a-fA-F0-9]{24}$"
+                headline:
+                    type: string
+                    minLength: 1
+                    maxLength: 140
+                summary:
+                    type: string
+                    minLength: 1
+                    maxLength: 500
+                recap:
+                    type: string
+                    minLength: 1
+                    maxLength: 50000
+                    description: Markdown con los títulos `##` que exige el formato
+                language:
+                    type: string
+                    default: es-AR
+                    pattern: "^[a-z]{2}(-[A-Z]{2})?$"
+                generation:
+                    type: object
+                    required:
+                        - model
+                        - promptVersion
+                        - contextVersion
+                        - ratingVersion
+                        - drawModelVersion
+                        - contextHash
+                    additionalProperties: false
+                    properties:
+                        model:
+                            type: string
+                            maxLength: 100
+                        promptVersion:
+                            type: string
+                            maxLength: 100
+                        contextVersion:
+                            type: string
+                            maxLength: 100
+                        ratingVersion:
+                            type: string
+                            maxLength: 100
+                        drawModelVersion:
+                            type: string
+                            maxLength: 100
+                        contextHash:
+                            type: string
+                            maxLength: 100
+                createdAt:
+                    type: string
+                    format: date-time
+                    description: Lo manda n8n (`$now.toISO()`)
+        TournamentRecapSaved:
+            type: object
+            required: [success, replaced, data]
+            properties:
+                success:
+                    type: boolean
+                replaced:
+                    type: boolean
+                data:
+                    $ref: "#/components/schemas/TournamentRecapDocument"
+        TournamentRecapResponse:
+            type: object
+            required: [success, data]
+            properties:
+                success:
+                    type: boolean
+                data:
+                    $ref: "#/components/schemas/TournamentRecapDocument"
+        TournamentRecapDocument:
+            type: object
+            description: El recap guardado (la lectura pública no trae `_id` ni `__v`)
+            required:
+                [
+                    tournamentId,
+                    tournament,
+                    headline,
+                    summary,
+                    recap,
+                    generation,
+                    revision,
+                    createdAt,
+                ]
+            properties:
+                tournamentId:
+                    type: string
+                tournament:
+                    type: string
+                    description: Nombre del torneo al generar el recap
+                format:
+                    type: string
+                closedAt:
+                    type: string
+                    format: date-time
+                headline:
+                    type: string
+                summary:
+                    type: string
+                recap:
+                    type: string
+                language:
+                    type: string
+                generation:
+                    type: object
+                    additionalProperties: true
+                image:
+                    type: object
+                    nullable: true
+                    description: Reservado para la etapa 2 (imagen); hoy siempre `null`
+                    additionalProperties: true
+                revision:
+                    type: integer
+                    minimum: 1
+                    description: 1 al crear; suma 1 cada vez que se reemplaza
+                createdAt:
+                    type: string
+                    format: date-time
+                updatedAt:
+                    type: string
+                    format: date-time
         RecapResponse:
             type: object
             required: [success, data]
@@ -2447,6 +3209,10 @@ components:
                     type: string
                 format:
                     type: string
+                    description: |
+                        Además de los formatos de `CreateTournamentRequest.format`, los
+                        torneos legacy pueden tener `american_cup` o `club_world_cup`
+                        (no se pueden crear).
                 playoffMode:
                     type: string
                     enum: [single, two_legged]
