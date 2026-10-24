@@ -217,6 +217,25 @@ const consecutiveTitlesOf = (sequence, key) => {
     return count
 }
 
+// Torneo inmediatamente anterior de la racha de `key` (el último torneo previo
+// en el que participó), solo si lo ganó; si no, `null`. Es el segundo de la
+// cuenta de `consecutiveTitlesOf`, así que existe sii esa cuenta es >= 2.
+const previousTitleOf = (before, key) => {
+    for (let index = before.length - 1; index >= 0; index--) {
+        const tournament = before[index]
+
+        if (playerKey(tournament.outcome.champion.player) === key) {
+            return tournament
+        }
+        if (participated(tournament, key)) return null
+    }
+
+    return null
+}
+
+const closedAtIso = (tournament) =>
+    tournament.closedAt ? new Date(tournament.closedAt).toISOString() : null
+
 // Contexto histórico del campeón de `tournament` a la fecha de su cierre: los
 // títulos estrictamente anteriores más este. Pura.
 //
@@ -266,6 +285,11 @@ const buildTitleContext = ({ tournaments, tournament, nameOf = identity }) => {
         (item) => playerKey(item.outcome.champion.player) === championKey
     )
     const lastEdition = competitionBefore[competitionBefore.length - 1]
+    const wasDefendingChampion = Boolean(
+        lastEdition &&
+            playerKey(lastEdition.outcome.champion.player) === championKey
+    )
+    const previousTitleTournament = previousTitleOf(before, championKey)
     const aloneAtTop =
         championRow.titles === topTitles && championRow.titles > otherTop
     const wasAloneAtTop =
@@ -353,11 +377,30 @@ const buildTitleContext = ({ tournaments, tournament, nameOf = identity }) => {
                 leadChange,
                 isFirstTitle: championRow.titles === 1,
                 consecutiveTitles: consecutiveTitlesOf(upTo, championKey),
-                wasDefendingChampion: Boolean(
-                    lastEdition &&
-                        playerKey(lastEdition.outcome.champion.player) ===
-                            championKey
-                ),
+                wasDefendingChampion,
+                // Torneo (de cualquier formato) que el campeón ganó justo
+                // antes de este, sin contar los que no jugó. Es el que se
+                // cuenta en `consecutiveTitles`; `null` si no hay racha.
+                previousTitle: previousTitleTournament
+                    ? {
+                          tournamentId: String(previousTitleTournament._id),
+                          name: previousTitleTournament.name,
+                          competitionLabel: getCompetition(
+                              previousTitleTournament
+                          ).label,
+                          closedAt: closedAtIso(previousTitleTournament),
+                      }
+                    : null,
+                // Edición anterior de la MISMA familia que el campeón ganó
+                // (la última de `competition.previousWinners`); `null` si no
+                // defiende el título.
+                defendedEdition: wasDefendingChampion
+                    ? {
+                          tournamentId: String(lastEdition._id),
+                          name: lastEdition.name,
+                          closedAt: closedAtIso(lastEdition),
+                      }
+                    : null,
                 titlesSameCompetition: {
                     key: competition.key,
                     label: competition.label,

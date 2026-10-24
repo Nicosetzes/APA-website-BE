@@ -2714,7 +2714,7 @@ components:
                     type: boolean
                 contextVersion:
                     type: string
-                    example: tournament-recap-3
+                    example: tournament-recap-5
                 detail:
                     type: string
                     enum: [compact, full]
@@ -2746,9 +2746,12 @@ components:
                         participants:
                             type: array
                             description: >-
-                                Jugadores con `ratingProvisional` (menos de 10
-                                partidos antes del torneo) y sus equipos con
-                                `overall` (null si no hay dato) y `group`.
+                                Jugadores con `ratingProvisional` (empezaron el
+                                torneo con menos de 10 partidos previos; se
+                                evalúa antes de su primer partido, NO significa
+                                que su rating siga provisorio al final) y sus
+                                equipos con `overall` (null si no hay dato) y
+                                `group`.
                             items:
                                 type: object
                                 additionalProperties: true
@@ -2774,10 +2777,25 @@ components:
                                 `final` (tabla final por grupo, por
                                 equipo, con `qualification` direct, playin,
                                 best_third, eliminated o null), `progress`
-                                (líder de cada grupo al 25 / 50 / 75 / 100 %),
+                                (líder de cada grupo al 25 / 50 / 75 / 100 %; cada
+                                `leaders[]` trae `group`, `team`, `player`,
+                                `points`, `matchesPlayed` y `matchesLeft`:
+                                partidos regulares del grupo jugados y por
+                                jugar en ese momento, con el mismo universo que
+                                la tabla, `valid: false` incluidos),
                                 `leaderChanges` por grupo (luego del primer
-                                25 %) y `closeRace` (líder y ventaja sobre el
-                                segundo al 90 %).
+                                25 %) y `closeRace`: estado de la tabla
+                                cuando faltaban `matchesLeft` partidos (10 en
+                                una liga de tabla única), con `group`,
+                                `leader`, `leaderTeamId`, `gapToSecond`,
+                                `matchesPlayed` y `matchesLeft` (sin
+                                porcentaje). `progress`, `leaderChanges` y
+                                `closeRace` solo incluyen a los grupos con al
+                                menos 30 partidos regulares (una liga o un grupo
+                                de `league_playin_playoff`); en los grupos
+                                chicos de un mundial, champions o supercopa no
+                                hay: `progress` es `[]`, `leaderChanges`
+                                `{}` y `closeRace` `[]`.
                             additionalProperties: true
                         playin:
                             type: object
@@ -2810,7 +2828,11 @@ components:
                                 `matchId`, `playedAt`, `stage`, `group`,
                                 `round`, `playoffId`, `leg`, `p1` y `p2`
                                 ({ player, team, teamId, ovr, ratingBefore,
-                                provisional }), `score`, `penalties`, `valid`,
+                                provisional }; `provisional` es por partido:
+                                el jugador tenía menos de 10 partidos previos
+                                en ESE partido, y las probabilidades de un
+                                partido con un lado provisorio son poco
+                                confiables), `score`, `penalties`, `valid`,
                                 `winner` (p1, p2 o draw, por `outcome`),
                                 `odds`, `ratingDelta` firmado (null sin
                                 evento), `upset`, `importance` (1 a 5) y
@@ -2832,7 +2854,9 @@ components:
                                 `bestCumulativeDelta` y
                                 `worstCumulativeDelta` (punto más alto y más
                                 bajo del delta acumulado, desde 0);
-                                `ratingProvisional`; y globales,
+                                `ratingProvisional` (tenía menos de 10 partidos
+                                previos ANTES de su primer partido del torneo;
+                                no dice que siga provisorio al final); y globales,
                                 `globalRatingBeforeFirstMatch`,
                                 `globalRatingAfterLastMatch`,
                                 `globalPeakRating` y `leaderboard` (`before`
@@ -2877,7 +2901,17 @@ components:
                                 comparten posición) y `champion`
                                 (`titleNumber`, `rank`, `gapToLeader`,
                                 `leadChange`, `isFirstTitle`,
-                                `consecutiveTitles`, `wasDefendingChampion`,
+                                `consecutiveTitles` (títulos seguidos en los
+                                torneos que jugó, de cualquier formato),
+                                `previousTitle` ({ tournamentId, name,
+                                competitionLabel, closedAt } del torneo que
+                                ganó justo antes, o `null` si
+                                `consecutiveTitles` es 1),
+                                `wasDefendingChampion` (ganó también la
+                                edición anterior del mismo formato) y
+                                `defendedEdition` ({ tournamentId, name,
+                                closedAt } de esa edición, o `null`; es el
+                                último de `competition.previousWinners`),
                                 los seis contadores,
                                 `beforeThisTournament` con los mismos sin este
                                 torneo, `sameCompetition` con los mismos solo
@@ -2923,7 +2957,10 @@ components:
                             type: object
                             description: >-
                                 `warnings`, `ratedMatches`, `unratedMatchIds`,
-                                `datesApproximate` y `provisionalPlayers`.
+                                `datesApproximate` y `provisionalPlayers`
+                                (quienes empezaron el torneo con rating
+                                provisorio; solo afecta a sus primeros
+                                partidos).
                             additionalProperties: true
         TournamentRecapRequest:
             type: object

@@ -1,4 +1,5 @@
 const { LOW_MATCH_COUNT_WARNING } = require("../../config/tournamentRecap")
+const { RATING_CONFIG } = require("../../config/ratings")
 
 // Fechas con precisión menor al día: no sirven para contar una cronología fina.
 const EXACT_PRECISIONS = new Set(["exact", "day"])
@@ -12,8 +13,10 @@ const isApproximate = (precision) =>
 // Pura.
 //
 // - `entries`: log completo de partidos (ver `matchLog.js`).
-// - `ratingMovement.players[].ratingProvisional`: jugadores con pocos partidos
-//   previos, cuyas probabilidades son poco confiables.
+// - `ratingMovement.players[].ratingProvisional`: jugadores que EMPEZARON el
+//   torneo con pocos partidos previos (se evalúa antes de su primer partido, no
+//   al final). Solo afecta a sus primeros partidos, cuyas probabilidades son
+//   poco confiables (`matches[].p1/p2.provisional`, por partido).
 // - `overlappingEvents`: eventos de rating de OTROS torneos jugados entre el
 //   primer y el último partido de este.
 // - `extraWarnings`: advertencias de otros módulos (por ejemplo, de títulos).
@@ -23,6 +26,7 @@ const buildDataQuality = ({
     ratingMovement,
     overlappingEvents = 0,
     extraWarnings = [],
+    provisionalMatches = RATING_CONFIG.provisionalMatches,
 }) => {
     const rated = entries.filter(({ rated: isRated }) => isRated)
     const unrated = entries.filter(({ rated: isRated }) => !isRated)
@@ -40,9 +44,9 @@ const buildDataQuality = ({
 
     if (provisionalPlayers.length > 0) {
         warnings.push(
-            `Rating provisorio (pocos partidos previos): ${provisionalPlayers.join(
+            `Jugadores que empezaron este torneo con rating provisorio (menos de ${provisionalMatches} partidos previos): ${provisionalPlayers.join(
                 ", "
-            )}. Sus probabilidades y sorpresas son poco confiables.`
+            )}. Solo afecta a sus primeros partidos; los partidos marcados provisional:true tienen probabilidades poco confiables.`
         )
     }
     if (unrated.length > 0) {

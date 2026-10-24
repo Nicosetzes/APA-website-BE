@@ -949,6 +949,205 @@ test("defending champion needs the previous edition of the same format, not just
     assert.equal(fifth.titlesSameCompetition.ordinal, 3)
 })
 
+test("previousTitle and defendedEdition name the two different tournaments", () => {
+    const champion = (tournaments, index) =>
+        buildTitleContext({ tournaments, tournament: tournaments[index] })
+            .titleContext.champion
+    const idOf = (tournament) => String(tournament._id)
+
+    // Back-to-back titles of different formats: previousTitle sí, defendedEdition no.
+    const backToBack = [
+        t(
+            "1",
+            "Copa Alfa 2020",
+            "playoff",
+            "nico",
+            "leo",
+            "2020-01-01T00:00:00Z"
+        ),
+        t(
+            "2",
+            "Liga Beta 2021",
+            "league",
+            "nico",
+            "leo",
+            "2021-01-01T00:00:00Z"
+        ),
+    ]
+    const second = champion(backToBack, 1)
+
+    assert.equal(second.consecutiveTitles, 2)
+    assert.equal(second.wasDefendingChampion, false)
+    assert.equal(second.defendedEdition, null)
+    assert.deepEqual(second.previousTitle, {
+        tournamentId: idOf(backToBack[0]),
+        name: "Copa Alfa 2020",
+        competitionLabel: "Eliminatoria",
+        closedAt: "2020-01-01T00:00:00.000Z",
+    })
+
+    // Defiende la familia con un torneo de otro formato en el medio que ganó otro:
+    // defendedEdition sí, previousTitle no (la racha se cortó).
+    const defending = [
+        t(
+            "1",
+            "Copa Alfa 2020",
+            "playoff",
+            "nico",
+            "leo",
+            "2020-01-01T00:00:00Z"
+        ),
+        t(
+            "2",
+            "Liga Beta 2021",
+            "league",
+            "leo",
+            "nico",
+            "2021-01-01T00:00:00Z"
+        ),
+        t(
+            "3",
+            "Copa Gamma 2022",
+            "playoff",
+            "nico",
+            "leo",
+            "2022-01-01T00:00:00Z"
+        ),
+    ]
+    const third = champion(defending, 2)
+
+    assert.equal(third.consecutiveTitles, 1)
+    assert.equal(third.previousTitle, null)
+    assert.equal(third.wasDefendingChampion, true)
+    assert.deepEqual(third.defendedEdition, {
+        tournamentId: idOf(defending[0]),
+        name: "Copa Alfa 2020",
+        closedAt: "2020-01-01T00:00:00.000Z",
+    })
+    // Es el último de competition.previousWinners.
+    const { competition } = buildTitleContext({
+        tournaments: defending,
+        tournament: defending[2],
+    }).titleContext
+
+    assert.equal(
+        competition.previousWinners.at(-1).tournamentId,
+        third.defendedEdition.tournamentId
+    )
+
+    // Las dos cosas a la vez, en torneos distintos (el caso del Torneo Argentino
+    // 2021/22): defendió la Liga de 2018 y viene de ganar la Champions.
+    const both = [
+        t(
+            "1",
+            "Torneo Argentino 2018",
+            "league",
+            "leo",
+            "nico",
+            "2018-01-01T00:00:00Z"
+        ),
+        t(
+            "2",
+            "Chempions 2019/20",
+            "champions_league",
+            "leo",
+            "max",
+            "2019-01-01T00:00:00Z"
+        ),
+        t(
+            "3",
+            "Torneo Argentino 2021/22",
+            "league",
+            "leo",
+            "leo",
+            "2021-01-01T00:00:00Z"
+        ),
+    ]
+    const argentino = champion(both, 2)
+
+    assert.equal(argentino.consecutiveTitles, 3)
+    assert.equal(argentino.previousTitle.name, "Chempions 2019/20")
+    assert.equal(argentino.previousTitle.competitionLabel, "Champions")
+    assert.equal(argentino.defendedEdition.name, "Torneo Argentino 2018")
+    assert.notEqual(
+        argentino.previousTitle.tournamentId,
+        argentino.defendedEdition.tournamentId
+    )
+
+    // Primer título: ninguno de los dos.
+    const first = champion(backToBack, 0)
+
+    assert.equal(first.isFirstTitle, true)
+    assert.equal(first.previousTitle, null)
+    assert.equal(first.defendedEdition, null)
+})
+
+test("not playing an intermediate tournament does not break the previousTitle streak", () => {
+    const withoutNico = { players: [P.leo, P.max, P.santi] }
+    const tournaments = [
+        t(
+            "1",
+            "Copa Alfa 2020",
+            "playoff",
+            "nico",
+            "leo",
+            "2020-01-01T00:00:00Z"
+        ),
+        // Nico no jugó este: no corta la racha ni es su previousTitle.
+        t(
+            "2",
+            "Liga Beta 2021",
+            "league",
+            "leo",
+            "max",
+            "2021-01-01T00:00:00Z",
+            withoutNico
+        ),
+        t(
+            "3",
+            "Copa Gamma 2022",
+            "world_cup",
+            "nico",
+            "leo",
+            "2022-01-01T00:00:00Z"
+        ),
+        // Nico jugó y no ganó: corta la racha.
+        t(
+            "4",
+            "Copa Delta 2023",
+            "playoff",
+            "max",
+            "leo",
+            "2023-01-01T00:00:00Z"
+        ),
+        t(
+            "5",
+            "Copa Epsilon 2024",
+            "super_cup",
+            "nico",
+            "leo",
+            "2024-01-01T00:00:00Z"
+        ),
+    ]
+    const champion = (index) =>
+        buildTitleContext({ tournaments, tournament: tournaments[index] })
+            .titleContext.champion
+
+    assert.equal(champion(2).consecutiveTitles, 2)
+    assert.equal(champion(2).previousTitle.name, "Copa Alfa 2020")
+    assert.equal(champion(2).previousTitle.competitionLabel, "Eliminatoria")
+    assert.equal(champion(4).consecutiveTitles, 1)
+    assert.equal(champion(4).previousTitle, null)
+    // previousTitle existe sii consecutiveTitles >= 2.
+    for (let index = 0; index < tournaments.length; index++) {
+        if (!tournaments[index].outcome) continue
+
+        const { consecutiveTitles, previousTitle } = champion(index)
+
+        assert.equal(previousTitle !== null, consecutiveTitles >= 2, index)
+    }
+})
+
 test("a tournament with a missing or unknown format raises a warning and lands in its own family", () => {
     const tournaments = [
         t(1, "Liga A 2020", "league", "nico", "max", "2020-01-01T00:00:00Z"),

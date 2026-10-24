@@ -6,7 +6,7 @@
 
 // Se publica en cada contexto y se guarda en `generation.contextVersion`. Subirla
 // cuando cambie la forma del contexto.
-const CONTEXT_VERSION = "tournament-recap-3"
+const CONTEXT_VERSION = "tournament-recap-5"
 
 // `pending`
 const DEFAULT_PENDING_WINDOW_DAYS = 7
@@ -37,8 +37,17 @@ const STANDINGS_OVERPERFORMANCE_MIN_POINTS = 4
 // Diferencia de overall entre el equipo del campeón y el promedio del torneo
 // desde la cual el recorrido se considera "Cenicienta".
 const CINDERELLA_OVERALL_GAP = 5
-// Porcentaje final de partidos de grupo que cuenta como "últimas fechas".
-const TITLE_RACE_LAST_PCT = 10
+// Evolución de la tabla (`standings.progress`, `leaderChanges` y `closeRace`):
+// solo tiene sentido en tablas con muchos partidos. Un grupo se evalúa si jugó
+// al menos esta cantidad de partidos regulares; los grupos más chicos (grupos
+// de mundial, de champions o de supercopa, de 6 a 15 partidos) no traen
+// ninguna de las tres cosas. Una liga de tabla única o un grupo de
+// `league_playin_playoff` (decenas de partidos) sí.
+const LEAGUE_PROGRESS_MIN_MATCHES = 30
+// Último tramo de un grupo ("últimas fechas"), medido en partidos que faltan
+// para cerrarlo (no en porcentaje): `standings.closeRace` mira la tabla con
+// esta cantidad de partidos por jugar.
+const TITLE_RACE_LAST_MATCHES = 10
 const FACTS_MAX = 30
 // Mínimo de arcos en cero para destacar a quien más dejó.
 const CLEAN_SHEETS_LEADER_MIN = 5
@@ -236,6 +245,7 @@ module.exports = {
     DEFAULT_PENDING_WINDOW_DAYS,
     FACTS_MAX,
     LEADER_CHANGES_MIN,
+    LEAGUE_PROGRESS_MIN_MATCHES,
     LONG_LOSING_STREAK_MIN,
     LONG_UNBEATEN_MIN,
     LONG_WIN_STREAK_MIN,
@@ -247,7 +257,7 @@ module.exports = {
     STANDINGS_OVERPERFORMANCE_MIN_POINTS,
     STANDINGS_PROGRESS_MARKS,
     TEAM_STATS_MIN_MATCHES,
-    TITLE_RACE_LAST_PCT,
+    TITLE_RACE_LAST_MATCHES,
     UPSET_WINNER_EXPECTED_MAX,
     checkRecapCoherence,
     getCompetition,

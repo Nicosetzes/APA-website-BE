@@ -53,7 +53,7 @@ const validBody = (overrides = {}) => ({
     generation: {
         model: "claude-sonnet-5-5",
         promptVersion: "tournament-recap-v1",
-        contextVersion: "tournament-recap-3",
+        contextVersion: "tournament-recap-5",
         ratingVersion: "2.0",
         drawModelVersion: "draw-1",
         contextHash: "abc123",

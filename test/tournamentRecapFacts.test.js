@@ -5,6 +5,9 @@ const test = require("node:test")
 
 const { buildFacts } = require("../controller/getTournamentRecapContext/facts")
 const {
+    buildStandingsProgress,
+} = require("../controller/getTournamentRecapContext/standingsProgress")
+const {
     buildMatchEntries,
 } = require("../controller/getTournamentRecapContext/matchLog")
 const {
@@ -12,6 +15,7 @@ const {
 } = require("../controller/getTournamentRecapContext/titles")
 const {
     FACTS_MAX,
+    TITLE_RACE_LAST_MATCHES,
     UPSET_WINNER_EXPECTED_MAX,
 } = require("../config/tournamentRecap")
 const {
@@ -181,9 +185,56 @@ test("title_milestone tells the number, the gap to the leader and the competitio
     )
 
     assert.match(repeated.text, /título número 2 de Nico/)
-    assert.match(repeated.text, /defendió el título de Superliga/)
-    assert.match(repeated.text, /2 títulos consecutivos/)
+    // La edición defendida es también el torneo anterior de la racha: se dice
+    // una sola vez.
+    assert.match(
+        repeated.text,
+        /defendió el título de Superliga \(que había ganado en Superliga Argentina 2024, el torneo anterior que jugó\)/
+    )
+    assert.doesNotMatch(repeated.text, /consecutivos|viene de ganar/)
+    assert.equal(repeated.data.consecutiveTitles, 2)
+    assert.equal(repeated.data.defendedEdition.name, "Superliga Argentina 2024")
+    assert.equal(repeated.data.previousTitle.name, "Superliga Argentina 2024")
     assert.equal(repeated.data.titlesSameCompetition.ordinal, 2)
+})
+
+test("title_milestone keeps 'defended' (same format) apart from 'comes from winning' (previous tournament)", () => {
+    const closed = (number, name, format, champion, date) => ({
+        _id: `00000000000000000000000${number}`,
+        name,
+        format,
+        players: [NICO, LEO, MAX, SANTI],
+        ongoing: false,
+        closedAt: new Date(date),
+        outcome: {
+            champion: { player: champion, team: team(number, "Equipo") },
+            finalist: { player: MAX, team: team(9, "Rival") },
+        },
+    })
+    const tournaments = [
+        closed(1, "Torneo Argentino 2018", "league", LEO, "2018-01-01"),
+        closed(2, "Chempions 2019/20", "champions_league", LEO, "2019-01-01"),
+        closed(3, "Torneo Argentino 2021/22", "league", LEO, "2021-01-01"),
+    ]
+    const fact = find(
+        facts({
+            titleContext: buildTitleContext({
+                tournaments,
+                tournament: tournaments[2],
+            }).titleContext,
+        }),
+        "title_milestone"
+    )
+
+    assert.match(
+        fact.text,
+        /defendió el título de Liga \(que había ganado en Torneo Argentino 2018\); viene de ganar Chempions 2019\/20\./
+    )
+    assert.doesNotMatch(fact.text, /consecutivos/)
+    assert.equal(fact.data.consecutiveTitles, 3)
+    assert.equal(fact.data.wasDefendingChampion, true)
+    assert.equal(fact.data.defendedEdition.name, "Torneo Argentino 2018")
+    assert.equal(fact.data.previousTitle.name, "Chempions 2019/20")
 })
 
 test("biggest_upset needs a winner below the threshold and quotes % only for advance odds", () => {
@@ -282,6 +333,44 @@ test("no upset at exactly the threshold or when the favorite wins", () => {
 
     assert.equal(find(facts({ entries }), "biggest_upset"), undefined)
     assert.equal(find(facts({ entries }), "upsets"), undefined)
+})
+
+test("a match with a provisional side is never a biggest_upset or an upset", () => {
+    const definition = (event) => ({
+        p1: NICO,
+        t1: T.nico,
+        s1: 0,
+        p2: MAX,
+        t2: T.max,
+        s2: 3,
+        event,
+    })
+    const reliable = entriesFrom([definition({ expectedP1: 0.85 })])
+
+    assert.ok(find(facts({ entries: reliable }), "biggest_upset"))
+
+    // El match log sigue marcando la sorpresa; los hechos no la usan.
+    for (const event of [
+        { expectedP1: 0.85, games1: 3 },
+        { expectedP1: 0.85, games2: 9 },
+    ]) {
+        const entries = entriesFrom([definition(event)])
+
+        assert.equal(entries[0].upset, true)
+        assert.equal(find(facts({ entries }), "biggest_upset"), undefined)
+        assert.equal(find(facts({ entries }), "upsets"), undefined)
+    }
+
+    // Con dos sorpresas, la provisoria no cuenta ni como mayor ni en el total.
+    const mixed = entriesFrom([
+        definition({ expectedP1: 0.95, games1: 2 }),
+        definition({ expectedP1: 0.85 }),
+        definition({ expectedP1: 0.8 }),
+    ])
+    const list = facts({ entries: mixed })
+
+    assert.equal(find(list, "biggest_upset").matchIds[0], mixed[1].matchId)
+    assert.equal(find(list, "upsets").data.count, 2)
 })
 
 test("upsets summarizes two or more underdog wins", () => {
@@ -654,10 +743,11 @@ test("title_race_decided_on_last_matches for a close race in a league with big g
         closeRace: [
             {
                 group: "A",
-                afterPct: 90,
                 leader: "Equipo 1",
                 leaderTeamId,
                 gapToSecond,
+                matchesPlayed: 80,
+                matchesLeft: 10,
             },
         ],
     })
@@ -668,6 +758,11 @@ test("title_race_decided_on_last_matches for a close race in a league with big g
     )
 
     assert.match(close.text, /grupo A se definió sobre el final/)
+    // El hecho usa el mismo último tramo que closeRace (10 partidos).
+    assert.match(close.text, /a falta de solo 10 partidos/)
+    assert.equal(close.data.matchesLeft, 10)
+    assert.equal(close.data.matchesPlayed, 80)
+    assert.equal("afterPct" in close.data, false)
     assert.equal(close.data.gapToSecond, 2)
     // Otro líder a falta del último tramo también cuenta.
     assert.ok(
@@ -709,6 +804,60 @@ test("title_race_decided_on_last_matches for a close race in a league with big g
         ),
         undefined
     )
+})
+
+test("title_race_decided_on_last_matches uses the closeRace stretch built from real matches", () => {
+    // Liga de 6 equipos, ida y vuelta (30 partidos): empates hasta el partido 20
+    // y victorias locales en los últimos 10 (el líder de entonces puede perder el
+    // primer puesto).
+    const entries6 = Array.from({ length: 6 }, (_, i) => ({
+        team: team(i + 1, `Equipo ${i + 1}`),
+        player: NICO,
+    }))
+    const matches = []
+
+    for (let round = 0; round < 2; round++) {
+        for (let i = 0; i < 6; i++) {
+            for (let j = i + 1; j < 6; j++) {
+                matches.push(
+                    mkMatch({
+                        n: matches.length + 1,
+                        p1: NICO,
+                        t1: entries6[i].team,
+                        s1: 1,
+                        p2: MAX,
+                        t2: entries6[j].team,
+                        // Los últimos 10 partidos los gana el local.
+                        s2: matches.length >= 20 ? 0 : 1,
+                        legDraw: true,
+                    })
+                )
+            }
+        }
+    }
+
+    const { standings } = buildStandingsProgress({
+        tournament: { format: "league", teams: entries6 },
+        matches,
+        rules: { stages: ["regular"] },
+    })
+
+    assert.equal(standings.closeRace[0].matchesLeft, TITLE_RACE_LAST_MATCHES)
+
+    const race = find(
+        facts({
+            tournament: { name: "Liga de prueba", format: "league" },
+            rules: { stages: ["regular"] },
+            standings,
+        }),
+        "title_race_decided_on_last_matches"
+    )
+
+    assert.equal(race.data.matchesLeft, TITLE_RACE_LAST_MATCHES)
+    assert.equal(race.data.matchesPlayed, 20)
+    assert.equal(race.data.leaderThen, "Equipo 1")
+    assert.equal(race.data.finalLeader, "Equipo 2")
+    assert.match(race.text, /a falta de solo 10 partidos/)
 })
 
 test("best_attack and best_defence need a unique leader with enough matches", () => {

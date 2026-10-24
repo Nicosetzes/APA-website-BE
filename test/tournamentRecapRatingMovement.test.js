@@ -407,3 +407,24 @@ test("the data quality warning counts the other-tournament matches and says what
     assert.match(warning, /globalRating/)
     assert.match(warning, /El delta del torneo no los incluye/)
 })
+
+test("the provisional warning says the players STARTED the tournament provisional", () => {
+    const { warnings } = buildDataQuality({
+        tournament: {},
+        entries: [],
+        ratingMovement: {
+            players: [
+                { player: { name: "Max" }, ratingProvisional: true },
+                { player: { name: "Nico" }, ratingProvisional: false },
+                { player: { name: "Lucho" }, ratingProvisional: true },
+            ],
+        },
+        provisionalMatches: 10,
+    })
+    const warning = warnings.find((text) => text.includes("provisorio"))
+
+    assert.equal(
+        warning,
+        "Jugadores que empezaron este torneo con rating provisorio (menos de 10 partidos previos): Max, Lucho. Solo afecta a sus primeros partidos; los partidos marcados provisional:true tienen probabilidades poco confiables."
+    )
+})

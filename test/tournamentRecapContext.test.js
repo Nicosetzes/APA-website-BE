@@ -259,7 +259,7 @@ test("the context of a pure league has the documented keys and null stage blocks
         key: "league",
         label: "Liga",
     })
-    assert.equal(body.contextVersion, "tournament-recap-3")
+    assert.equal(body.contextVersion, "tournament-recap-5")
     assert.deepEqual(Object.keys(data.ratingMovement), [
         "scope",
         "players",

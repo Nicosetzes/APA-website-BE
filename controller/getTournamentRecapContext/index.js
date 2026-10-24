@@ -239,6 +239,7 @@ const createGetTournamentRecapContext = (dependencies = {}) => {
             ratingMovement,
             overlappingEvents,
             extraWarnings: titleWarnings,
+            provisionalMatches: timeline.config.provisionalMatches,
         })
         const provisionalById = new Map(
             ratingMovement.players.map(({ player, ratingProvisional }) => [

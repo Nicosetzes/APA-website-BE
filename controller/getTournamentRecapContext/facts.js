@@ -121,16 +121,26 @@ const titleMilestone = ({ titleContext, tournament }) => {
     const sameCompetition = champion.titlesSameCompetition.ordinal
     const label = competition.label
 
-    if (champion.wasDefendingChampion) {
-        parts.push(`defendió el título de ${label}`)
+    const { defendedEdition, previousTitle } = champion
+    const defendedJustBefore =
+        defendedEdition &&
+        previousTitle &&
+        defendedEdition.tournamentId === previousTitle.tournamentId
+
+    if (defendedEdition) {
+        parts.push(
+            `defendió el título de ${label} (que había ganado en ${
+                defendedEdition.name
+            }${defendedJustBefore ? ", el torneo anterior que jugó" : ""})`
+        )
     } else if (sameCompetition > 1) {
         parts.push(`es su ${ordinal(sameCompetition)} título de ${label}`)
     } else {
         parts.push(`es su primer título de ${label}`)
     }
 
-    if (champion.consecutiveTitles >= 2) {
-        parts.push(`suma ${champion.consecutiveTitles} títulos consecutivos`)
+    if (previousTitle && !defendedJustBefore) {
+        parts.push(`viene de ganar ${previousTitle.name}`)
     }
 
     return makeFact("title_milestone", 5, `${parts.join("; ")}.`, {
@@ -143,6 +153,8 @@ const titleMilestone = ({ titleContext, tournament }) => {
             isFirstTitle: champion.isFirstTitle,
             consecutiveTitles: champion.consecutiveTitles,
             wasDefendingChampion: champion.wasDefendingChampion,
+            defendedEdition: champion.defendedEdition,
+            previousTitle: champion.previousTitle,
             titlesSameCompetition: champion.titlesSameCompetition,
             // Contadores a la fecha de cierre, ESTE torneo incluido.
             runnerUps: champion.runnerUps,
@@ -222,6 +234,10 @@ const upsetFacts = ({ entries }) => {
         .filter(
             (entry) =>
                 entry.valid &&
+                // Con un lado provisorio (pocos partidos previos) las
+                // probabilidades no son confiables: no es un batacazo.
+                entry.p1.provisional !== true &&
+                entry.p2.provisional !== true &&
                 entry.upset === true &&
                 entry.expectedWinner !== null &&
                 entry.expectedWinner < UPSET_WINNER_EXPECTED_MAX
@@ -578,13 +594,18 @@ const standingsFacts = ({ standings, tournament, rules }) => {
                         race.group ? `del grupo ${race.group}` : "de la tabla"
                     } se definió sobre el final: ${
                         finalLeader.team
-                    } terminó primero y a falta del último tramo la ventaja sobre el segundo era de ${
+                    } terminó primero y a falta de solo ${
+                        race.matchesLeft
+                    } partidos ${
+                        race.group ? "del grupo" : "de la tabla"
+                    } la ventaja del líder de entonces sobre el segundo era de ${
                         race.gapToSecond
                     } puntos.`,
                     {
                         data: {
                             group: race.group,
-                            afterPct: race.afterPct,
+                            matchesPlayed: race.matchesPlayed,
+                            matchesLeft: race.matchesLeft,
                             leaderThen: race.leader,
                             gapToSecond: race.gapToSecond,
                             finalLeader: finalLeader.team,

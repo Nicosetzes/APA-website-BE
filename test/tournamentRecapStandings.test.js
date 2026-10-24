@@ -9,6 +9,7 @@ const {
 const {
     buildStandingsProgress,
 } = require("../controller/getTournamentRecapContext/standingsProgress")
+const { LEAGUE_PROGRESS_MIN_MATCHES } = require("../config/tournamentRecap")
 const { describeTournamentFormat } = require("../config/tournamentFormatRules")
 const {
     LEO,
@@ -182,125 +183,239 @@ test("matches with valid false count in the table, like the table endpoint", () 
     )
 })
 
-test("leader progress is reported at 25, 50, 75 and 100 percent of the matches", () => {
-    const tournament = mkTournament({ teams: leagueTeams })
-    const { standings } = progress({ tournament, matches: leagueMatches() })
+// Partidos de una tabla de dos equipos según un patrón: "L" gana el local
+// (p1), "V" gana el visitante (p2) y "D" empata. `from` es el número del primer
+// partido.
+const duel = (pattern, { group, from = 1, home, away } = {}) => {
+    const [p1, t1] = home ?? [NICO, TEAMS.liverpool]
+    const [p2, t2] = away ?? [MAX, TEAMS.chelsea]
 
-    assert.deepEqual(
-        standings.progress.map(({ afterPct }) => afterPct),
-        [25, 50, 75, 100]
+    return [...pattern].map((result, index) =>
+        mkMatch({
+            n: from + index,
+            group,
+            p1,
+            t1,
+            s1: result === "V" ? 0 : 1,
+            p2,
+            t2,
+            s2: result === "L" ? 0 : 1,
+            legDraw: true,
+        })
     )
-    // 6 partidos: 25 % = 2, 50 % = 3, 75 % = 5, 100 % = 6.
-    assert.deepEqual(
-        standings.progress.map(({ leaders }) => leaders[0].team),
-        ["Liverpool", "Bayern", "Liverpool", "Chelsea"]
-    )
-    // El liderato cambia de manos 3 veces desde el primer cuarto de la tabla.
-    assert.equal(standings.leaderChanges.all, 3)
-    assert.deepEqual(standings.progress[3].leaders[0], {
-        group: null,
-        team: "Chelsea",
-        player: "Max",
-        points: 6,
+}
+
+const duelTeams = leagueTeams.slice(0, 2)
+
+test("tables below the minimum have no progress, leaderChanges nor closeRace", () => {
+    // Liga de 4 equipos con 6 partidos (por debajo de LEAGUE_PROGRESS_MIN_MATCHES).
+    const { standings } = progress({
+        tournament: mkTournament({ teams: leagueTeams }),
+        matches: leagueMatches(),
     })
+
+    assert.deepEqual(standings.progress, [])
+    assert.deepEqual(standings.leaderChanges, {})
+    assert.deepEqual(standings.closeRace, [])
+    // La tabla final sí se informa.
+    assert.equal(standings.final[0].teams.length, 4)
+    assert.equal(standings.final[0].teams[0].played, 3)
 })
 
-test("progress handles groups with a different number of matches", () => {
+test("a world cup with groups of 6 matches has no progress nor closeRace", () => {
     const teams = [
         entry(TEAMS.liverpool, NICO, "A"),
         entry(TEAMS.chelsea, MAX, "A"),
         entry(TEAMS.bayern, LEO, "B"),
         entry(TEAMS.milan, SANTI, "B"),
-        entry(TEAMS.ajax, NICO, "B"),
     ]
-    const tournament = mkTournament({
-        format: "world_cup",
-        teams,
-        groups: [{}, {}],
+    const { standings, topTwoByGroup } = progress({
+        tournament: mkTournament({
+            format: "world_cup",
+            teams,
+            groups: [{}, {}],
+        }),
+        matches: [
+            ...duel("LLLLLL", { group: "A" }),
+            ...duel("LLLLLL", {
+                group: "B",
+                from: 7,
+                home: [LEO, TEAMS.bayern],
+                away: [SANTI, TEAMS.milan],
+            }),
+        ],
     })
-    const matches = [
-        mkMatch({
-            n: 1,
-            group: "A",
-            p1: NICO,
-            t1: TEAMS.liverpool,
-            s1: 1,
-            p2: MAX,
-            t2: TEAMS.chelsea,
-            s2: 0,
-        }),
-        mkMatch({
-            n: 2,
-            group: "B",
-            p1: LEO,
-            t1: TEAMS.bayern,
-            s1: 0,
-            p2: SANTI,
-            t2: TEAMS.milan,
-            s2: 2,
-        }),
-        mkMatch({
-            n: 3,
-            group: "B",
-            p1: LEO,
-            t1: TEAMS.bayern,
-            s1: 2,
-            p2: NICO,
-            t2: TEAMS.ajax,
-            s2: 0,
-        }),
-        mkMatch({
-            n: 4,
-            group: "B",
-            p1: SANTI,
-            t1: TEAMS.milan,
-            s1: 1,
-            p2: NICO,
-            t2: TEAMS.ajax,
-            s2: 3,
-        }),
-    ]
-    const { standings } = progress({ tournament, matches })
 
+    assert.deepEqual(standings.progress, [])
+    assert.deepEqual(standings.leaderChanges, {})
+    assert.deepEqual(standings.closeRace, [])
+    assert.deepEqual(
+        standings.final.map(({ group, teams: rows }) => [
+            group,
+            rows[0].points,
+        ]),
+        [
+            ["A", 18],
+            ["B", 18],
+        ]
+    )
+    assert.equal(topTwoByGroup.size, 2)
+})
+
+test("the minimum is 30 matches per table", () => {
+    const run = (count) =>
+        progress({
+            tournament: mkTournament({ teams: duelTeams }),
+            matches: duel("L".repeat(count)),
+        }).standings
+
+    assert.equal(LEAGUE_PROGRESS_MIN_MATCHES, 30)
+    assert.deepEqual(run(29).progress, [])
+    assert.deepEqual(run(29).closeRace, [])
+
+    const exact = run(30)
+
+    assert.equal(exact.progress.length, 4)
+    assert.equal(exact.closeRace.length, 1)
+    assert.equal(exact.closeRace[0].matchesPlayed, 20)
+    assert.equal(exact.closeRace[0].matchesLeft, 10)
+})
+
+test("leader progress is reported at 25, 50, 75 and 100 percent of the matches", () => {
+    // 40 partidos (algunos valid false: la tabla los cuenta).
+    const matches = duel("L".repeat(40)).map((match, index) => ({
+        ...match,
+        valid: index % 5 !== 0,
+    }))
+    const { standings } = progress({
+        tournament: mkTournament({ teams: duelTeams }),
+        matches,
+    })
+
+    assert.deepEqual(
+        standings.progress.map(({ afterPct, leaders: [leader] }) => [
+            afterPct,
+            leader.matchesPlayed,
+            leader.matchesLeft,
+        ]),
+        [
+            [25, 10, 30],
+            [50, 20, 20],
+            [75, 30, 10],
+            [100, 40, 0],
+        ]
+    )
+    assert.deepEqual(standings.progress[3].leaders[0], {
+        group: null,
+        team: "Liverpool",
+        player: "Nico",
+        points: 120,
+        matchesPlayed: 40,
+        matchesLeft: 0,
+    })
+    // matchesPlayed + matchesLeft es el total de la tabla en todos los puntos.
+    const tableTotal =
+        standings.final[0].teams.reduce((sum, row) => sum + row.played, 0) / 2
+
+    assert.equal(tableTotal, 40)
+    for (const { leaders } of standings.progress) {
+        for (const leader of leaders) {
+            assert.equal(leader.matchesPlayed + leader.matchesLeft, tableTotal)
+        }
+    }
+    assert.equal(standings.closeRace[0].matchesPlayed, 30)
+    assert.equal(standings.closeRace[0].matchesLeft, 10)
+})
+
+test("closeRace of a league is taken with 10 matches left", () => {
+    // 209 partidos: Liverpool gana los primeros 199 (597 puntos) y empata los
+    // 10 últimos. closeRace mira la tabla a los 199, antes de esos empates.
+    const { standings } = progress({
+        tournament: mkTournament({ teams: duelTeams }),
+        matches: duel(`${"L".repeat(199)}${"D".repeat(10)}`),
+    })
+
+    assert.deepEqual(standings.closeRace, [
+        {
+            group: null,
+            leader: "Liverpool",
+            leaderTeamId: TEAMS.liverpool.id,
+            gapToSecond: 597,
+            matchesPlayed: 199,
+            matchesLeft: 10,
+        },
+    ])
+    assert.equal(standings.final[0].teams[0].points, 607)
+    // progress sigue en porcentajes.
+    assert.deepEqual(
+        standings.progress.map(({ afterPct }) => afterPct),
+        [25, 50, 75, 100]
+    )
+})
+
+test("a group of 53 matches gets entries and a group of 10 gets none", () => {
+    const teams = [
+        entry(TEAMS.liverpool, NICO, "A"),
+        entry(TEAMS.chelsea, MAX, "A"),
+        entry(TEAMS.bayern, LEO, "B"),
+        entry(TEAMS.milan, SANTI, "B"),
+    ]
+    const { standings } = progress({
+        tournament: mkTournament({
+            format: "league_playin_playoff",
+            teams,
+            groups: [{}, {}],
+        }),
+        matches: [
+            ...duel("L".repeat(53), { group: "A" }),
+            ...duel("L".repeat(10), {
+                group: "B",
+                from: 54,
+                home: [LEO, TEAMS.bayern],
+                away: [SANTI, TEAMS.milan],
+            }),
+        ],
+    })
+
+    // 53 partidos: 25 % = 14, 50 % = 27, 75 % = 40 y 100 % = 53.
+    assert.deepEqual(
+        standings.progress.map(({ leaders }) =>
+            leaders.map(({ group, matchesPlayed, matchesLeft }) => [
+                group,
+                matchesPlayed,
+                matchesLeft,
+            ])
+        ),
+        [[["A", 14, 39]], [["A", 27, 26]], [["A", 40, 13]], [["A", 53, 0]]]
+    )
+    assert.deepEqual(
+        standings.closeRace.map(({ group, matchesPlayed, matchesLeft }) => [
+            group,
+            matchesPlayed,
+            matchesLeft,
+        ]),
+        [["A", 43, 10]]
+    )
+    assert.deepEqual(Object.keys(standings.leaderChanges), ["A"])
+    // La tabla final trae los dos grupos.
     assert.deepEqual(
         standings.final.map(({ group }) => group),
         ["A", "B"]
     )
-    // Grupo A: 1 partido (todas las marcas son el mismo). Grupo B: 3 partidos.
-    assert.deepEqual(
-        standings.progress.map(({ leaders }) =>
-            leaders.map(({ group, team: name }) => `${group}:${name}`)
-        ),
-        [
-            ["A:Liverpool", "B:Milan"],
-            ["A:Liverpool", "B:Milan"],
-            ["A:Liverpool", "B:Milan"],
-            ["A:Liverpool", "B:Milan"],
-        ]
-    )
-    assert.deepEqual(Object.keys(standings.leaderChanges).sort(), ["A", "B"])
 })
 
 test("leader changes are counted after the first quarter of the matches", () => {
-    const tournament = mkTournament({ teams: leagueTeams })
-    // Doce partidos (ida y vuelta) con el liderato alternando entre Liverpool y
-    // Chelsea: el arranque no cuenta.
-    const matches = [
-        [NICO, TEAMS.liverpool, 1, MAX, TEAMS.chelsea, 0],
-        [MAX, TEAMS.chelsea, 3, LEO, TEAMS.bayern, 0],
-        [LEO, TEAMS.bayern, 0, NICO, TEAMS.liverpool, 0],
-        [SANTI, TEAMS.milan, 0, MAX, TEAMS.chelsea, 1],
-        [NICO, TEAMS.liverpool, 0, SANTI, TEAMS.milan, 3],
-        [MAX, TEAMS.chelsea, 0, NICO, TEAMS.liverpool, 4],
-    ].map(([p1, t1, s1, p2, t2, s2], index) =>
-        mkMatch({ n: index + 1, p1, t1, s1, p2, t2, s2 })
-    )
-    const { standings } = progress({ tournament, matches })
+    // 30 partidos: Liverpool gana 10, Chelsea 12 (pasa al frente en el 21) y
+    // Liverpool 8 más (vuelve al frente en el 25). El arranque no cuenta.
+    const { standings } = progress({
+        tournament: mkTournament({ teams: duelTeams }),
+        matches: duel(`${"L".repeat(10)}${"V".repeat(12)}${"L".repeat(8)}`),
+    })
 
-    assert.equal(typeof standings.leaderChanges.all, "number")
-    assert.ok(standings.leaderChanges.all >= 1)
+    assert.equal(standings.leaderChanges.all, 2)
     assert.equal(standings.closeRace.length, 1)
-    assert.equal(standings.closeRace[0].afterPct, 90)
+    assert.equal(standings.closeRace[0].matchesPlayed, 20)
+    assert.equal(standings.closeRace[0].matchesLeft, 10)
 })
 
 test("qualification follows the format rules", () => {
@@ -480,10 +595,8 @@ test("parity: the final table equals createGetStandingsTableByTournamentId for o
     const { standings } = progress({ tournament, matches })
 
     assert.deepEqual(comparable(standings.final[0].teams), comparable(expected))
-    assert.deepEqual(
-        standings.progress[3].leaders[0].team,
-        expected[0].team.name
-    )
+    // Tabla chica (8 partidos): sin evolución.
+    assert.deepEqual(standings.progress, [])
 })
 
 test("parity: the final table equals the endpoint for two groups", async () => {

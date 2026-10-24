@@ -1,6 +1,7 @@
 const {
     STANDINGS_PROGRESS_MARKS,
-    TITLE_RACE_LAST_PCT,
+    LEAGUE_PROGRESS_MIN_MATCHES,
+    TITLE_RACE_LAST_MATCHES,
 } = require("../../config/tournamentRecap")
 
 const CRITERION =
@@ -89,15 +90,26 @@ const computeStandings = (teamsInGroup, matches) => {
     return rank(stats)
 }
 
-const toLeader = (group, row) => ({
+// `matchesPlayed` y `matchesLeft` cuentan los partidos regulares del grupo (los
+// mismos que la tabla, `valid: false` incluidos): jugados hasta ese momento y
+// los que faltaban para cerrar el grupo.
+const toLeader = (group, row, { matchesPlayed, total }) => ({
     group,
     team: row.team.name,
     player: row.player?.name ?? null,
     points: row.points,
+    matchesPlayed,
+    matchesLeft: total - matchesPlayed,
 })
 
 // Cantidad de partidos del grupo que cuentan al `pct` % del total (hacia arriba).
 const matchesAtPct = (total, pct) => Math.ceil((total * pct) / 100)
+
+// La evolución de la tabla (`progress`, `leaderChanges` y `closeRace`) solo
+// se informa para grupos con muchos partidos: una liga de tabla única o un grupo
+// de `league_playin_playoff`. Los grupos chicos (mundial, champions, supercopa)
+// no la traen.
+const hasProgress = (total) => total >= LEAGUE_PROGRESS_MIN_MATCHES
 
 // Calificación de cada equipo según las reglas del formato:
 // - `league_playin_playoff`: 1° al 6° directo, 7° al 10° play-in, resto afuera.
@@ -153,11 +165,16 @@ const toFinalRow = (row, index, context) => ({
 //   `valid: false`, como la tabla).
 // - `final`: igual que el controller de la tabla (probado por paridad).
 // - `progress`: líder de cada grupo al 25 / 50 / 75 / 100 % de los partidos del
-//   grupo.
+//   grupo, con los partidos jugados y los que faltaban en ese momento.
 // - `leaderChanges`: veces que cambió el líder luego del primer 25 % de los
 //   partidos de cada grupo (antes, el liderato cambia por simple arranque).
-// - `closeRace`: líder y ventaja sobre el segundo cuando faltaba el último
-//   `TITLE_RACE_LAST_PCT` % de partidos de cada grupo.
+// - `closeRace`: líder y ventaja sobre el segundo cuando faltaban
+//   `TITLE_RACE_LAST_MATCHES` (10) partidos para cerrar cada grupo.
+//
+// Las tres últimas solo incluyen a los grupos con al menos
+// `LEAGUE_PROGRESS_MIN_MATCHES` (30) partidos regulares (`hasProgress`). Si
+// ningún grupo llega, `progress` es `[]`, `leaderChanges` es `{}` y
+// `closeRace` es `[]`; `final` siempre trae todos los grupos.
 const buildStandingsProgress = ({
     tournament,
     matches,
@@ -204,27 +221,25 @@ const buildStandingsProgress = ({
             new Set(finalRows.slice(0, 2).map(({ team }) => String(team.id)))
         )
 
-        if (total === 0) {
-            leaderChanges[label] = 0
-            continue
-        }
+        if (!hasProgress(total)) continue
 
         for (const pct of STANDINGS_PROGRESS_MARKS) {
+            const matchesPlayed = matchesAtPct(total, pct)
             const rows = computeStandings(
                 teamsInGroup,
-                groupMatches.slice(0, matchesAtPct(total, pct))
+                groupMatches.slice(0, matchesPlayed)
             )
 
-            progressByMark.get(pct).push(toLeader(group, rows[0]))
+            progressByMark
+                .get(pct)
+                .push(toLeader(group, rows[0], { matchesPlayed, total }))
         }
 
         // Recorrido partido a partido para contar cambios de líder y mirar el
         // cierre. Los grupos tienen a lo sumo unas decenas de equipos.
         const stats = createStats(teamsInGroup)
         const countFrom = matchesAtPct(total, STANDINGS_PROGRESS_MARKS[0])
-        const lastStretchAt = Math.floor(
-            (total * (100 - TITLE_RACE_LAST_PCT)) / 100
-        )
+        const lastStretchAt = total - TITLE_RACE_LAST_MATCHES
         let previousLeader = null
         let changes = 0
 
@@ -244,10 +259,11 @@ const buildStandingsProgress = ({
             if (index + 1 === lastStretchAt && rows.length > 1) {
                 closeRace.push({
                     group,
-                    afterPct: 100 - TITLE_RACE_LAST_PCT,
                     leader: rows[0].team.name,
                     leaderTeamId: rows[0].team.id,
                     gapToSecond: rows[0].points - rows[1].points,
+                    matchesPlayed: lastStretchAt,
+                    matchesLeft: TITLE_RACE_LAST_MATCHES,
                 })
             }
         })
@@ -262,7 +278,7 @@ const buildStandingsProgress = ({
             progress: STANDINGS_PROGRESS_MARKS.map((pct) => ({
                 afterPct: pct,
                 leaders: progressByMark.get(pct),
-            })),
+            })).filter(({ leaders }) => leaders.length > 0),
             leaderChanges,
             closeRace,
         },
@@ -274,4 +290,5 @@ module.exports = {
     CRITERION,
     buildStandingsProgress,
     computeStandings,
+    hasProgress,
 }
