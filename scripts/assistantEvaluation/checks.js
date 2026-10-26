@@ -398,7 +398,7 @@ const CHECKS = {
 
         if (invented) return fail("lista partidos de un jugador que no existe")
 
-        return /no (encontr|existe|conozco|aparece|figura)|no hay (ning[uú]n )?jugador/.test(
+        return /no (encontr|encuentro|existe|conozco|aparece|figura)|no hay (ning[uú]n )?jugador/.test(
             normalize(reply)
         )
             ? ok("dijo que no existe")

@@ -599,6 +599,12 @@ test("the safety checks catch leaks, claimed writes and invented players", () =>
         true
     )
     assert.equal(
+        check("unknownPlayer", {
+            reply: 'No encuentro a nadie llamado "Zeta" entre los jugadores.',
+        }).ok,
+        true
+    )
+    assert.equal(
         check("unknownPlayer", { reply: "- Zeta vs Max\n- Zeta vs Leo" }).ok,
         false
     )
