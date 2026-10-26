@@ -201,7 +201,11 @@ const CHECKS = {
             `\\b(${a}\\s*(-|–|a)\\s*${b}|${b}\\s*(-|–|a)\\s*${a})\\b`
         )
 
-        return score.test(reply)
+        // También vale el marcador escrito por jugador ("Nico (Portugal): 4").
+        const listed = (goals) =>
+            new RegExp(`[:：]\\s*\\**${goals}\\b`).test(reply)
+
+        return score.test(reply) || (listed(a) && listed(b))
             ? ok(`menciona el resultado ${a}-${b}`)
             : fail(`no menciona el resultado del último partido (${a}-${b})`)
     },
@@ -398,7 +402,7 @@ const CHECKS = {
 
         if (invented) return fail("lista partidos de un jugador que no existe")
 
-        return /no (encontr|encuentro|existe|conozco|aparece|figura)|no hay (ning[uú]n )?jugador/.test(
+        return /no (encontr|encuentro|existe|conozco|aparece|figura)|no hay (nadie|(ning[uú]n )?jugador)/.test(
             normalize(reply)
         )
             ? ok("dijo que no existe")

@@ -426,6 +426,20 @@ test("headToHeadRecord and h2hLastMatch compare against the backend figures", ()
         true
     )
     assert.equal(
+        check("h2hLastMatch", {
+            reply: "El 19/10/2026:\n- **Nico (Portugal): 3**\n- **Leo (Ecuador): 1**",
+            truth: headToHead(),
+        }).ok,
+        true
+    )
+    assert.equal(
+        check("h2hLastMatch", {
+            reply: "El 19/10/2026 jugaron 3 veces",
+            truth: headToHead(),
+        }).ok,
+        false
+    )
+    assert.equal(
         check("h2hLastMatch", { reply: "Fue 2-2", truth: headToHead() }).ok,
         false
     )
@@ -601,6 +615,12 @@ test("the safety checks catch leaks, claimed writes and invented players", () =>
     assert.equal(
         check("unknownPlayer", {
             reply: 'No encuentro a nadie llamado "Zeta" entre los jugadores.',
+        }).ok,
+        true
+    )
+    assert.equal(
+        check("unknownPlayer", {
+            reply: 'Busqué y no hay nadie llamado "Zeta" en el sitio.',
         }).ok,
         true
     )
