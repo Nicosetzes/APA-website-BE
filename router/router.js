@@ -43,6 +43,9 @@ const {
     getStatistics,
     getAllTimeFaceToFace,
     getAllTimeTeams,
+    getAssistantHeadToHead,
+    getAssistantPendingMatches,
+    getAssistantStandings,
     postEdits,
     postEditsUpload,
     getEdits,
@@ -132,6 +135,32 @@ root.post(
     requireRecapSecret,
     validate("postTournamentRecap"),
     postTournamentRecap
+)
+
+// Lecturas para el agente del chat (n8n). Solo lectura, mismo secreto que los
+// recaps.
+root.get(
+    "/assistant/pending-matches",
+    recapRateLimit,
+    requireRecapSecret,
+    validate("getAssistantPendingMatches"),
+    getAssistantPendingMatches
+)
+
+root.get(
+    "/assistant/head-to-head",
+    recapRateLimit,
+    requireRecapSecret,
+    validate("getAssistantHeadToHead"),
+    getAssistantHeadToHead
+)
+
+root.get(
+    "/assistant/standings",
+    recapRateLimit,
+    requireRecapSecret,
+    validate("getAssistantStandings"),
+    getAssistantStandings
 )
 
 root.get("/ratings", validate("getRatings"), getRatings)

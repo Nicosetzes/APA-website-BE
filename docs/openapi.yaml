@@ -20,6 +20,7 @@ tags:
     - name: Edits
     - name: Recaps
     - name: Ratings
+    - name: Assistant
 
 paths:
     /health/live:
@@ -1804,6 +1805,308 @@ paths:
                 "404":
                     $ref: "#/components/responses/NotFound"
 
+    /api/assistant/pending-matches:
+        get:
+            tags: [Assistant]
+            summary: Partidos pendientes de los torneos activos, para el agente del chat
+            description: >-
+                Lo llama el agente de n8n (solo lectura, mismo secreto que los
+                recaps). Junta los partidos sin jugar de todos los torneos
+                activos (`ongoing: true`, `valid != false`, el mismo criterio de
+                `GET /api/tournaments?status=active`) o de uno solo.
+
+
+                **Alcance (`scope`).** `involving` (por defecto) devuelve los
+                partidos en los que participa al menos uno de los `players`
+                ("mis pendientes", "los de Leo"); sin `players` devuelve los de
+                todos. `among` devuelve solo los partidos entre los jugadores
+                indicados, con los dos lados dentro del grupo ("somos tres,
+                ¿qué podemos jugar hoy?") y exige `players`.
+
+
+                **Jugable** significa sin jugar, válido y con los dos jugadores
+                asignados. Los cruces de playoff con un solo lado asignado
+                (rival todavía por definir) no son jugables: se cuentan en
+                `awaitingOpponent` y se detallan hasta 5. Los cruces entre dos
+                equipos del mismo jugador se resuelven por elección y no se
+                juegan: no se cuentan y se informan en `excluded.sameOwnerTies`.
+
+
+                **Tamaño acotado.** `totalPending`, `byStage` y `byTournament`
+                siempre cuentan todos los pendientes. `matches` detalla como
+                máximo `limit` (10 por defecto; un valor mayor a 20 se ajusta
+                a 20). Si hay más, `truncated` es `true`, `remaining` dice
+                cuántos faltan y `byTournament[].viewPaths` trae las rutas del
+                sitio donde verlos completos.
+
+
+                Orden: torneos del más nuevo al más viejo, luego fase regular,
+                play-in y playoff. La fase regular sigue el orden de la vista de
+                fixture del FE (zona y después `_id` descendente); play-in y
+                playoff, por llave y pata. Un jugador inexistente no es error:
+                queda en `filters.unknownPlayers` y se explica en `notes`. Un
+                torneo cerrado responde vacío con `filters.tournament.active`
+                en `false`; uno inexistente, 404.
+
+
+                Una lectura de los torneos, una de los usuarios y una de los
+                partidos pendientes, sin consultas por torneo.
+            security:
+                - recapSecret: []
+            parameters:
+                - in: query
+                  name: players
+                  required: false
+                  description: >-
+                      Ids de jugador. Repetible (`players=a&players=b`), hasta 6,
+                      sin duplicados. Obligatorio con `scope=among`.
+                  schema:
+                      type: array
+                      maxItems: 6
+                      items:
+                          type: string
+                  style: form
+                  explode: true
+                - in: query
+                  name: scope
+                  required: false
+                  schema:
+                      type: string
+                      enum: [involving, among]
+                      default: involving
+                - in: query
+                  name: tournamentId
+                  required: false
+                  description: Limita la búsqueda a un torneo
+                  schema:
+                      $ref: "#/components/schemas/MongoId"
+                - in: query
+                  name: stage
+                  required: false
+                  schema:
+                      type: string
+                      enum: [regular, playin, playoff]
+                - in: query
+                  name: limit
+                  required: false
+                  description: Partidos detallados (máximo efectivo 20)
+                  schema:
+                      type: integer
+                      minimum: 1
+                      default: 10
+            responses:
+                "200":
+                    description: Resumen de pendientes con el detalle acotado
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/AssistantPendingMatchesResponse"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    description: Secreto ausente o inválido (INVALID_RECAP_SECRET)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "429":
+                    description: Demasiados secretos inválidos desde la misma IP (TOO_MANY_RECAP_ATTEMPTS)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "503":
+                    description: El secreto no está configurado en el servidor (RECAP_SECRET_NOT_CONFIGURED)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+
+    /api/assistant/head-to-head:
+        get:
+            tags: [Assistant]
+            summary: Historial entre dos jugadores, para el agente del chat
+            description: >-
+                Lo llama el agente de n8n (solo lectura, mismo secreto que los
+                recaps). Lee solo los partidos jugados entre los dos jugadores,
+                a diferencia de `GET /api/statistics/all-time/face-to-face`, que
+                arma el cruce de todos contra todos.
+
+
+                **Balance.** `record` cuenta todos los partidos válidos del
+                par, desde el punto de vista de `playerA`. El criterio es el
+                del sitio: se decide por el marcador y un empate en goles es
+                empate aunque se haya definido por penales (esos partidos se
+                cuentan aparte en `record.shootouts`). Los partidos inválidos
+                (`valid: false`: W.O., gol de oro, simulados) y los sin goles
+                completos no cuentan y se informan en `excluded`.
+
+
+                **Detalle acotado.** `lastMatches` trae los últimos `limit`
+                partidos, del más nuevo al más viejo (los sin fecha al final):
+                5 por defecto y un valor mayor a 10 se ajusta a 10. Cada uno
+                lleva fecha (día argentino según la precisión con que se
+                cargó), torneo, etapa, ronda de playoff, equipos, goles,
+                ganador, penales y `ratingChange` (puntos de rating de cada
+                jugador, si el read-model está fresco; si no, el campo no se
+                envía). `bestWin` es la mayor victoria de cada jugador (mayor
+                diferencia, luego más goles, luego el partido más viejo) y
+                `streak` la racha actual de victorias de un jugador o de
+                empates.
+
+
+                `viewPath` lleva al listado de partidos del sitio filtrado por
+                los dos jugadores. Un jugador inexistente no es error: la
+                respuesta trae `unknownPlayers`, `record: null` y una nota. Dos
+                ids iguales son 400.
+            security:
+                - recapSecret: []
+            parameters:
+                - in: query
+                  name: playerA
+                  required: true
+                  schema:
+                      type: string
+                - in: query
+                  name: playerB
+                  required: true
+                  description: Distinto de `playerA`
+                  schema:
+                      type: string
+                - in: query
+                  name: stage
+                  required: false
+                  description: >-
+                      Cuenta solo los partidos de esa etapa ("¿cómo me fue contra
+                      Max en playoffs?"). El balance y los últimos partidos se
+                      acotan igual.
+                  schema:
+                      type: string
+                      enum: [regular, playin, playoff]
+                - in: query
+                  name: tournamentId
+                  required: false
+                  description: Cuenta solo los partidos de ese torneo
+                  schema:
+                      $ref: "#/components/schemas/MongoId"
+                - in: query
+                  name: limit
+                  required: false
+                  description: Últimos partidos detallados (máximo efectivo 10)
+                  schema:
+                      type: integer
+                      minimum: 1
+                      default: 5
+            responses:
+                "200":
+                    description: Balance y últimos enfrentamientos
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/AssistantHeadToHeadResponse"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    description: Secreto ausente o inválido (INVALID_RECAP_SECRET)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "429":
+                    description: Demasiados secretos inválidos desde la misma IP (TOO_MANY_RECAP_ATTEMPTS)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "503":
+                    description: El secreto no está configurado en el servidor (RECAP_SECRET_NOT_CONFIGURED)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+
+    /api/assistant/standings:
+        get:
+            tags: [Assistant]
+            summary: Tabla de posiciones compacta de un torneo, para el agente del chat
+            description: >-
+                Lo llama el agente de n8n (solo lectura, mismo secreto que los
+                recaps). Usa el mismo cálculo que `GET
+                /api/tournaments/{tournament}/standings/table` (puntos,
+                desempates, indicadores de clasificación) pero devuelve solo
+                lo que el agente necesita: cada fila trae posición, jugador,
+                equipo, partidos, victorias, empates, derrotas, goles, puntos,
+                `form` (los últimos 5 resultados de más viejo a más nuevo, con
+                W, D y L) y, si corresponde, `qualification`. Se omiten las
+                jornadas completas que el endpoint original trae por equipo,
+                que son la mayor parte de su tamaño.
+
+
+                `qualification` es un texto listo para decir y solo existe en
+                la Liga (el equipo ya no puede alcanzar al líder) y en la
+                Superliga (clasificado directo, play-in asegurado o
+                eliminado). En los demás formatos con grupos clasifican el 1°
+                y el 2° (más los mejores terceros en algunos), y eso no se
+                calcula acá.
+
+
+                `playerId` deja solo las filas de ese jugador, con su
+                posición real dentro del grupo. Un torneo de eliminación
+                directa o histórico no tiene tabla: `hasTable` es `false` y
+                `standings` va vacío. Un torneo inexistente es 404.
+            security:
+                - recapSecret: []
+            parameters:
+                - in: query
+                  name: tournamentId
+                  required: true
+                  schema:
+                      $ref: "#/components/schemas/MongoId"
+                - in: query
+                  name: group
+                  required: false
+                  description: Solo ese grupo (en los formatos con grupos)
+                  schema:
+                      type: string
+                      enum: [A, B, C, D, E, F, G, H, I, J, K, L]
+                - in: query
+                  name: playerId
+                  required: false
+                  description: Solo los equipos de ese jugador
+                  schema:
+                      type: string
+            responses:
+                "200":
+                    description: Tabla compacta
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/AssistantStandingsResponse"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    description: Secreto ausente o inválido (INVALID_RECAP_SECRET)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "429":
+                    description: Demasiados secretos inválidos desde la misma IP (TOO_MANY_RECAP_ATTEMPTS)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "503":
+                    description: El secreto no está configurado en el servidor (RECAP_SECRET_NOT_CONFIGURED)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+
     /api/tournament-recaps/pending:
         get:
             tags: [Recaps]
@@ -2632,6 +2935,564 @@ components:
                             $ref: "#/components/schemas/TournamentRecapRef"
                         team:
                             $ref: "#/components/schemas/TournamentRecapRef"
+        AssistantHeadToHeadPlayer:
+            type: object
+            required: [id, name]
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+        AssistantHeadToHeadSide:
+            type: object
+            required: [team, goals]
+            properties:
+                team:
+                    type: string
+                    nullable: true
+                goals:
+                    type: integer
+        AssistantHeadToHeadMatch:
+            type: object
+            description: >-
+                Partido en formato compacto: los campos sin valor no se envían.
+            required: [matchId, playerA, playerB]
+            properties:
+                matchId:
+                    type: string
+                playedOn:
+                    type: string
+                    description: >-
+                        Día argentino (`YYYY-MM-DD`) o, según la precisión,
+                        `YYYY-MM`, `YYYY` o `aprox. YYYY-MM`
+                    example: "2026-10-20"
+                playedAtPrecision:
+                    type: string
+                    enum: [exact, day, month, year, approx]
+                tournamentId:
+                    type: string
+                tournament:
+                    type: string
+                stage:
+                    type: string
+                    enum: [regular, playin, playoff]
+                group:
+                    type: string
+                round:
+                    type: string
+                leg:
+                    type: integer
+                playerA:
+                    $ref: "#/components/schemas/AssistantHeadToHeadSide"
+                playerB:
+                    $ref: "#/components/schemas/AssistantHeadToHeadSide"
+                winner:
+                    type: string
+                    description: Nombre del ganador por marcador; ausente si empataron
+                shootout:
+                    type: object
+                    description: Solo si el empate se definió por penales
+                    properties:
+                        winner:
+                            type: string
+                            nullable: true
+                        score:
+                            type: string
+                            nullable: true
+                            example: 5-4
+                ratingChange:
+                    type: object
+                    description: Puntos de rating que ganó o perdió cada jugador
+                    required: [playerA, playerB]
+                    properties:
+                        playerA:
+                            type: number
+                        playerB:
+                            type: number
+        AssistantHeadToHeadBestWin:
+            type: object
+            nullable: true
+            required: [score, winner]
+            properties:
+                playedOn:
+                    type: string
+                tournament:
+                    type: string
+                stage:
+                    type: string
+                score:
+                    type: string
+                    description: Goles del ganador y del perdedor
+                    example: 5-1
+                winnerTeam:
+                    type: string
+                loserTeam:
+                    type: string
+                winner:
+                    type: string
+        AssistantHeadToHeadResponse:
+            type: object
+            required: [success, data]
+            properties:
+                success:
+                    type: boolean
+                data:
+                    type: object
+                    required: [asOf, record, lastMatches, notes]
+                    properties:
+                        asOf:
+                            type: string
+                            format: date-time
+                        players:
+                            type: object
+                            nullable: true
+                            description: "`null` si algún jugador no existe"
+                            required: [playerA, playerB]
+                            properties:
+                                playerA:
+                                    $ref: "#/components/schemas/AssistantHeadToHeadPlayer"
+                                playerB:
+                                    $ref: "#/components/schemas/AssistantHeadToHeadPlayer"
+                        unknownPlayers:
+                            type: array
+                            description: Solo si algún jugador no existe
+                            items:
+                                type: string
+                        criterion:
+                            type: string
+                            description: Cómo se cuentan victorias, empates y penales
+                        record:
+                            type: object
+                            nullable: true
+                            required:
+                                - matches
+                                - playerAWins
+                                - draws
+                                - playerBWins
+                                - playerAGoals
+                                - playerBGoals
+                                - shootouts
+                            properties:
+                                matches:
+                                    type: integer
+                                playerAWins:
+                                    type: integer
+                                draws:
+                                    type: integer
+                                playerBWins:
+                                    type: integer
+                                playerAGoals:
+                                    type: integer
+                                playerBGoals:
+                                    type: integer
+                                shootouts:
+                                    type: object
+                                    required: [total, playerAWon, playerBWon]
+                                    properties:
+                                        total:
+                                            type: integer
+                                        playerAWon:
+                                            type: integer
+                                        playerBWon:
+                                            type: integer
+                        streak:
+                            type: object
+                            nullable: true
+                            required: [result, player, count]
+                            properties:
+                                result:
+                                    type: string
+                                    enum: [win, draw]
+                                player:
+                                    type: string
+                                    nullable: true
+                                    description: Quién gana la racha; `null` si son empates
+                                count:
+                                    type: integer
+                        bestWin:
+                            type: object
+                            properties:
+                                playerA:
+                                    $ref: "#/components/schemas/AssistantHeadToHeadBestWin"
+                                playerB:
+                                    $ref: "#/components/schemas/AssistantHeadToHeadBestWin"
+                        lastMatches:
+                            type: array
+                            items:
+                                $ref: "#/components/schemas/AssistantHeadToHeadMatch"
+                        returned:
+                            type: integer
+                        firstMatchOn:
+                            type: string
+                            nullable: true
+                        lastMatchOn:
+                            type: string
+                            nullable: true
+                        excluded:
+                            type: object
+                            required: [invalid, incomplete]
+                            properties:
+                                invalid:
+                                    type: integer
+                                incomplete:
+                                    type: integer
+                        filters:
+                            type: object
+                            description: Filtros aplicados (`null` si no hay)
+                            properties:
+                                stage:
+                                    type: string
+                                    nullable: true
+                                tournamentId:
+                                    type: string
+                                    nullable: true
+                        viewPath:
+                            type: string
+                            description: >-
+                                Listado de partidos del sitio filtrado por los dos
+                                jugadores (y por etapa y torneo si se pidieron)
+                            example: /matches?player1=u1&player2=u2&type=playoff
+                        notes:
+                            type: array
+                            items:
+                                type: string
+        AssistantStandingsRow:
+            type: object
+            required:
+                - position
+                - played
+                - wins
+                - draws
+                - losses
+                - goalsFor
+                - goalsAgainst
+                - goalDifference
+                - points
+            properties:
+                position:
+                    type: integer
+                    description: Posición real dentro del grupo
+                player:
+                    type: string
+                team:
+                    type: string
+                played:
+                    type: integer
+                wins:
+                    type: integer
+                draws:
+                    type: integer
+                losses:
+                    type: integer
+                goalsFor:
+                    type: integer
+                goalsAgainst:
+                    type: integer
+                goalDifference:
+                    type: integer
+                points:
+                    type: integer
+                form:
+                    type: string
+                    description: Últimos 5 resultados, de más viejo a más nuevo
+                    example: DWWLW
+                qualification:
+                    type: string
+                    description: Texto listo para decir; solo en la Liga y la Superliga
+        AssistantStandingsResponse:
+            type: object
+            required: [success, data]
+            properties:
+                success:
+                    type: boolean
+                data:
+                    type: object
+                    required:
+                        [asOf, tournament, filters, hasTable, standings, notes]
+                    properties:
+                        asOf:
+                            type: string
+                            format: date-time
+                        tournament:
+                            type: object
+                            required: [id, name, format, ongoing]
+                            properties:
+                                id:
+                                    type: string
+                                name:
+                                    type: string
+                                format:
+                                    type: string
+                                    nullable: true
+                                ongoing:
+                                    type: boolean
+                        filters:
+                            type: object
+                            required: [group, playerId]
+                            properties:
+                                group:
+                                    type: string
+                                    nullable: true
+                                playerId:
+                                    type: string
+                                    nullable: true
+                        hasTable:
+                            type: boolean
+                        standings:
+                            type: array
+                            items:
+                                type: object
+                                required: [group, teams]
+                                properties:
+                                    group:
+                                        type: string
+                                        nullable: true
+                                    teams:
+                                        type: array
+                                        items:
+                                            $ref: "#/components/schemas/AssistantStandingsRow"
+                        viewPath:
+                            type: string
+                            nullable: true
+                            description: Vista Clasificación del torneo
+                            example: /tournaments/64b0f0f0f0f0f0f0f0f0f0f0/standings
+                        notes:
+                            type: array
+                            items:
+                                type: string
+        AssistantPendingSide:
+            type: object
+            required: [id, name, team]
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                    nullable: true
+                team:
+                    type: string
+                    nullable: true
+        AssistantPendingMatch:
+            type: object
+            description: >-
+                Partido jugable en formato compacto: los campos sin valor no
+                se envían.
+            required:
+                [matchId, tournamentId, tournament, stage, p1, p2, viewPath]
+            properties:
+                matchId:
+                    type: string
+                tournamentId:
+                    type: string
+                tournament:
+                    type: string
+                stage:
+                    type: string
+                    enum: [regular, playin, playoff]
+                group:
+                    type: string
+                round:
+                    type: string
+                    description: Ronda del playoff según el formato del torneo
+                    enum:
+                        [
+                            round_of_32,
+                            round_of_16,
+                            quarterfinal,
+                            semifinal,
+                            final,
+                        ]
+                playoffId:
+                    type: integer
+                leg:
+                    type: integer
+                    enum: [1, 2, 3]
+                p1:
+                    $ref: "#/components/schemas/AssistantPendingSide"
+                p2:
+                    $ref: "#/components/schemas/AssistantPendingSide"
+                viewPath:
+                    type: string
+                    description: Ruta del sitio donde se ve este partido
+                    example: /tournaments/64b0f0f0f0f0f0f0f0f0f0f0/fixture
+        AssistantPendingAwaitingMatch:
+            type: object
+            required:
+                [matchId, tournamentId, tournament, stage, player, viewPath]
+            properties:
+                matchId:
+                    type: string
+                tournamentId:
+                    type: string
+                tournament:
+                    type: string
+                stage:
+                    type: string
+                    enum: [regular, playin, playoff]
+                round:
+                    type: string
+                playoffId:
+                    type: integer
+                leg:
+                    type: integer
+                player:
+                    $ref: "#/components/schemas/AssistantPendingSide"
+                viewPath:
+                    type: string
+        AssistantPendingStageCounts:
+            type: object
+            required: [regular, playin, playoff]
+            properties:
+                regular:
+                    type: integer
+                playin:
+                    type: integer
+                playoff:
+                    type: integer
+        AssistantPendingTournament:
+            type: object
+            required:
+                - tournamentId
+                - name
+                - format
+                - pending
+                - byStage
+                - awaitingOpponent
+                - viewPaths
+            properties:
+                tournamentId:
+                    type: string
+                name:
+                    type: string
+                format:
+                    type: string
+                    nullable: true
+                pending:
+                    type: integer
+                    description: Partidos jugables del torneo
+                byStage:
+                    $ref: "#/components/schemas/AssistantPendingStageCounts"
+                awaitingOpponent:
+                    type: integer
+                viewPaths:
+                    type: object
+                    description: Ruta de la vista de cada etapa que tiene pendientes
+                    additionalProperties:
+                        type: string
+        AssistantPendingMatchesResponse:
+            type: object
+            required: [success, data]
+            properties:
+                success:
+                    type: boolean
+                data:
+                    type: object
+                    required:
+                        - asOf
+                        - filters
+                        - totalPending
+                        - byStage
+                        - byTournament
+                        - matches
+                        - returned
+                        - remaining
+                        - truncated
+                        - awaitingOpponent
+                        - excluded
+                        - notes
+                    properties:
+                        asOf:
+                            type: string
+                            format: date-time
+                        filters:
+                            type: object
+                            required:
+                                [
+                                    players,
+                                    unknownPlayers,
+                                    scope,
+                                    tournament,
+                                    stage,
+                                    limit,
+                                ]
+                            properties:
+                                players:
+                                    type: array
+                                    description: Jugadores pedidos que existen
+                                    items:
+                                        type: object
+                                        required: [id, name]
+                                        properties:
+                                            id:
+                                                type: string
+                                            name:
+                                                type: string
+                                unknownPlayers:
+                                    type: array
+                                    items:
+                                        type: string
+                                scope:
+                                    type: string
+                                    enum: [involving, among]
+                                tournament:
+                                    type: object
+                                    nullable: true
+                                    description: Solo con `tournamentId`
+                                    required: [id, name, active]
+                                    properties:
+                                        id:
+                                            type: string
+                                        name:
+                                            type: string
+                                        active:
+                                            type: boolean
+                                stage:
+                                    type: string
+                                    nullable: true
+                                limit:
+                                    type: integer
+                                    description: Límite efectivo (ya ajustado)
+                        totalPending:
+                            type: integer
+                            description: Todos los partidos jugables, no solo los detallados
+                        byStage:
+                            $ref: "#/components/schemas/AssistantPendingStageCounts"
+                        byTournament:
+                            type: array
+                            items:
+                                $ref: "#/components/schemas/AssistantPendingTournament"
+                        matches:
+                            type: array
+                            items:
+                                $ref: "#/components/schemas/AssistantPendingMatch"
+                        returned:
+                            type: integer
+                        remaining:
+                            type: integer
+                        truncated:
+                            type: boolean
+                        awaitingOpponent:
+                            type: object
+                            required: [count, matches]
+                            properties:
+                                count:
+                                    type: integer
+                                matches:
+                                    type: array
+                                    maxItems: 5
+                                    items:
+                                        $ref: "#/components/schemas/AssistantPendingAwaitingMatch"
+                        excluded:
+                            type: object
+                            required: [sameOwnerTies]
+                            properties:
+                                sameOwnerTies:
+                                    type: integer
+                        notes:
+                            type: array
+                            description: Avisos en castellano para el agente
+                            items:
+                                type: string
         TournamentRecapPending:
             type: object
             required:

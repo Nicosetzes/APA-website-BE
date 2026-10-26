@@ -58,3 +58,5 @@ const findTournaments = async (legacy, status) => {
 }
 
 module.exports = findTournaments
+// Lo reutilizan las lecturas que listan torneos en el mismo orden.
+module.exports.byStart = byStart

@@ -1,3 +1,6 @@
 node_modules
 package-lock.json
 .agents/
+# Exports crudos de n8n (se pegan tal cual salen de la instancia)
+n8n/daily-recap.json
+n8n/tournament-recap.json

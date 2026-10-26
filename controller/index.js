@@ -1,4 +1,7 @@
 const getAllTimeFaceToFace = require("./getAllTimeFaceToFace")
+const getAssistantHeadToHead = require("./getAssistantHeadToHead")
+const getAssistantPendingMatches = require("./getAssistantPendingMatches")
+const getAssistantStandings = require("./getAssistantStandings")
 const getAllTimeTeams = require("./getAllTimeTeams")
 const getCalculatorByTournamentId = require("./getCalculatorByTournamentId")
 const getFixtureByTournamentId = require("./getFixtureByTournamentId")
@@ -41,6 +44,9 @@ const getRatingsPeriod = require("./getRatingsPeriod")
 
 module.exports = {
     getAllTimeFaceToFace,
+    getAssistantHeadToHead,
+    getAssistantPendingMatches,
+    getAssistantStandings,
     getAllTimeTeams,
     getCalculatorByTournamentId,
     getFixtureByTournamentId,

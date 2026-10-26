@@ -1,0 +1,545 @@
+{
+  "name": "APA Tournament Recap",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "d9f2ddf8-8117-4257-88a2-7d770585d757",
+      "name": "Manual Run",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        208
+      ],
+      "disabled": true,
+      "notes": "Camino del refinamiento: generar el recap de UN torneo. Se ejecuta con Execute workflow."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "tournamentId",
+              "name": "tournamentId",
+              "type": "string",
+              "value": "64697ac9d542ff4ada3038d3"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1064e76d-8c73-452d-9445-5474197c9aae",
+      "name": "Manual Tournament Id",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        208,
+        208
+      ],
+      "notes": "Reemplazar el valor por un tournamentId de backlog.tournaments (GET /api/tournament-recaps/pending)."
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "2d8183b5-739d-4f70-844a-4934b3b04238",
+      "name": "Daily Check",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -16,
+        -80
+      ],
+      "notes": "DESHABILITADO hasta terminar el refinamiento del prompt. Habilitarlo y activar el workflow recién entonces."
+    },
+    {
+      "parameters": {
+        "url": "https://apa-website-be.vercel.app/api/tournament-recaps/pending",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpTemplatedCustomAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "3"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bb013e2e-19c3-43de-9ad0-b2d302bbc852",
+      "name": "Fetch Pending Tournaments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        256,
+        48
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpTemplatedCustomAuth": {
+          "id": "eEEa5jdwBTKCqsnj",
+          "name": "APA BE Recap Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f64566d0-05f7-4cce-bf7c-70d048ea1293",
+              "leftValue": "={{ $json.data.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3a17fff6-e6c6-4c94-b4f6-9186e1a3fc29",
+      "name": "Has Pending?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "data",
+        "options": {}
+      },
+      "id": "a63c898a-0c28-41f8-8515-ef5142e07035",
+      "name": "Split Pending",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        704,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://apa-website-be.vercel.app/api/tournament-recaps/context",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpTemplatedCustomAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "tournamentId",
+              "value": "={{ $json.tournamentId }}"
+            },
+            {
+              "name": "detail",
+              "value": "compact"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "1b979bb0-60ae-436d-9762-4d03fe50ec67",
+      "name": "Fetch Tournament Context",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        768,
+        128
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpTemplatedCustomAuth": {
+          "id": "eEEa5jdwBTKCqsnj",
+          "name": "APA BE Recap Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Valida la respuesta de /api/tournament-recaps/context y deja lo que usan los nodos siguientes.\nconst res = $json;\nif (!res || res.success !== true || !res.data || !res.data.tournament) {\n  throw new Error('Prepare Agent Input: la respuesta de /api/tournament-recaps/context no trae data.tournament.');\n}\nreturn {\n  json: {\n    tournamentId: String(res.data.tournament.id),\n    tournamentName: res.data.tournament.name,\n    contextVersion: res.contextVersion,\n    detail: res.detail,\n    meta: res.meta,\n    data: res.data,\n  },\n};"
+      },
+      "id": "1b0ec7bb-a1ce-4ac9-bfc6-8bb84ff30c3f",
+      "name": "Prepare Agent Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        992,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Here is the full context of the finished tournament (JSON). Write the recap following your instructions.\n{{ JSON.stringify($json.data) }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "type": "=SystemMessagePromptTemplate",
+              "message": "You write the \"crónica\" (tournament recap) of a finished tournament for a group of friends who play PlayStation FIFA tournaments against each other. The humans are exactly five: Max, Leo, Nico, Santi and Lucho. Write in Spanish from Argentina (Rioplatense: voseo, informal and funny, no insults), in Markdown, for the tournament page of their website. You receive ONE JSON with the full context of one finished tournament. The backend already computed every number, order, streak, record and historical count. You only write.\n\n# GOLDEN RULES (apply to every section)\n- Use ONLY names, numbers, dates, teams, scores and facts that are written in the JSON. NEVER calculate: no sums, differences, averages, percentages of your own, counts you made yourself, rankings you worked out, or comparisons the JSON did not already make. The only allowed operation is turning a match probability into a whole percentage (see ODDS). If a number is not literally written in the JSON (in a field or in the text of a fact), do not write it.\n- Every sentence must be backed by a field. If you cannot point to the field, delete the sentence. Never invent results, goals, minutes, scorers, injuries, causes, rivalries, past meetings, revenge, quotes or consequences.\n- The ONLY allowed explanation for a surprising result is performance: the less favored side \"rindió por encima de lo esperado\". Forbidden: guesses and hedges (\"podría deberse\", \"quizás\", \"tal vez\"), luck, \"equipo más flojo\" as a cause.\n- Never show internal fields, ids or codes: seq, matchId, ids, importance, notable, source, afterPct, kind, decidedBy values, fact types, English labels. Translate everything into natural Spanish (see TRANSLATIONS). Never mention the JSON, the facts, the context or the data quality.\n- Call something a record, historic or \"nunca antes\" ONLY when a field or a fact says so (titleContext, isNewAllTimePeak, a new_peak_rating fact). Being the best \"of the tournament\" is not being the best in history.\n- Goals: scoring many goals is normal in this game. NEVER present a high-scoring match or a high goal total as unusual. DO highlight low-scoring matches (0-0, 1-0, 1-1), shutouts, clean sheets and good defences, praising the defence. A big win by a heavy favorite is NOT a surprise.\n- ELO: what a human won or lost in this tournament is told ONLY with ratingMovement.players delta (and bestCumulativeDelta / worstCumulativeDelta, which are also relative to the tournament). Global ratings (globalRatingBeforeFirstMatch, globalRatingAfterLastMatch, globalPeakRating) and positions of the general ranking may be mentioned only as \"rating before / after\" or \"posición en el ranking general\", NEVER as the gain or loss of the tournament, and you never subtract them.\n- Matches with valid false are not real games (they were loaded only to move the bracket forward): never count them as results, goals, streaks or statistics, and never tell their score as a result.\n- Never mix this tournament with others. The only other tournaments you may mention are the previous winners of the competition and the title counts in titleContext.\n\n# WHO IS WHO\n- Standings are per TEAM, but every team belongs to a human: always say both (\"el Barcelona de Leo\"). A human can own several teams in the same tournament and can even play both sides of a tie or of the final.\n- ELO (ratingMovement, ratingDelta, ratingBefore) and titles (titleContext) are per HUMAN PLAYER. Never attribute an ELO change or a title to a team.\n- participants lists each human with their teams and the overall of each team (a rating of the squad). You may mention an overall as a plain data point, never as the reason for a result.\n- Write the names exactly as in the JSON: Max, Leo, Nico, Santi, Lucho. Never \"Maxi\". Team names exactly as in the JSON (English team names stay in English).\n\n# HOW TO READ THE JSON\n- tournament: name, format, competition (label), dates, durationDays, matchCounts (regular, playin, playoff, total, validFalse) and rules. rules.stages says which phases exist: regular, playin, playoff. rules.knockout and rules.tableTiebreak explain how it works: paraphrase them when useful and invent no other rules.\n- result: champion and runnerUp (player and team) and the final match. If result.final is null (a pure league) the champion comes from the table.\n- standings (null when there is no regular phase): final tables per group (position, team, player, played, wins, draws, losses, gf, ga, gd, points, qualification), progress (leaders after 25, 50, 75 and 100 percent of the group matches), leaderChanges and closeRace (leader and lead over the second before the last stretch). qualification: direct = clasificó directo, playin = fue al play-in, best_third = clasificó como mejor tercero, eliminated = quedó eliminado, null = say nothing. standings.criterion: the table counts ALL regular matches, valid false ones included, so its played, wins, draws, losses and goals can differ from playerStats. For how many matches a human played, won, drew or lost, use ONLY playerStats; use the table only for positions, points and the goals of teams. Never mix the played of the table with the P of playerStats. Do not paste whole tables: tell the story.\n- playin and playoffs: each tie points to its matches by matchSeqs; look the scores up in matches. championPath is the champion's way to the title.\n- matches: chronological log. In compact detail it holds every play-in and playoff match but only some regular ones, and matchesOmitted says how many were left out. So never count matches from this list and never say \"all the matches\": totals come from tournament.matchCounts and playerStats. p1 is the first side and p2 the second; score is p1 then p2. If penalties is not null, the match was level and penalties.winner says who won the shootout (its score is p1 then p2).\n- playerStats: per human, overall and by stage; only valid matches between different humans count (see criterion and excluded). A shootout winner counts as a win. Also streaks, best and worst result, best and worst team.\n- headToHead: pairs that met in the tournament. Use allTimeBefore only in the entry with isFinal true, and only as given.\n- dataQuality.warnings: obey them without quoting them. Provisional players: say their ELO is still provisional and be careful with their odds and surprises. Approximate dates: no exact day by day chronology, talk in phases and order. A format without odds: no favorites and no surprises. A warning about matches of other tournaments played in between: the global ratings (globalRating*, globalPeakRating) and the positions of the global ranking may include them, so never present them as what the human gained in this tournament and say \"en el ranking general\"; the tournament delta does not include those matches.\n- Dates are UTC. Never convert days: mention at most the month and year of the dates.\n\n# FACTS\nfacts is a list of already detected highlights, most important first. Use it as the guide of what is worth telling: cover the ones with importance 4 and 5 and choose the rest by what fits each section. The numbers and names must come from the fields (the data of the fact, matches, playerStats, titleContext...). The text of each fact is only a phrasing hint: do not copy it, and if it ever disagrees with the data, the data wins. Do not force a fact that does not fit. The list is not exhaustive: you can also tell things from matches and playerStats.\n\n# ODDS (probabilities of ONE match)\n- odds exist per match. kind expected_points: p1Win, draw and p2Win are the probabilities that p1 wins, they draw, or p2 wins that match. kind advance (single-match knockout): advanceP1 and advanceP2 are the probabilities of going through. odds null: say nothing about favorites for that match.\n- Give a percentage ONLY while telling about that match, in at most one sentence, as \"el modelo le daba X% de ganar\" or \"X% de pasar de ronda\", with X = the probability times 100 rounded to a whole number. Give only the numbers you need (the favorite's or the winner's). Never give a percentage that does not come from odds.\n- NEVER say the probability of winning a series, a two-legged tie or the title. In two-legged ties the odds are per leg: name the leg and never add legs together.\n- A match is a surprise or \"batacazo\" ONLY when its upset is true or it appears in the biggest_upset or upsets facts. Explain it only with performance.\n\n# ELO\n- ratingDelta is the signed change of one match. Single-match scale: at most 12 points; 1-3 is small, 4-8 medium, 9-12 huge.\n- ratingMovement.players delta is the TOTAL of the tournament for a human (a sum of several matches) and the ONLY number for what he won or lost in the tournament: NEVER compare it with the single-match scale and never call it big or small; only compare players with each other (biggestGainer, biggestLoser, both based on delta). Write it with its sign (\"+19\", \"-13,8\").\n- bestCumulativeDelta and worstCumulativeDelta are the highest and the lowest point that this accumulated delta reached during the tournament (it starts at 0). They are not ratings: you may say \"llegó a estar +X arriba\" or \"-Y abajo\" when it adds something, always relative to the start of the tournament.\n- globalRatingBeforeFirstMatch and globalRatingAfterLastMatch are the rating of the human in the general ranking just before his first and just after his last match of this tournament. They can include matches of other tournaments, so their difference may not equal delta: mention them only as \"rating before / after\" (\"llegó con 1520,9 y terminó con 1556,9\") and NEVER as the gain of the tournament; do not subtract them and do not say that the tournament took him \"de A a B\".\n- leaderboard before and after are positions in the general ranking before and after his matches of the tournament and can include other tournaments: say \"en el ranking general\", never that this tournament alone caused them. overtakes says who passed whom counting only the ELO changes of this tournament. isNewAllTimePeak true (and the new_peak_rating fact, with globalPeakRating) means that he reached his all-time peak rating in a match of this tournament: you may say it as a fact about his rating, never as something he gained in the tournament.\n- Read ratingMovement.scope: it says which numbers belong to the tournament (delta, bestCumulativeDelta, worstCumulativeDelta, biggestGainer, biggestLoser, overtakes) and which are global.\n- In El Elo del torneo list the total of EVERY player, from the biggest gain to the biggest loss.\n\n# TITLE IN CONTEXT (titleContext)\nIt counts every title of the Hall of Fame, legacy ones included. Use: champion.titleNumber (\"su título número N en la historia\"); champion.rank and ranking (titles and finals per human; tied players share a rank); champion.gapToLeader (say \"a N títulos de alcanzar a X\" only when it is not null, null means the champion leads); champion.leadChange (new_leader = pasa a liderar, tied_for_lead = iguala al líder); isFirstTitle; consecutiveTitles (when more than 1); wasDefendingChampion; finalsPlayed; titlesSameCompetition (label, count and ordinal). The competition is given by the tournament FORMAT, never by its name: league_playin_playoff = Superliga, league = Liga, playoff = Eliminatoria (Copa Argentina, Copa Afinidades...), american_cup = Copa América, world_cup = Mundial, club_world_cup = Mundial de Clubes, champions_league = Champions, super_cup = Supercopa. american_cup and club_world_cup are legacy formats (no new tournaments are created with them today) but they are full competitions: name them like any other. When rules.description is not null and rules.stages is empty (these two formats), use it as the only description of the format and invent no phases. So a 4th title in the Superliga family is \"su 4ta Superliga\" even if this edition is called Inglesa or Internacional. Choose the Spanish ordinal by the gender of the label (\"su 4ta Superliga\", \"su 2da Liga\", \"su primer Mundial\", \"su 1ra Copa América\"), and if you are not sure write \"su título número N en la competencia\". runnerUp (finalsPlayed, titles); competition.previousWinners (the champions of the previous editions of the same format, oldest first: the last one is the previous edition, whatever its name). Tell the title number plus one or two angles (milestone, gap, first in the competition or the format, defending the title), not all of them. Say nothing about a field that is null or missing. You cannot say anything about titles that is not in titleContext.\n\n# TRANSLATIONS\n- Rounds: round_of_32 = 16vos de final, round_of_16 = 8vos de final, quarterfinal = 4tos de final, semifinal = semifinales, final = la final. Any other round name: translate it naturally.\n- decidedBy: single_match = partido único, aggregate = global de ida y vuelta, penalties = penales, golden_goal = gol de oro en un tercer partido de desempate, walkover = W.O. (no se jugó y avanzó por reglamento), same_player_pick = los dos equipos eran del mismo jugador y eligió cuál avanzaba.\n- leg: 1 = ida, 2 = vuelta, 3 = desempate. Never invent a score for a match that was not played (valid false, walkover).\n- stage: regular = fase regular (liga) or fase de grupos (formats with groups), playin = play-in, playoff = playoffs.\n\n# STRUCTURE (Markdown contract)\nWrite the recap with these level-2 headings, in this order. The ones marked MANDATORY must exist with exactly that title. No level-1 heading: the website shows the headline apart.\n1. ## El campeón - MANDATORY, first. Champion (human and team), runner-up (human and team), the final and how it was won. About 90 words.\n2. ## Cómo se jugó - optional. Only if the format has more than one phase: short chronological overview. About 60 words.\n3. ## Fase regular (pure league) or ## Fase de grupos (formats with groups) - MANDATORY when rules.stages has regular. Leaders along the way, close races, qualification, teams that did better than expected by points. About 130 words.\n4. ## Play-in - MANDATORY when rules.stages has playin. Who played it and who got through. About 70 words.\n5. ## Playoffs - MANDATORY when rules.stages has playoff. Round by round, in order, with the champion's path and the key ties, saying how each important tie was decided. About 180 words.\n6. ## Partidos destacados - optional. Two or three matches not already told in detail above: upsets, shootouts, golden goals, big wins, defensive matches. About 90 words.\n7. ## Números del torneo - optional. Streaks, clean sheets, attack and defence, best and worst team of each human, from playerStats and facts. About 90 words.\n8. ## El Elo del torneo - optional. See ELO. About 80 words.\n9. ## En la historia - MANDATORY, last. The title in context (see TITLE IN CONTEXT) and, if the finalists have a history, one line from headToHead. If titleContext is null, write one short honest paragraph with what you do have. About 90 words.\nSkip optional sections when the JSON has nothing to say, and skip the phases that rules.stages does not include. Do not tell the same fact in two sections. Tell the tournament in the order it happened: regular phase, play-in, playoffs, and inside each one in the order of the matches log.\n\n# STYLE AND LENGTH\n- The recap must have 600 to 900 words. With few phases, go deeper into highlights and numbers until you reach 600; with all the phases, keep each section short.\n- Tone: Rioplatense, voseo, friendly teasing between friends, short sentences, no insults, no emojis, no hashtags. The humans are the protagonists. One idea per fact; no generic football talk.\n- Use bold sparingly for names or key results. No tables, no lists of more than 4 items, no code blocks.\n\n# OUTPUT\nReturn only the structured object with three fields:\n- headline: catchy title in Spanish, at most 140 characters, with the champion and the tournament name. No quotation marks around it. Do not include a score that is not in the JSON.\n- summary: 2 or 3 sentences, at most 500 characters, plain text without Markdown, with the champion, the runner-up and the most notable thing of the tournament.\n- recap: the Markdown described above, without a level-1 heading."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "id": "ca5c2574-e5fb-4a90-9f9d-f9f2a5d9707f",
+      "name": "Write Tournament Recap",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1216,
+        128
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-5-5",
+          "cachedResultName": "Claude Sonnet 5.5"
+        },
+        "options": {
+          "maxTokensToSample": 16000
+        }
+      },
+      "id": "8a46b18e-b355-4473-a9d4-445c7298c95f",
+      "name": "Claude Sonnet",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "position": [
+        1488,
+        304
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "DKph8trx1jxMnZO8",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"headline\": {\n      \"type\": \"string\",\n      \"minLength\": 1,\n      \"maxLength\": 140,\n      \"description\": \"Titular en español rioplatense, hasta 140 caracteres, con el campeón y el torneo.\"\n    },\n    \"summary\": {\n      \"type\": \"string\",\n      \"minLength\": 1,\n      \"maxLength\": 500,\n      \"description\": \"Resumen de 2 o 3 oraciones en texto plano, hasta 500 caracteres.\"\n    },\n    \"recap\": {\n      \"type\": \"string\",\n      \"minLength\": 1,\n      \"description\": \"Crónica en Markdown, 600 a 900 palabras, con los títulos ## del contrato y sin título de nivel 1.\"\n    }\n  },\n  \"required\": [\n    \"headline\",\n    \"summary\",\n    \"recap\"\n  ],\n  \"additionalProperties\": false\n}"
+      },
+      "id": "efb76ef0-2529-4e64-90fb-7c43b1c787e7",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1632,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Verifica la salida del modelo antes de guardar. Junta todos los problemas y lanza un solo error.\nconst ctx = $('Prepare Agent Input').item.json;\nconst data = ctx.data;\nlet out = $json.output !== undefined ? $json.output : ($json.text !== undefined ? $json.text : $json.response);\nif (typeof out === 'string') {\n  try { out = JSON.parse(out); } catch (e) { throw new Error('Verify Recap [' + ctx.tournamentName + ']: la salida del modelo no es un objeto JSON.'); }\n}\nout = out || {};\n\nconst errors = [];\nconst norm = (s) => String(s == null ? '' : s).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/\\s+/g, ' ').trim();\nconst asText = (v, name) => { if (typeof v !== 'string') { errors.push(name + ' no es texto'); return ''; } return v.trim(); };\nconst headline = asText(out.headline, 'headline');\nconst summary = asText(out.summary, 'summary');\nconst recap = asText(out.recap, 'recap');\n\n// 1) Longitudes\nif (headline.length < 1 || headline.length > 140) errors.push('headline de ' + headline.length + ' caracteres (1 a 140)');\nif (summary.length < 1 || summary.length > 500) errors.push('summary de ' + summary.length + ' caracteres (1 a 500)');\nconst words = recap.split(/\\s+/).filter(Boolean).length;\nif (words < 450 || words > 1100) errors.push('recap de ' + words + ' palabras (450 a 1100)');\n\n// 2) Secciones ## según las etapas del formato (mismo criterio que el BE)\nconst stages = (data.tournament.rules && data.tournament.rules.stages) || [];\nconst headings = recap.split(/\\r?\\n/).map((l) => /^##(?!#)\\s*(.+?)\\s*#*\\s*$/.exec(l)).filter(Boolean).map((m) => norm(m[1]));\nconst required = [['El campeón']];\nif (stages.includes('regular')) required.push(['Fase regular', 'Fase de grupos']);\nif (stages.includes('playin')) required.push(['Play-in']);\nif (stages.includes('playoff')) required.push(['Playoffs']);\nrequired.push(['En la historia']);\nfor (const alts of required) {\n  if (!alts.some((t) => headings.some((h) => h.startsWith(norm(t))))) errors.push('falta la sección ## ' + alts.join(' / '));\n}\nif (headings.length && !headings[0].startsWith('el campeon')) errors.push('la primera sección debe ser El campeón');\nif (headings.length && !headings[headings.length - 1].startsWith('en la historia')) errors.push('la última sección debe ser En la historia');\n\n// 3) Campeón y subcampeón por nombre (jugador y equipo)\nconst text = norm(recap);\nconst r = data.result || {};\nconst names = [\n  ['campeón (jugador)', r.champion && r.champion.player && r.champion.player.name],\n  ['campeón (equipo)', r.champion && r.champion.team && r.champion.team.name],\n  ['subcampeón (jugador)', r.runnerUp && r.runnerUp.player && r.runnerUp.player.name],\n  ['subcampeón (equipo)', r.runnerUp && r.runnerUp.team && r.runnerUp.team.name],\n];\nfor (const [label, name] of names) {\n  if (name && !text.includes(norm(name))) errors.push('no nombra al ' + label + ': ' + name);\n}\n\n// 4) Reglas de forma y de voz\nif (/\\bmaxi\\b/i.test(recap)) errors.push('dice \"Maxi\" (es \"Max\")');\nif (/^#\\s/m.test(recap)) errors.push('tiene un título de nivel 1');\nif (recap.includes('```')) errors.push('tiene un bloque de código');\nif (/podria deberse|quizas|tal vez/.test(text)) errors.push('usa una frase de duda prohibida');\nconst codes = recap.match(/\\b(single_match|expected_points|golden_goal|same_player_pick|walkover|advanceP1|advanceP2|p1Win|p2Win|ratingDelta|dataQuality|titleContext|matchSeqs?|isNewAllTimePeak|bestCumulativeDelta|worstCumulativeDelta|globalRatingBeforeFirstMatch|globalRatingAfterLastMatch|globalPeakRating)\\b/gi);\nif (codes) errors.push('muestra códigos internos: ' + Array.from(new Set(codes)).join(', '));\n\n// 5) Porcentajes: todos tienen que salir del contexto\nconst nums = (JSON.stringify(data).match(/-?\\d+(?:\\.\\d+)?/g) || []).map(Number);\nconst key = (x) => Math.round(x * 10) / 10;\nconst allowed = new Set();\nfor (const v of nums) { allowed.add(key(v)); allowed.add(key(Math.round(v))); allowed.add(key(Math.round(v * 100))); allowed.add(key(Math.floor(v * 100))); allowed.add(key(Math.ceil(v * 100))); }\nfor (const m of recap.matchAll(/(\\d+(?:[.,]\\d+)?)\\s?%/g)) {\n  const n = Number(m[1].replace(',', '.'));\n  if (!allowed.has(key(n))) errors.push('el porcentaje ' + m[0] + ' no sale del contexto');\n}\nif (/(serie|global|agregado)[^.\\n]{0,80}\\d+\\s?%|\\d+\\s?%[^.\\n]{0,80}(la serie|global|agregado)|\\d+\\s?%[^.\\n]{0,60}(de ser campeon|de salir campeon|el titulo)/.test(text)) errors.push('da una probabilidad de serie, global o título');\n\n// 6) Sorpresas solo si el contexto las marca\nconst hasUpset = (data.matches || []).some((m) => m.upset === true) || (data.facts || []).some((f) => f.type === 'biggest_upset' || f.type === 'upsets');\nif (!hasUpset && /batacazo/.test(text)) errors.push('habla de batacazo sin partidos con upset');\n\nif (errors.length) throw new Error('Verify Recap [' + ctx.tournamentName + ']: ' + errors.join(' | '));\nreturn { json: { tournamentId: ctx.tournamentId, headline, summary, recap, wordCount: words } };"
+      },
+      "id": "b415429c-1e9a-4c0d-ad57-8e5f0e7c1d1a",
+      "name": "Verify Recap",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "tournamentId",
+              "name": "tournamentId",
+              "type": "string",
+              "value": "={{ $('Prepare Agent Input').item.json.tournamentId }}"
+            },
+            {
+              "id": "headline",
+              "name": "headline",
+              "type": "string",
+              "value": "={{ $json.headline }}"
+            },
+            {
+              "id": "summary",
+              "name": "summary",
+              "type": "string",
+              "value": "={{ $json.summary }}"
+            },
+            {
+              "id": "recap",
+              "name": "recap",
+              "type": "string",
+              "value": "={{ $json.recap }}"
+            },
+            {
+              "id": "language",
+              "name": "language",
+              "type": "string",
+              "value": "es-AR"
+            },
+            {
+              "id": "generation",
+              "name": "generation",
+              "type": "object",
+              "value": "={{ ({ model: 'claude-sonnet-5-5', promptVersion: 'tournament-recap-v1', contextVersion: $('Prepare Agent Input').item.json.contextVersion, ratingVersion: $('Prepare Agent Input').item.json.meta.ratingVersion, drawModelVersion: $('Prepare Agent Input').item.json.meta.drawModelVersion, contextHash: $('Prepare Agent Input').item.json.meta.contextHash }) }}"
+            },
+            {
+              "id": "createdAt",
+              "name": "createdAt",
+              "type": "string",
+              "value": "={{ $now.toISO() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "945a75c4-3428-4c1b-b0ce-4c0ad1428fac",
+      "name": "Prepare Recap Document",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1840,
+        256
+      ],
+      "notes": "Subir promptVersion cada vez que se cambie el prompt."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://apa-website-be.vercel.app/api/tournament-recaps",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpTemplatedCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ tournamentId: $json.tournamentId, headline: $json.headline, summary: $json.summary, recap: $json.recap, language: $json.language, generation: $json.generation, createdAt: $json.createdAt }) }}",
+        "options": {}
+      },
+      "id": "fb134db4-6db1-4f19-ad90-9077c3ede682",
+      "name": "Save Tournament Recap",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2064,
+        256
+      ],
+      "credentials": {
+        "httpTemplatedCustomAuth": {
+          "id": "eEEa5jdwBTKCqsnj",
+          "name": "APA BE Recap Secret"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Run": {
+      "main": [
+        [
+          {
+            "node": "Manual Tournament Id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Tournament Id": {
+      "main": [
+        [
+          {
+            "node": "Fetch Tournament Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Check": {
+      "main": [
+        [
+          {
+            "node": "Fetch Pending Tournaments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Pending Tournaments": {
+      "main": [
+        [
+          {
+            "node": "Has Pending?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Pending?": {
+      "main": [
+        [
+          {
+            "node": "Split Pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Pending": {
+      "main": [
+        [
+          {
+            "node": "Fetch Tournament Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Tournament Context": {
+      "main": [
+        [
+          {
+            "node": "Prepare Agent Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Agent Input": {
+      "main": [
+        [
+          {
+            "node": "Write Tournament Recap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Tournament Recap": {
+      "main": [
+        [
+          {
+            "node": "Verify Recap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Sonnet": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Write Tournament Recap",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Write Tournament Recap",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Recap": {
+      "main": [
+        [
+          {
+            "node": "Prepare Recap Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Recap Document": {
+      "main": [
+        [
+          {
+            "node": "Save Tournament Recap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "72175b3c-477e-4c67-8519-ff9d1dee6353",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "68bec038c0b2626058e9d61643920feee1e7dcc9f1900ff7abe0568501237581"
+  },
+  "nodeGroups": [
+    {
+      "id": "b97dcd6a-9cae-4892-af3a-98dd6786b773",
+      "name": "Find tournaments to recap",
+      "nodeIds": [
+        "bb013e2e-19c3-43de-9ad0-b2d302bbc852",
+        "3a17fff6-e6c6-4c94-b4f6-9186e1a3fc29",
+        "a63c898a-0c28-41f8-8515-ef5142e07035"
+      ],
+      "description": "Runs daily (disabled until the prompt is refined) and asks the backend for finished tournaments without a recap. The manual trigger feeds one tou"
+    },
+    {
+      "id": "ba37ce29-c8c2-4510-8cf1-c50f16b703e1",
+      "name": "Store recap",
+      "nodeIds": [
+        "945a75c4-3428-4c1b-b0ce-4c0ad1428fac",
+        "fb134db4-6db1-4f19-ad90-9077c3ede682"
+      ],
+      "description": "Packs the recap with its generation metadata and saves it in the backend (one recap per tournament, a new run replaces it)"
+    }
+  ],
+  "id": "uKmwKGpV4pHc1q7Y",
+  "tags": []
+}

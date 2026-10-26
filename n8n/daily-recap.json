@@ -1,0 +1,546 @@
+{
+  "name": "APA Daily Recap",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "id": "870fe825-fdfb-4632-9516-ec62c65adcfa",
+      "name": "Daily Check",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -128,
+        -192
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://apa-website-be.vercel.app/api/matches",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "dateFrom",
+              "value": "={{ $now.minus({ days: 1 }).toFormat(\"yyyy-MM-dd\") }}"
+            },
+            {
+              "name": "dateTo",
+              "value": "={{ $now.minus({ days: 1 }).toFormat(\"yyyy-MM-dd\") }}"
+            }
+          ]
+        },
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "page",
+                    "value": "={{ $pageCount + 1 }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.currentPage >= $response.body.totalPages }}",
+              "limitPagesFetched": true,
+              "maxRequests": 3
+            }
+          }
+        }
+      },
+      "id": "571127b3-6d33-4e68-9664-d784744c1b92",
+      "name": "Fetch Matches",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        128,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const yesterday = $now.minus({ days: 1 });\nconst start = yesterday.startOf('day').toMillis();\nconst end = yesterday.endOf('day').toMillis();\nconst all = [];\nfor (const item of $input.all()) {\n  const list = (item.json && item.json.matches) || [];\n  for (const m of list) all.push(m);\n}\nconst day = all.filter((m) => {\n  if (!m.played || !m.playedAt || !m.outcome) return false;\n  const t = new Date(m.playedAt).getTime();\n  return t >= start && t <= end;\n});\nif (day.length === 0) return [];\n\nconst eloByPlayer = {};\nlet eloMissing = 0;\nlet biggestSwing = null;\nfor (const m of day) {\n  const rc = m.ratingChange;\n  if (!rc || typeof rc.p1 !== 'number' || typeof rc.p2 !== 'number') { eloMissing++; continue; }\n  for (const [name, delta] of [[m.playerP1.name, rc.p1], [m.playerP2.name, rc.p2]]) {\n    if (!eloByPlayer[name]) eloByPlayer[name] = { player: name, netChange: 0, matchesRated: 0, gains: 0, losses: 0 };\n    eloByPlayer[name].netChange += delta;\n    eloByPlayer[name].matchesRated++;\n    if (delta > 0) eloByPlayer[name].gains++; else if (delta < 0) eloByPlayer[name].losses++;\n  }\n  const top = Math.abs(rc.p1) >= Math.abs(rc.p2) ? [m.playerP1.name, rc.p1] : [m.playerP2.name, rc.p2];\n  if (!biggestSwing || Math.abs(top[1]) > Math.abs(biggestSwing.change)) biggestSwing = { player: top[0], change: Math.round(top[1] * 100) / 100, match: m.playerP1.name + ' (' + m.teamP1.name + ') ' + m.scoreP1 + ' - ' + m.scoreP2 + ' (' + m.teamP2.name + ') ' + m.playerP2.name, tournament: m.tournament ? m.tournament.name : null, stage: m.type };\n}\nconst eloChanges = Object.values(eloByPlayer).map((e) => Object.assign(e, { netChange: Math.round(e.netChange * 100) / 100 })).sort((a, b) => b.netChange - a.netChange);\nconst elo = eloChanges.length ? { maxChangePerMatch: 12, note: 'Net ELO change per player over the whole day, all tournaments together. A single match moves at most 12 points; around 1-3 is small, 4-8 is medium, 9-12 is huge.', players: eloChanges, biggestSingleMatchSwing: biggestSwing, matchesWithoutRating: eloMissing } : null;\n\nconst groups = {};\nfor (const m of day) {\n  const tid = m.tournament ? String(m.tournament._id || m.tournament.id || m.tournament.name) : 'unknown';\n  if (!groups[tid]) groups[tid] = { tournamentId: tid, tournament: m.tournament ? m.tournament.name : 'Sin torneo', raw: [] };\n  groups[tid].raw.push(m);\n}\n\nconst build = (g) => {\n  const players = {};\n  const get = (name) => {\n    if (!players[name]) players[name] = { player: name, played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 };\n    return players[name];\n  };\n  const matches = g.raw\n    .sort((a, b) => new Date(a.playedAt) - new Date(b.playedAt))\n    .map((m) => {\n      const p1 = get(m.playerP1.name);\n      const p2 = get(m.playerP2.name);\n      const s1 = Number(m.scoreP1 || 0);\n      const s2 = Number(m.scoreP2 || 0);\n      p1.played++; p2.played++;\n      p1.goalsFor += s1; p1.goalsAgainst += s2;\n      p2.goalsFor += s2; p2.goalsAgainst += s1;\n      if (s1 === s2) { p1.draws++; p2.draws++; }\n      else if (s1 > s2) { p1.wins++; p2.losses++; }\n      else { p2.wins++; p1.losses++; }\n      return {\n        time: m.playedAt,\n        stage: m.type,\n        playoffId: m.playoff_id === undefined ? null : m.playoff_id,\n        leg: m.leg === undefined ? null : m.leg,\n        seeds: m.seedP1 && m.seedP2 ? m.seedP1 + ' vs ' + m.seedP2 : null,\n        home: m.playerP1.name + ' (' + m.teamP1.name + ')',\n        away: m.playerP2.name + ' (' + m.teamP2.name + ')',\n        score: s1 + ' - ' + s2,\n        totalGoals: s1 + s2,\n        margin: Math.abs(s1 - s2),\n      };\n    });\n  const totalGoals = matches.reduce((a, m) => a + m.totalGoals, 0);\n  const biggestWin = matches.slice().sort((a, b) => b.margin - a.margin)[0];\n  const mostGoals = matches.slice().sort((a, b) => b.totalGoals - a.totalGoals)[0];\n  const table = Object.values(players).sort((a, b) => (b.wins * 3 + b.draws) - (a.wins * 3 + a.draws) || (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst));\n  const rank = { playoff: 0, playin: 1, regular: 2 };\n  matches.sort((a, b) => (rank[a.stage] ?? 3) - (rank[b.stage] ?? 3) || new Date(a.time) - new Date(b.time));\n  const byStage = { playoff: 0, playin: 0, regular: 0 };\n  for (const m of matches) byStage[m.stage] = (byStage[m.stage] || 0) + 1;\n  const series = {};\n  for (const m of matches) {\n    if (m.stage !== 'playoff' || m.playoffId === null) continue;\n    series[m.playoffId] = series[m.playoffId] || { playoffId: m.playoffId, seeds: m.seeds, legsPlayedYesterday: [] };\n    series[m.playoffId].legsPlayedYesterday.push({ leg: m.leg, home: m.home, away: m.away, score: m.score });\n  }\n  return { tournamentId: g.tournamentId, tournament: g.tournament, matchCount: matches.length, matchesByStage: byStage, playoffSeries: Object.values(series), totalGoals, avgGoals: Math.round((totalGoals / matches.length) * 100) / 100, biggestWin, mostGoals, playerTable: table, matches };\n};\nconst tournaments = Object.values(groups).map(build);\nconst totalGoals = tournaments.reduce((a, t) => a + t.totalGoals, 0);\nreturn [{ json: { date: yesterday.toFormat('yyyy-MM-dd'), matchCount: day.length, totalGoals, tournamentCount: tournaments.length, elo, tournaments } }];"
+      },
+      "id": "46328395-42b5-47b2-86e7-21d8a6a538bd",
+      "name": "Compute Day Stats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://apa-website-be.vercel.app/api/statistics",
+        "options": {}
+      },
+      "id": "f3e398e8-e369-44df-8398-94f9b3432ee9",
+      "name": "Fetch Statistics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        544,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $('Compute Day Stats').first().json;\nconst stats = $input.first().json || {};\nconst zone = 'America/Buenos_Aires';\nconst d = DateTime.fromISO(base.date, { zone });\nconst start = d.startOf('day').toMillis();\nconst end = d.endOf('day').toMillis();\nconst inDay = (iso) => { if (!iso) return false; const t = new Date(iso).getTime(); return t >= start && t <= end; };\n\nconst label = {\n  most_clean_sheets_in_a_row: 'clean sheets in a row',\n  most_consecutive_matches_scoring_1_plus_goals: 'matches in a row scoring 1+ goals',\n  most_consecutive_matches_scoring_2_plus_goals: 'matches in a row scoring 2+ goals',\n  most_consecutive_matches_scoring_3_plus_goals: 'matches in a row scoring 3+ goals',\n  most_wins_in_a_row: 'wins in a row',\n  most_draws_in_a_row: 'draws in a row',\n  most_losses_in_a_row: 'losses in a row',\n  most_unbeaten_in_a_row: 'unbeaten matches in a row',\n  most_penalty_shootout_wins_in_a_row: 'penalty shootout wins in a row',\n  most_knockout_wins_in_a_row: 'knockout wins in a row',\n  most_knockout_unbeaten_in_a_row: 'unbeaten knockout matches in a row',\n  most_consecutive_semifinals: 'semifinals in a row',\n  most_consecutive_finals: 'finals in a row',\n  most_consecutive_titles: 'titles in a row',\n};\nconst brief = (m) => m ? { date: m.date, tournament: m.tournament && m.tournament.name, stage: m.type, team: m.team && m.team.name, opponent: m.opponent && m.opponent.name, opponentTeam: m.opponentTeam && m.opponentTeam.name, score: m.goalsFor + ' - ' + m.goalsAgainst, result: m.result } : null;\n\nconst events = [];\nconst records = stats.records || {};\nconst active = stats.activeStreaks || {};\nfor (const [key, sec] of Object.entries(records)) {\n  if (!sec || !Array.isArray(sec.players)) continue;\n  for (const p of sec.players) {\n    if (!p.isActive && p.breakMatch && inDay(p.breakMatch.date)) {\n      events.push({ event: 'RECORD_STREAK_BROKEN', streakType: label[key] || key, player: p.name, length: sec.count, note: 'This was the all-time record streak of this type; it ended on that day. The record itself still stands.', brokenBy: brief(p.breakMatch) });\n    } else if (p.isActive && inDay(p.endDate)) {\n      events.push({ event: 'RECORD_STREAK_EXTENDED', streakType: label[key] || key, player: p.name, length: sec.count, note: 'This active streak is the all-time record for this type and it grew that day.', lastMatch: brief(p.endMatch) });\n    }\n  }\n}\nfor (const [key, sec] of Object.entries(active)) {\n  if (!sec || !Array.isArray(sec.players)) continue;\n  for (const p of sec.players) {\n    if (!p.isActive || !inDay(p.endDate)) continue;\n    const alsoRecord = records[key] && Array.isArray(records[key].players) && records[key].players.some((r) => r.id === p.id && r.startDate === p.startDate);\n    if (alsoRecord) continue;\n    events.push({ event: 'ACTIVE_STREAK_EXTENDED', streakType: label[key] || key, player: p.name, length: sec.count, startedThatDay: inDay(p.startDate), note: 'Longest currently active streak of this type; it grew that day.', lastMatch: brief(p.endMatch) });\n  }\n}\n\nconst played = new Set();\nfor (const t of base.tournaments) for (const m of t.matches) { played.add(m.home.replace(/ \\(.*$/, '')); played.add(m.away.replace(/ \\(.*$/, '')); }\nconst form = [];\nfor (const p of (stats.players || [])) {\n  const name = p.player && p.player.name;\n  if (!name || !played.has(name)) continue;\n  const recent = (p.recent || []).map((m) => {\n    const isP1 = m.playerP1 && m.playerP1.name === name;\n    return { date: m.date, tournament: m.tournament, opponent: isP1 ? m.playerP2.name : m.playerP1.name, score: isP1 ? m.scoreP1 + ' - ' + m.scoreP2 : m.scoreP2 + ' - ' + m.scoreP1, outcome: m.outcome };\n  });\n  form.push({ player: name, currentStreak: p.current_streak, last10Outcomes: recent.map((r) => String(r.outcome).toUpperCase()).join(''), last10: recent });\n}\nreturn [{ json: Object.assign({}, base, { streakEvents: events, playersForm: form }) }];"
+      },
+      "id": "989ad99e-8f3f-4202-9cc2-bc770bdf6813",
+      "name": "Compute Streak Events",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://apa-website-be.vercel.app/api/recaps/context",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "date",
+              "value": "={{ $('Compute Day Stats').first().json.date }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cf658998-8d9e-4faa-b026-60398a6c8d8a",
+      "name": "Fetch Tournament Context",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        992,
+        128
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $('Compute Streak Events').first().json;\nconst list = $input.all().map((i) => i.json || {}).flatMap((j) => Array.isArray(j.data) ? j.data : (j.tournamentId ? [j] : []));\nif (!list.length) return [{ json: base }];\nconst teamOf = (s) => { const i = s.lastIndexOf('('); return i >= 0 ? s.slice(i + 1, s.lastIndexOf(')')) : s; };\nconst byId = {};\nfor (const c of list) byId[c.tournamentId] = c;\nconst tournamentContext = [];\nfor (const t of base.tournaments) {\n  const c = byId[t.tournamentId];\n  if (!c) continue;\n  const teams = new Set();\n  const playoffIds = new Set();\n  for (const m of t.matches) {\n    teams.add(teamOf(m.home));\n    teams.add(teamOf(m.away));\n    if (m.stage === 'playoff' && m.playoffId !== null) playoffIds.add(m.playoffId);\n  }\n  const standings = (c.standings || [])\n    .filter((g) => (g.teams || []).some((r) => teams.has(r.team.name)))\n    .map((g) => {\n      const size = g.teams.length;\n      const rows = g.teams.map((r) => ({ r, remaining: Math.max(0, (size - 1) - r.played) }));\n      const complete = rows.every((x) => x.remaining === 0);\n      const out = rows.map(({ r, remaining }) => {\n        let locked = true;\n        if (complete) return { position: r.position, previousPosition: r.previousPosition, team: r.team.name, player: r.player.name, played: r.played, remainingMatches: 0, maxPossiblePoints: r.points, positionLocked: true, wins: r.wins, draws: r.draws, losses: r.losses, goalsFor: r.goalsFor, goalsAgainst: r.goalsAgainst, points: r.points };\n        for (const o of rows) {\n          if (o.r === r) continue;\n          const oMax = o.r.points + 3 * o.remaining;\n          const myMax = r.points + 3 * remaining;\n          if (o.r.position > r.position) { if (oMax >= r.points) locked = false; }\n          else if (myMax >= o.r.points) locked = false;\n        }\n        return { position: r.position, previousPosition: r.previousPosition, team: r.team.name, player: r.player.name, played: r.played, remainingMatches: remaining, maxPossiblePoints: r.points + 3 * remaining, positionLocked: locked, wins: r.wins, draws: r.draws, losses: r.losses, goalsFor: r.goalsFor, goalsAgainst: r.goalsAgainst, points: r.points };\n      });\n      return { group: g.group, matchesPerTeamInGroup: size - 1, groupComplete: out.every((t) => t.remainingMatches === 0), teams: out };\n    });\n  const bracket = (c.bracket || [])\n    .filter((b) => playoffIds.has(b.playoffId))\n    .map((b) => {\n      const names = {};\n      for (const m of b.matches) { names[m.teamP1.id] = m.teamP1.name; names[m.teamP2.id] = m.teamP2.name; }\n      const s = b.series;\n      return {\n        playoffId: b.playoffId,\n        round: b.round,\n        series: s ? { status: s.status, aggregate: (s.aggregate || []).map((a) => ({ team: names[a.teamId] || a.teamId, score: a.score })), winner: s.winnerTeamId ? (names[s.winnerTeamId] || s.winnerTeamId) : null } : null,\n        matches: b.matches.map((m) => ({ leg: m.leg, played: m.played, seeds: m.seedP1 + ' vs ' + m.seedP2, home: m.teamP1.name + ' (' + m.playerP1.name + ')', away: m.teamP2.name + ' (' + m.playerP2.name + ')', score: m.played ? m.scoreP1 + ' - ' + m.scoreP2 : null })),\n      };\n    });\n  tournamentContext.push({ tournamentId: c.tournamentId, tournament: c.tournament, format: c.format, ongoing: c.ongoing, asOf: c.asOf, rules: c.rules, standings, playin: c.playin, bracket });\n}\nreturn [{ json: Object.assign({}, base, { tournamentContext }) }];"
+      },
+      "id": "dc4c098c-ee07-49e0-8183-ac6f7689b90d",
+      "name": "Add Tournament Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1216,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://apa-website-be.vercel.app/api/statistics/all-time/face-to-face",
+        "options": {}
+      },
+      "id": "e5555318-b7c9-4ee1-b803-66aa3c7ae092",
+      "name": "Fetch Face To Face",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1440,
+        48
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $('Add Tournament Context').first().json;\nconst pairs = $input.all().map((i) => i.json || {}).flatMap((j) => Array.isArray(j) ? j : (j.p1 && j.p2 ? [j] : []));\nif (!pairs.length) return [{ json: base }];\nconst nameOf = (s) => { const i = s.lastIndexOf(' ('); return i >= 0 ? s.slice(0, i) : s; };\nconst teamOf = (s) => { const i = s.lastIndexOf('('); return i >= 0 ? s.slice(i + 1, s.lastIndexOf(')')) : s; };\nconst dayMatches = [];\nfor (const t of base.tournaments) {\n  for (const m of t.matches) {\n    const parts = String(m.score).split(' - ');\n    dayMatches.push({ a: nameOf(m.home), b: nameOf(m.away), teamA: teamOf(m.home), teamB: teamOf(m.away), sa: Number(parts[0]), sb: Number(parts[1]), tournament: t.tournament, stage: m.stage });\n  }\n}\nconst key = (x, y) => [x, y].sort().join('|');\nconst headToHead = [];\nconst done = new Set();\nfor (const pair of pairs) {\n  const A = pair.p1;\n  const B = pair.p2;\n  const k = key(A.name, B.name);\n  if (done.has(k)) continue;\n  const todays = dayMatches.filter((m) => key(m.a, m.b) === k);\n  if (!todays.length) continue;\n  done.add(k);\n  let aw = 0; let bw = 0; let dr = 0; let ag = 0; let bg = 0;\n  const list = [];\n  let newBestWin = null;          // récord de la pareja (la mayor diferencia entre ambos)\n  const newPersonalBestWins = []; // récord de un jugador contra ese rival, no de la pareja\n  for (const m of todays) {\n    const aIsHome = m.a === A.name;\n    const goalsA = aIsHome ? m.sa : m.sb;\n    const goalsB = aIsHome ? m.sb : m.sa;\n    const teamA = aIsHome ? m.teamA : m.teamB;\n    const teamB = aIsHome ? m.teamB : m.teamA;\n    ag += goalsA; bg += goalsB;\n    if (goalsA === goalsB) dr++; else if (goalsA > goalsB) aw++; else bw++;\n    list.push({ tournament: m.tournament, stage: m.stage, result: A.name + ' (' + teamA + ') ' + goalsA + ' - ' + goalsB + ' (' + teamB + ') ' + B.name });\n    if (goalsA === goalsB) continue;\n\n    const aWon = goalsA > goalsB;\n    const winner = aWon ? A : B;\n    const loser = aWon ? B : A;\n    const wTeam = aWon ? teamA : teamB;\n    const lTeam = aWon ? teamB : teamA;\n    const wGoals = Math.max(goalsA, goalsB);\n    const lGoals = Math.min(goalsA, goalsB);\n    const margin = wGoals - lGoals;\n\n    // face-to-face se consulta después del día: bestWin ya incluye los partidos de hoy.\n    const wb = winner.bestWin;\n    const isPersonalBest = !!(wb && wb.teamThatWon && wb.teamThatLost\n      && wb.teamThatWon.name === wTeam && wb.teamThatLost.name === lTeam\n      && wb.scoreFromTeamThatWon === wGoals && wb.scoreFromTeamThatLost === lGoals);\n    if (!isPersonalBest) continue;\n\n    const lb = loser.bestWin;\n    const loserBestMargin = lb && typeof lb.scoringDifference === 'number' ? lb.scoringDifference : 0;\n    const rec = { player: winner.name, against: loser.name, margin, newRecordMatch: wTeam + ' ' + wGoals + ' - ' + lGoals + ' ' + lTeam, tournament: m.tournament, stage: m.stage };\n\n    if (margin > loserBestMargin) {\n      if (!newBestWin || margin > newBestWin.margin) {\n        newBestWin = Object.assign({}, rec, { note: 'Biggest goal difference ever between these two players, in either direction.' });\n      }\n    } else {\n      newPersonalBestWins.push(Object.assign({}, rec, {\n        pairRecord: { player: loser.name, margin: loserBestMargin },\n        note: 'Biggest win ever of ' + winner.name + ' against ' + loser.name + '. It is NOT the biggest difference between them: that record is ' + loserBestMargin + ' goals, held by ' + loser.name + '.',\n      }));\n    }\n  }\n  const after = { played: A.played, aWins: A.wins, draws: A.draws, bWins: B.wins, goalsA: A.goalsFor, goalsB: B.goalsFor };\n  const before = { played: A.played - todays.length, aWins: A.wins - aw, draws: A.draws - dr, bWins: B.wins - bw, goalsA: A.goalsFor - ag, goalsB: B.goalsFor - bg };\n  const sideWins = (w) => ({ [A.name]: w.aWins, [B.name]: w.bWins });\n  const leader = (x) => x.aWins > x.bWins ? A.name : (x.bWins > x.aWins ? B.name : null);\n  const lb = leader(before);\n  const la = leader(after);\n  headToHead.push({\n    playerA: A.name,\n    playerB: B.name,\n    playedToday: list,\n    allTimeAfterToday: { matches: after.played, winsByPlayer: sideWins(after), draws: after.draws, goalsByPlayer: { [A.name]: after.goalsA, [B.name]: after.goalsB } },\n    allTimeBeforeToday: { matches: before.played, winsByPlayer: sideWins(before), draws: before.draws },\n    leaderBefore: lb,\n    leaderAfter: la,\n    leadChanged: lb !== la,\n    newBestWin,\n    newPersonalBestWins,\n  });\n}\nreturn [{ json: Object.assign({}, base, { headToHead }) }];"
+      },
+      "id": "edc2e7c0-9952-4412-a495-3b6ea1de020f",
+      "name": "Compute Head To Head",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://apa-website-be.vercel.app/api/ratings",
+        "options": {}
+      },
+      "id": "72dcf5d6-e38f-46f0-9733-296fc6d1af32",
+      "name": "Fetch Ratings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1888,
+        48
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $('Compute Head To Head').first().json;\nconst raw = $input.all().map((i) => i.json || {});\nconst list = raw.flatMap((j) => Array.isArray(j.data) ? j.data : []);\nif (!list.length) return [{ json: base }];\nconst net = {};\nfor (const p of ((base.elo && base.elo.players) || [])) net[p.player] = p.netChange;\nconst rows = list.map((r) => {\n  const name = r.player && r.player.name;\n  const before = typeof net[name] === 'number' ? Math.round((r.rating - net[name]) * 10) / 10 : r.rating;\n  return { player: name, rating: r.rating, peak: r.peak, matches: r.matches, provisional: !!r.provisional, atPeak: typeof r.peak === 'number' && r.rating >= r.peak, ratingBefore: before };\n});\nconst posBefore = {};\nrows.slice().sort((a, b) => b.ratingBefore - a.ratingBefore).forEach((r, i) => { posBefore[r.player] = i + 1; });\nconst ratings = rows.map((r, i) => Object.assign({ position: i + 1, positionBefore: posBefore[r.player] }, r));\nreturn [{ json: Object.assign({}, base, { ratings }) }];"
+      },
+      "id": "754d77a4-0064-4ef4-9a32-c4f9f0d7d4e0",
+      "name": "Add Ratings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2048,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Here is the data of yesterday's matches grouped by tournament, plus streak events and recent form of the players who played (JSON):\n{{ JSON.stringify($json) }}",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "=SystemMessagePromptTemplate",
+              "message": "You write the daily recap for a group of 5 friends who play PlayStation FIFA tournaments together. Write in Spanish (Argentine, informal and funny tone, no insults), plain text with light Markdown, ready to be shared in a group chat. You receive one JSON with the data of one day.\n\n# GOLDEN RULES (apply to every section)\n- Use ONLY the data provided. Never invent results, players, stats, records, streaks, rivalries, past meetings or consequences. Every sentence must be backed by a field of the data; if you cannot point to it, delete the sentence.\n- The ONLY allowed explanation for a surprising result is performance: the underdog \"rindió por encima de lo esperado\". Never add other causes or hedges. Forbidden: \"podría deberse\", \"quizás\", \"tal vez\", \"es solo una hipótesis\", luck, \"equipo más flojo\" as a cause.\n- Never mention earlier meetings, revenge or previous results between players unless the data says so.\n- Never show internal fields or codes: order, rank, highlightScore, ids, English labels (matchup, toss_up, etc.). Translate every label into natural Spanish.\n- \"Of the day\" is not \"all-time\". Call something a record or historic ONLY when a record field says so (newBestWin, newPersonalBestWins, RECORD_STREAK_*, atPeak).\n- Goals: scoring many goals is normal in this game. NEVER present a high-scoring match or a high daily/per-player goal total or average as unusual. DO highlight low-scoring matches (0-0, 1-0, 1-1), shutouts and clean sheets, praising the defence.\n- Never mix matches or stats between tournaments.\n\n# STRUCTURE\n1. Catchy title and a short intro (2-3 lines) with matchCount and the most notable match of the day (topHighlights rank 1).\n2. ONE section per tournament (heading = tournament name).\n3. Rachas (global). 4. Mano a Mano (global). 5. ELO (global).\nWord limits: 260 per tournament (Qué significa included; up to 320 if it has more than 6 matches), 100 Rachas, 120 Mano a Mano, 130 ELO.\n\n# TOURNAMENT SECTIONS\nData per tournament (tournaments[]): matches, playoffSeries, advancedWithoutPlaying, playerTable, biggestMarginOrders. Rules and tables are in tournamentContext (same tournament name).\n\nResults:\n- List matches in the order given by \"order\" (the order they were played), always stating the stage: for playoff use \"round\" and, when \"leg\" exists, say ida (1), vuelta (2) or desempate (3); for regular say fase de grupos / regular.\n- Pre-match picture: for EVERY match with \"odds\", add a few words about how it looked before kickoff, using odds.matchup and odds.favorite:\n  even -> duelo parejo; slight_favorite -> ligero favorito X; clear_favorite -> favorito claro X; heavy_favorite -> gran favorito X.\n  Then use odds.result: favorite_win -> the favorite delivered; toss_up -> even match; draw -> say it was a draw (if matchup is not even, say the favorite could not win); underdog_win -> won the one who was less favored, \"rindió por encima de lo esperado\"; upset -> sorpresa/batacazo, \"rindió por encima de lo esperado\".\n  You may cite odds.elo (player ELO before the match) and odds.overall (team overall by player) as plain facts, for example \"Max (ELO 1542, Switzerland 78 de overall) vs Leo (ELO 1622, Portugal 84)\". Never say that one number is the reason for the result.\n  Percentages: ONLY when odds.kind is \"advance\" (single-match knockout) you may say \"el modelo le daba X% de pasar de ronda\" with X = round(100 * winnerExpectedScore) for the winner (or round(100 * favoriteExpected) for the favorite). With kind \"expected_points\" or null NEVER give percentages or say \"chances de ganar\"; use only the qualitative picture.\n  Keep each match to 1-2 short sentences.\n- Highlights: topHighlights (global) ranks the most notable matches of the day (surprise, margin and stage). In the section of each tournament, give those that belong to it more flavor, most notable first, and explain why using odds and the margin (for example upset + big margin). If a tournament has none, give one factual highlight (a shutout, a defensive match, a series decided or turned around). A big margin by a heavy favorite is NOT a surprise. If you say \"mayor victoria\", add \"del día\" and if biggestMarginOrders has two orders say it was a tie.\n- Day record per player in that tournament from playerTable (victorias, empates, derrotas). It is not the tournament table.\n\nSeries (playoffSeries, already seen as of the end of the day):\n- status \"decided\": winner advanced; give the aggregate only if decidedBy is null. status \"awaiting_leg2\": series open, you may say who leads on aggregate, NEVER who advances. status \"level_after_two_legs_tiebreak_pending\": level on aggregate, a third match decides.\n- decidedBy \"walkover\": the second leg was not played and the winner advanced as W.O. (aggregate counts only played legs). decidedBy \"golden_goal\": the aggregate ended level and the tiebreak was decided by golden goal, the winner advanced. decidedBy \"same_player_pick\": both teams belonged to the same player, who chose the one that advances. Legs with notPlayed true have no score: NEVER give a score or goals for them.\n- Single-match knockouts: the winner of the match advances. A draw is decided by extra time/penalties and you do not know the winner unless the data says so.\n\nadvancedWithoutPlaying (single-match ties that were not played): decidedBy \"same_player_pick\" -> both teams belonged to the same player, who chose which one advances; say it (for example \"Leo tenía a Brazil y a Czech Republic: eligió que avance Brazil\"). decidedBy \"walkover\" -> not played, the team advances. Never give a score.\n\nQué significa (short paragraph after the results, built ONLY from the matching tournamentContext entry; if there is none, omit it):\n- rules explain what matters for the day's matches: the knockout text for playoff matches (single match, or two legs with golden goal), the qualification lines and tiebreaks for group matches. Quote the knockout rule as written.\n- Say a team advanced or qualified only when the data states it (series winner, a played single-match knockout, advancedWithoutPlaying) or when it is a clear position inside the qualification lines. NEVER say a team is mathematically qualified or eliminated from a group; never invent matchups.\n- Group-stage info (standings, points, positions, pending matches) ONLY if the tournament had regular matches that day (then tournamentContext has standings with the groups of the teams that played; playedThatDay marks them). If there are no standings, do not talk about groups or tables.\n- With standings: previousPosition is the position at the start of the day; if null, do not mention movement. Cover what is pending using ONLY remainingMatches, maxPossiblePoints, positionLocked and groupComplete. A position is final ONLY when positionLocked is true. A rival is ruled out only when its maxPossiblePoints is strictly lower than the team's points. Never name the opponent of a pending match.\n\n# RACHAS\nGlobal. Built ONLY from streakEvents; if empty, omit the section.\n- RECORD_STREAK_BROKEN: the record streak ended that day (the record itself stands). RECORD_STREAK_EXTENDED: the player extended their own all-time record. ACTIVE_STREAK_EXTENDED: an active streak (2 or more) grew; streakTypes lists several streaks of the same length for one player: summarize them in ONE sentence.\n- Always name the player, the streak type and its length. Lead with record events. NEVER say a streak was broken unless it is RECORD_STREAK_BROKEN, and never claim that no streaks changed.\n- You may use playersForm (currentStreak; last10Outcomes goes from oldest to newest, w/d/l) for a short form note about players who played.\n\n# MANO A MANO\nGlobal. Built ONLY from headToHead (one entry per pair that faced each other that day); if missing or empty, omit it.\n- Give allTimeAfterToday naming each player with their own number from winsByPlayer, for example \"Leo 81 victorias, Nico 77, 30 empates\". Compare with allTimeBeforeToday only when it adds something: leadChanged (say who took the lead from whom, using leaderBefore/leaderAfter) or the gap grew or shrank (from X to Y).\n- newBestWin: a match of the day is now the biggest goal difference EVER between those two players. Mention the player, the margin and the match (newRecordMatch, tournament). Never mention a previous record: you do not have it.\n- newPersonalBestWins: each entry is that player's biggest win ever AGAINST that rival, NOT the biggest difference between them. Say it exactly like that (\"el 7-3 es la mayor victoria de Santi sobre Nico en la historia, 4 goles\") and you may add that the pair record is still pairRecord (player and margin).\n- Without newBestWin or newPersonalBestWins, do not talk about margins or records between the pair. The biggest win of the day is NOT a head-to-head record. Figures are all-time: never present them as tournament standings.\n\n# ELO\nGlobal. If elo is null omit the daily changes; if ratings is missing or empty omit the ranking; if both are missing omit the section.\n- Daily changes, ONLY from elo: list the net change of the day for EVERY player in elo.players with sign and matchesRated (for example \"Nico +4.01 (4 partidos)\"), from biggest gain to biggest loss. The daily net is a sum of several matches: NEVER compare it with 12 or with the single-match scale, never call it big or small. You may only compare players with each other.\n- Biggest single-match swing (elo.biggestSingleMatchSwing): give the player, the signed value, its size on the elo.note scale (1-3 chico, 4-8 medio, 9-12 enorme) and the match. If that match appears in tournaments[].matches with odds, you may add its pre-match picture (same rules as in the results, including the percentage rule).\n- Ranking, ONLY from ratings (the ranking at the end of the day): position and rating for each player. When positionBefore differs from position, say who moved up or down and past whom. Mention atPeak true as a new personal peak and provisional true if applicable. Never invent ratings or totals."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "id": "205afd8a-3b38-49ac-b450-c36217289cf5",
+      "name": "Write Recap",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        864,
+        -192
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-5-5",
+          "cachedResultName": "Claude Sonnet 5.5"
+        },
+        "options": {
+          "maxTokensToSample": 16000
+        }
+      },
+      "id": "c84467f2-5aba-4be0-8bc0-71efc3f550d6",
+      "name": "Claude Sonnet",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "position": [
+        960,
+        16
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "DKph8trx1jxMnZO8",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "date",
+              "name": "date",
+              "type": "string",
+              "value": "={{ $(\"Compute Day Stats\").item.json.date }}"
+            },
+            {
+              "id": "matchCount",
+              "name": "matchCount",
+              "type": "number",
+              "value": "={{ $(\"Compute Day Stats\").item.json.matchCount }}"
+            },
+            {
+              "id": "tournaments",
+              "name": "tournaments",
+              "type": "array",
+              "value": "={{ $(\"Compute Day Stats\").item.json.tournaments.map(t => ({ tournamentId: t.tournamentId, tournament: t.tournament, matchCount: t.matchCount, matchesByStage: t.matchesByStage })) }}"
+            },
+            {
+              "id": "recap",
+              "name": "recap",
+              "type": "string",
+              "value": "={{ $json.text }}"
+            },
+            {
+              "id": "createdAt",
+              "name": "createdAt",
+              "type": "string",
+              "value": "={{ $now.toISO() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8b119604-fe80-40e6-9dfa-96ad49747e0f",
+      "name": "Prepare Recap Document",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1280,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://apa-website-be.vercel.app/api/recaps",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpTemplatedCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ date: $json.date, matchCount: $json.matchCount, recap: $json.recap, tournaments: $json.tournaments, createdAt: $json.createdAt }) }}",
+        "options": {}
+      },
+      "id": "2a78ea95-6455-41df-a3ed-13aa38e7fe92",
+      "name": "Save Recap in Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1504,
+        -64
+      ],
+      "credentials": {
+        "httpTemplatedCustomAuth": {
+          "id": "eEEa5jdwBTKCqsnj",
+          "name": "APA BE Recap Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ====== CONFIGURACIÓN ======\n// Nombre EXACTO del nodo que llama a GET /api/recaps/context (sin transformar).\nconst CONTEXT_NODE = 'Fetch Tournament Context';\n// ===========================\n\nconst d = $input.first().json;\n\n// --- Respuesta cruda de /api/recaps/context (bracket, valid, playedAt, matchInsights) ---\nconst loadRawContext = () => {\n  let items = null;\n  try { items = $(CONTEXT_NODE).all().map((i) => i.json); } catch (e) { items = null; }\n  if (!items && d.recapContextRaw) items = [d.recapContextRaw];\n  if (!items) throw new Error('No encuentro el nodo \"' + CONTEXT_NODE + '\": corregí CONTEXT_NODE con el nombre del nodo que llama a /api/recaps/context.');\n  return items.flatMap((j) => Array.isArray(j) ? j : Array.isArray(j.data) ? j.data : (j.tournamentId ? [j] : []));\n};\nconst rawContext = loadRawContext();\nif (!rawContext.length && (d.tournaments || []).length) throw new Error('La respuesta de /api/recaps/context vino vacía.');\nconst rawById = new Map(rawContext.map((c) => [String(c.tournamentId), c]));\nconst ctxById = new Map((d.tournamentContext || []).map((c) => [String(c.tournamentId), c]));\n\n// --- Utilidades ---\nconst ROUNDS = { round_of_32: '16vos de final', round_of_16: '8vos de final', quarterfinal: '4tos de final', semifinal: 'semifinales', final: 'final' };\nconst roundLabel = (r) => ROUNDS[r] || r;\nconst dayStart = Date.parse(d.date + 'T03:00:00Z'); // día argentino (UTC-3, sin horario de verano)\nconst dayEnd = dayStart + 24 * 3600 * 1000;\nconst ms = (x) => (x ? Date.parse(x) : NaN);\nconst inDay = (x) => { const t = ms(x.playedAt); return t >= dayStart && t < dayEnd; };\nconst afterDay = (x) => ms(x.playedAt) >= dayEnd;\nconst nm = (o) => (o && o.name) || '?';\nconst fmt = (player, team) => player + ' (' + team + ')';\nconst splitName = (s) => { const i = s.lastIndexOf(' ('); return [s.slice(0, i), s.slice(i + 2, -1)]; };\n\n// Partido del bracket crudo -> forma plana\nconst flat = (x) => ({\n  leg: x.leg, playedAt: x.playedAt, valid: x.valid !== false,\n  p1: nm(x.playerP1), t1: nm(x.teamP1), s1: x.scoreP1, p2: nm(x.playerP2), t2: nm(x.teamP2), s2: x.scoreP2,\n  seed1: x.seedP1, seed2: x.seedP2,\n  samePlayer: !!(x.playerP1 && x.playerP2 && String(x.playerP1.id) === String(x.playerP2.id)),\n  winnerTeam: x.outcome && x.outcome.teamThatWon ? nm(x.outcome.teamThatWon) : null,\n  winnerPlayer: x.outcome && x.outcome.playerThatWon ? nm(x.outcome.playerThatWon) : null,\n  loserTeam: x.outcome && x.outcome.teamThatLost ? nm(x.outcome.teamThatLost) : null,\n  loserPlayer: x.outcome && x.outcome.playerThatLost ? nm(x.outcome.playerThatLost) : null,\n});\n// Cómo se resolvió un partido con valid:false\nconst resolvedBy = (m) => m.samePlayer ? 'same_player_pick' : (m.leg === 3 ? 'golden_goal' : 'walkover');\n\n// --- Cuotas previas de un partido (a partir de matchInsights) ---\nconst oddsOf = (ins) => {\n  const favIsP1 = ins.expectedP1 >= 0.5;\n  const favExp = favIsP1 ? ins.expectedP1 : 1 - ins.expectedP1;\n  const fav = favIsP1 ? ins.p1 : ins.p2;\n  const matchup = favExp < 0.55 ? 'even' : favExp < 0.65 ? 'slight_favorite' : favExp < 0.8 ? 'clear_favorite' : 'heavy_favorite';\n  let result;\n  if (ins.winner === 'draw') result = 'draw';\n  else if (favExp < 0.55) result = 'toss_up';\n  else if ((ins.winner === 'p1') === favIsP1) result = 'favorite_win';\n  else result = ins.winnerExpectedScore < 0.35 ? 'upset' : 'underdog_win';\n  const elo = {}; elo[ins.p1.player.name] = ins.p1.ratingBefore; elo[ins.p2.player.name] = ins.p2.ratingBefore;\n  const overall = {}; overall[ins.p1.player.name] = ins.p1.teamOverall; overall[ins.p2.player.name] = ins.p2.teamOverall;\n  return {\n    matchup, favorite: fmt(fav.player.name, fav.team.name), favoriteExpected: Math.round(favExp * 1000) / 1000,\n    result, winnerExpectedScore: ins.winnerExpectedScore, kind: ins.kind, ratingSwing: ins.ratingSwing, elo, overall,\n  };\n};\n// Puntaje para ordenar los destacados: sorpresa (65%) y margen (35%), con peso por etapa.\nconst STAGE_WEIGHT = { playoff: 1.25, playin: 1.1, regular: 1 };\nconst highlightScore = (stage, margin, winnerExpected) => {\n  const surprise = typeof winnerExpected === 'number' ? 1 - winnerExpected : 0;\n  const m = Math.min(margin || 0, 6) / 6;\n  return Math.round(100 * (STAGE_WEIGHT[stage] || 1) * (0.65 * surprise + 0.35 * m));\n};\n\nconst byTime = (list) => list.slice().sort((a, b) => a._t - b._t).map(({ _t, ...rest }) => rest);\n\nconst tournaments = [];\nconst tournamentContext = [];\nconst allMatches = [];\n\nfor (const t of d.tournaments || []) {\n  const raw = rawById.get(String(t.tournamentId)) || {};\n  const ctx = ctxById.get(String(t.tournamentId));\n  const bracket = raw.bracket || [];\n  const insights = raw.matchInsights || [];\n  const insByTime = new Map(insights.map((i) => [Date.parse(i.playedAt), i]));\n  const roundOf = (playoffId) => { const b = bracket.find((x) => x.playoffId === playoffId); return b ? roundLabel(b.round) : undefined; };\n\n  // 1) Partidos jugados (válidos) en el orden en que se jugaron, con cuotas previas\n  const sorted = t.matches.slice().sort((a, b) => String(a.time).localeCompare(String(b.time)));\n  const matches = sorted.map((m, i) => {\n    const o = { order: i + 1, stage: m.stage };\n    if (m.playoffId != null) o.round = roundOf(m.playoffId);\n    if (m.seeds) o.seeds = m.seeds;\n    if (m.leg != null) o.leg = m.leg;\n    o.home = m.home; o.away = m.away; o.score = m.score; o.margin = m.margin;\n    const ins = insByTime.get(Date.parse(m.time));\n    if (ins) o.odds = oddsOf(ins);\n    o.highlightScore = highlightScore(m.stage, m.margin, ins ? ins.winnerExpectedScore : null);\n    allMatches.push({ tournament: t.tournament, order: o.order, text: m.home + ' ' + m.score + ' ' + m.away, score: o.highlightScore });\n    return o;\n  });\n  const maxMargin = Math.max(0, ...matches.map((m) => m.margin || 0));\n\n  // 2) Cruces del bracket que tuvieron algo ese día (partidos jugados, W.O., elecciones, desempates)\n  const playoffSeries = [];\n  const advancedWithoutPlaying = [];\n  const teamNameById = new Map();\n  for (const b of bracket) for (const x of b.matches) {\n    if (x.teamP1 && x.teamP1.id != null) teamNameById.set(String(x.teamP1.id), nm(x.teamP1));\n    if (x.teamP2 && x.teamP2.id != null) teamNameById.set(String(x.teamP2.id), nm(x.teamP2));\n  }\n  for (const b of bracket) {\n    const legs = b.matches.filter((x) => x.played).map(flat);\n    if (!legs.some(inDay)) continue;\n    const round = roundLabel(b.round);\n    const firstInDay = Math.min(...legs.filter(inDay).map((x) => ms(x.playedAt)));\n\n    if (!b.series) {\n      // Partido único: solo interesa si se resolvió sin jugarse\n      for (const m of legs.filter((x) => inDay(x) && !x.valid)) {\n        advancedWithoutPlaying.push({\n          _t: firstInDay, round, seeds: m.seed1 + ' vs ' + m.seed2,\n          advancing: fmt(m.winnerPlayer, m.winnerTeam), eliminated: fmt(m.loserPlayer, m.loserTeam),\n          decidedBy: resolvedBy(m),\n        });\n      }\n      continue;\n    }\n\n    // Ida y vuelta, visto al cierre del día\n    const asOf = legs.filter((x) => !afterDay(x)).sort((p, q) => p.leg - q.leg);\n    const later = legs.filter(afterDay);\n    const invalid = asOf.filter((x) => !x.valid).sort((p, q) => q.leg - p.leg)[0];\n    const agg = {};\n    for (const l of asOf) if (l.valid && l.leg <= 2) { agg[l.t1] = (agg[l.t1] || 0) + l.s1; agg[l.t2] = (agg[l.t2] || 0) + l.s2; }\n    const aggregate = Object.keys(agg).map((team) => ({ team, score: agg[team] }));\n    let status; let winner = null; let decidedBy = null;\n    if (invalid) {\n      status = 'decided'; winner = invalid.winnerTeam; decidedBy = resolvedBy(invalid);\n    } else if (later.length) {\n      const has = (n) => asOf.some((l) => l.leg === n);\n      status = has(1) && has(2) ? 'level_after_two_legs_tiebreak_pending' : 'awaiting_leg2';\n    } else {\n      status = b.series.status;\n      winner = b.series.winnerTeamId != null ? (teamNameById.get(String(b.series.winnerTeamId)) || null) : null;\n    }\n    const first = legs.find((x) => x.leg === 1) || legs[0];\n    playoffSeries.push({\n      _t: firstInDay, round, seeds: first.seed1 + ' vs ' + first.seed2, status, winner, decidedBy, aggregate,\n      legs: asOf.map((l) => l.valid\n        ? { leg: l.leg, playedOnRecapDate: inDay(l), result: fmt(l.p1, l.t1) + ' ' + l.s1 + ' - ' + l.s2 + ' ' + fmt(l.p2, l.t2) }\n        : { leg: l.leg, playedOnRecapDate: inDay(l), notPlayed: true, resolvedBy: resolvedBy(l) }),\n    });\n  }\n\n  tournaments.push({\n    tournament: t.tournament,\n    matchCount: t.matchCount,\n    matchesByStage: t.matchesByStage,\n    matches,\n    biggestMarginOrders: matches.filter((m) => m.margin === maxMargin && maxMargin > 0).map((m) => m.order),\n    // Ordenados por cuándo pasó algo ese día (como los partidos)\n    playoffSeries: byTime(playoffSeries),\n    advancedWithoutPlaying: byTime(advancedWithoutPlaying),\n    playerTable: t.playerTable,\n  });\n\n  // 3) Contexto de reglas y tablas (solo lo que se usa en \"Qué significa\")\n  if (!ctx) continue;\n  const regular = t.matches.filter((m) => m.stage === 'regular');\n  const hasPlayoff = t.matches.some((m) => m.stage === 'playoff') || playoffSeries.length > 0 || advancedWithoutPlaying.length > 0;\n  const rules = { description: ctx.rules && ctx.rules.description };\n  if (hasPlayoff && ctx.rules) rules.knockout = ctx.rules.knockout;\n  if (regular.length && ctx.rules) {\n    rules.tableTiebreak = ctx.rules.tableTiebreak;\n    if (ctx.rules.qualification) rules.qualification = { perGroup: ctx.rules.qualification.perGroup, bestThirds: ctx.rules.qualification.bestThirds };\n  }\n  const entry = { tournament: t.tournament, rules };\n  if (regular.length && (ctx.standings || []).length) {\n    const played = new Set();\n    for (const m of regular) for (const s of [m.home, m.away]) { const [player, team] = splitName(s); played.add(player + '|' + team); }\n    entry.standings = ctx.standings\n      .filter((g) => g.teams.some((x) => played.has(x.player + '|' + x.team)))\n      .map((g) => ({\n        group: g.group, groupComplete: g.groupComplete,\n        teams: g.teams.map((x) => ({\n          position: x.position, previousPosition: x.previousPosition, team: x.team, player: x.player,\n          points: x.points, goalDifference: x.goalsFor - x.goalsAgainst, played: x.played,\n          remainingMatches: x.remainingMatches, maxPossiblePoints: x.maxPossiblePoints, positionLocked: x.positionLocked,\n          playedThatDay: played.has(x.player + '|' + x.team),\n        })),\n      }));\n  }\n  if ((ctx.playin || []).length) entry.playin = ctx.playin;\n  tournamentContext.push(entry);\n}\n\n// Los 3 partidos más destacados del día (todos los torneos)\nconst topHighlights = allMatches.slice().sort((a, b) => b.score - a.score).slice(0, 3)\n  .map((m, i) => ({ rank: i + 1, tournament: m.tournament, order: m.order, match: m.text, highlightScore: m.score }));\n\n// --- Rachas, forma, mano a mano y ranking (igual que antes) ---\nconst streakEvents = [];\nconst grouped = new Map();\nfor (const e of d.streakEvents || []) {\n  if (e.event === 'ACTIVE_STREAK_EXTENDED') {\n    const k = e.player + '|' + e.length + '|' + e.startedThatDay;\n    if (!grouped.has(k)) {\n      const g = { event: e.event, player: e.player, length: e.length, startedThatDay: e.startedThatDay, streakTypes: [] };\n      grouped.set(k, g); streakEvents.push(g);\n    }\n    grouped.get(k).streakTypes.push(e.streakType);\n  } else {\n    const { note, lastMatch, ...rest } = e;\n    const lm = lastMatch;\n    streakEvents.push(Object.assign({}, rest, lm ? { lastMatch: lm.tournament + ' (' + lm.stage + '): ' + e.player + ' (' + lm.team + ') ' + lm.score + ' ' + lm.opponent + ' (' + lm.opponentTeam + '), ' + lm.result } : {}));\n  }\n}\nconst playersForm = (d.playersForm || []).map((p) => ({ player: p.player, currentStreak: p.currentStreak, last10Outcomes: p.last10Outcomes }));\nconst headToHead = (d.headToHead || []).map((h) => {\n  const o = {\n    playerA: h.playerA, playerB: h.playerB,\n    allTimeAfterToday: { winsByPlayer: h.allTimeAfterToday.winsByPlayer, draws: h.allTimeAfterToday.draws },\n    allTimeBeforeToday: { winsByPlayer: h.allTimeBeforeToday.winsByPlayer, draws: h.allTimeBeforeToday.draws },\n    leadChanged: h.leadChanged,\n  };\n  if (h.leadChanged) { o.leaderBefore = h.leaderBefore; o.leaderAfter = h.leaderAfter; }\n  if (h.newBestWin) o.newBestWin = h.newBestWin;\n  if (h.newPersonalBestWins && h.newPersonalBestWins.length) o.newPersonalBestWins = h.newPersonalBestWins;\n  return o;\n});\nconst ratings = (d.ratings || []).map((r) => ({ position: r.position, positionBefore: r.positionBefore, player: r.player, rating: r.rating, atPeak: r.atPeak, provisional: r.provisional }));\n\nreturn [{ json: { date: d.date, matchCount: d.matchCount, tournamentCount: d.tournamentCount, elo: d.elo, topHighlights, tournaments, tournamentContext, streakEvents, playersForm, headToHead, ratings } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        608,
+        -192
+      ],
+      "id": "69a64d0e-d951-423f-a22f-0692a4c052e3",
+      "name": "Cleanup for agent"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily Check": {
+      "main": [
+        [
+          {
+            "node": "Fetch Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Matches": {
+      "main": [
+        [
+          {
+            "node": "Compute Day Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Day Stats": {
+      "main": [
+        [
+          {
+            "node": "Fetch Statistics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Statistics": {
+      "main": [
+        [
+          {
+            "node": "Compute Streak Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Streak Events": {
+      "main": [
+        [
+          {
+            "node": "Fetch Tournament Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Tournament Context": {
+      "main": [
+        [
+          {
+            "node": "Add Tournament Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Tournament Context": {
+      "main": [
+        [
+          {
+            "node": "Fetch Face To Face",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Face To Face": {
+      "main": [
+        [
+          {
+            "node": "Compute Head To Head",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Head To Head": {
+      "main": [
+        [
+          {
+            "node": "Fetch Ratings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Ratings": {
+      "main": [
+        [
+          {
+            "node": "Add Ratings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Ratings": {
+      "main": [
+        [
+          {
+            "node": "Cleanup for agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Recap": {
+      "main": [
+        [
+          {
+            "node": "Prepare Recap Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Sonnet": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Write Recap",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Recap Document": {
+      "main": [
+        [
+          {
+            "node": "Save Recap in Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cleanup for agent": {
+      "main": [
+        [
+          {
+            "node": "Write Recap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "7f4a518d-dcec-40a4-9803-e075a9ea24ce",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "68bec038c0b2626058e9d61643920feee1e7dcc9f1900ff7abe0568501237581"
+  },
+  "nodeGroups": [
+    {
+      "id": "16a8781a-f6db-4166-9542-351aadd2d33d",
+      "name": "Gather day data",
+      "nodeIds": [
+        "571127b3-6d33-4e68-9664-d784744c1b92",
+        "46328395-42b5-47b2-86e7-21d8a6a538bd",
+        "f3e398e8-e369-44df-8398-94f9b3432ee9",
+        "989ad99e-8f3f-4202-9cc2-bc770bdf6813",
+        "cf658998-8d9e-4faa-b026-60398a6c8d8a",
+        "dc4c098c-ee07-49e0-8183-ac6f7689b90d",
+        "e5555318-b7c9-4ee1-b803-66aa3c7ae092",
+        "edc2e7c0-9952-4412-a495-3b6ea1de020f",
+        "72dcf5d6-e38f-46f0-9733-296fc6d1af32",
+        "754d77a4-0064-4ef4-9a32-c4f9f0d7d4e0"
+      ],
+      "description": "Runs daily, pulls the previous day matches and global stats, and works out results, streaks, player form and head to heads"
+    },
+    {
+      "id": "0034d072-32bd-4c8b-9a9d-e99a5acef9d1",
+      "name": "Store recap",
+      "nodeIds": [
+        "8b119604-fe80-40e6-9dfa-96ad49747e0f",
+        "2a78ea95-6455-41df-a3ed-13aa38e7fe92"
+      ],
+      "description": "Packs the finished recap with per-tournament counts and saves it in the web app backend for the home page"
+    }
+  ],
+  "id": "PXJ2cKEtH2zvjUoI",
+  "tags": []
+}

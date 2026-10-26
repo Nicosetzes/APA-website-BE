@@ -122,6 +122,13 @@ const FIELD_LABELS = {
     "generation.drawModelVersion": ["la versión del modelo de empate", "f"],
     "generation.contextHash": ["el hash del contexto", "m"],
 
+    // Lecturas del asistente
+    playerId: ["el jugador", "m"],
+    playerA: ["el jugador A", "m"],
+    playerB: ["el jugador B", "m"],
+    scope: ["el alcance", "m"],
+    stage: ["la etapa", "f"],
+
     matches: ["el parámetro matches", "m"],
     status: ["el estado", "m"],
     legacy: ["el parámetro legacy", "m"],

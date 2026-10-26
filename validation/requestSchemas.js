@@ -5,6 +5,13 @@ const {
     DEFAULT_PENDING_LIMIT,
     MAX_PENDING_LIMIT,
 } = require("../config/tournamentRecap")
+const {
+    DEFAULT_HEAD_TO_HEAD_LIMIT: DEFAULT_ASSISTANT_HEAD_TO_HEAD_LIMIT,
+    DEFAULT_PENDING_LIMIT: DEFAULT_ASSISTANT_PENDING_LIMIT,
+    MAX_ASSISTANT_PLAYERS,
+    PENDING_SCOPES,
+    PENDING_STAGES,
+} = require("../config/assistant")
 const { assertDirectPlayoffGeometry } = require("../service/playoffSeries")
 
 const emptyObject = Joi.object({}).unknown(false)
@@ -198,6 +205,16 @@ const fixturePlayersQuery = idListQuery(fixturePlayerIds, 500)
 
 const calculatorTeamsQuery = idListQuery(calculatorTeamIds, 1000)
 
+const assistantPlayerId = Joi.string().trim().min(1).max(100)
+
+// Ids de jugador repetibles en query (`?players=a&players=b`); un solo valor
+// llega como texto y `single()` lo envuelve.
+const assistantPlayerIds = Joi.array()
+    .items(Joi.string().trim().min(1).max(100))
+    .single()
+    .max(MAX_ASSISTANT_PLAYERS)
+    .unique()
+
 const stageCount = Joi.number().integer().min(0).max(10000)
 
 const calendarDate = Joi.string()
@@ -303,6 +320,59 @@ module.exports = {
             .messages({
                 "date.range": "La fecha hasta es anterior a la desde",
             }),
+        body: emptyObject,
+    },
+    getAssistantHeadToHead: {
+        params: emptyObject,
+        query: Joi.object({
+            playerA: assistantPlayerId.required(),
+            // Dos jugadores distintos: contra uno mismo no hay cara a cara.
+            playerB: assistantPlayerId.invalid(Joi.ref("playerA")).required(),
+            // Acota el cruce a una etapa ("en playoffs") o a un torneo.
+            stage: Joi.string()
+                .valid(...PENDING_STAGES)
+                .optional(),
+            tournamentId: mongoId.optional(),
+            // Un límite mayor al máximo no es error: el servicio lo ajusta.
+            limit: Joi.number()
+                .integer()
+                .min(1)
+                .default(DEFAULT_ASSISTANT_HEAD_TO_HEAD_LIMIT),
+        }).unknown(false),
+        body: emptyObject,
+    },
+    getAssistantStandings: {
+        params: emptyObject,
+        query: Joi.object({
+            tournamentId: mongoId.required(),
+            group: group.optional(),
+            // Solo las filas de ese jugador, con su posición real en el grupo.
+            playerId: assistantPlayerId.optional(),
+        }).unknown(false),
+        body: emptyObject,
+    },
+    getAssistantPendingMatches: {
+        params: emptyObject,
+        query: Joi.object({
+            // `among` sin jugadores no tiene sentido: hay que decir entre quiénes.
+            players: Joi.when("scope", {
+                is: "among",
+                then: assistantPlayerIds.min(1).required(),
+                otherwise: assistantPlayerIds.optional(),
+            }),
+            scope: Joi.string()
+                .valid(...PENDING_SCOPES)
+                .default("involving"),
+            tournamentId: mongoId.optional(),
+            stage: Joi.string()
+                .valid(...PENDING_STAGES)
+                .optional(),
+            // Un límite mayor al máximo no es error: el servicio lo ajusta.
+            limit: Joi.number()
+                .integer()
+                .min(1)
+                .default(DEFAULT_ASSISTANT_PENDING_LIMIT),
+        }).unknown(false),
         body: emptyObject,
     },
     getRecapContext: {
