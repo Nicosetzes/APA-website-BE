@@ -385,7 +385,7 @@ const CHECKS = {
     },
 
     scopeDecline: ({ reply }) =>
-        /(solo|solamente) (puedo|te puedo) ayudar|ayudarte con|tiene que ver con apa|relacionad[oa]s? con apa|no puedo ayudar con eso/.test(
+        /(solo|solamente) (puedo|te puedo) ayudar|(solo|solamente) ayudo (con|en)|ayudo (solo|solamente) (con|en)|ayudarte con|tiene que ver con apa|relacionad[oa]s? con apa|no puedo ayudar con eso/.test(
             normalize(reply)
         )
             ? ok("se mantuvo en su tema")

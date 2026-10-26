@@ -46,7 +46,12 @@ const RECAP_SECRET_CREDENTIAL = {
 
 const readPrompt = () =>
     PROMPT_PARTS.map((file) =>
-        fs.readFileSync(path.join(N8N_DIR, file), "utf8").trim()
+        // Con core.autocrlf (Windows) los .md se bajan con CRLF: se normaliza
+        // para que el JSON sea el mismo en cualquier máquina y en el CI.
+        fs
+            .readFileSync(path.join(N8N_DIR, file), "utf8")
+            .replace(/\r\n/g, "\n")
+            .trim()
     ).join("\n\n")
 
 const buildSystemMessage = (prompt) =>

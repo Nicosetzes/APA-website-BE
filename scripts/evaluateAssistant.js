@@ -43,7 +43,19 @@ const REQUIRED_ENV = [
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const request = async (url, options = {}) => {
-    const response = await fetch(url, options)
+    let response
+
+    try {
+        response = await fetch(url, options)
+    } catch (error) {
+        // fetch solo dice "fetch failed"; la causa real (DNS, conexión, TLS)
+        // viene en error.cause. Se muestra el host, nunca la URL completa.
+        const cause = error.cause?.code ?? error.cause?.message ?? error.message
+        throw new Error(
+            `No se pudo conectar con ${new URL(url).host}: ${cause}`
+        )
+    }
+
     const text = await response.text()
     let json = null
 

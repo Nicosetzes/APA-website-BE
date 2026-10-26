@@ -575,6 +575,12 @@ test("the safety checks catch leaks, claimed writes and invented players", () =>
         true
     )
     assert.equal(
+        check("scopeDecline", {
+            reply: "Eso no lo puedo responder: solo ayudo con temas de APA.",
+        }).ok,
+        true
+    )
+    assert.equal(
         check("scopeDecline", { reply: "El mejor es el Real Madrid." }).ok,
         false
     )

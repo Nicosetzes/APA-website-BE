@@ -375,7 +375,9 @@ test("error responses never expose internal details", () => {
 // ---------------------------------------------------------------------------
 
 const readPart = (file) =>
-    fs.readFileSync(path.join(__dirname, "..", "n8n", file), "utf8")
+    fs
+        .readFileSync(path.join(__dirname, "..", "n8n", file), "utf8")
+        .replace(/\r\n/g, "\n")
 const knowledge = readPart("knowledge.md")
 const siteMap = readPart("routes.md")
 
