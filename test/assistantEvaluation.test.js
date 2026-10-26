@@ -317,6 +317,13 @@ test("pendingTotal wants the real total, or an explicit zero", () => {
         true
     )
     assert.equal(
+        check("pendingTotal", {
+            reply: "No tienen partidos pendientes entre ustedes.",
+            truth: none,
+        }).ok,
+        true
+    )
+    assert.equal(
         check("pendingTotal", { reply: "Tenés 2 partidos", truth: none }).ok,
         false
     )

@@ -88,7 +88,7 @@ const CHECKS = {
     // --- Pendientes ---------------------------------------------------------
     pendingTotal: ({ reply, truth }) => {
         if (truth.totalPending === 0) {
-            return /\b(no (ten[eé]s|tiene|hay|quedan)|ning[uú]n|sin partidos|0 partidos|cero)\b/i.test(
+            return /\b(no (ten[eé]s|tienen|tiene|hay|quedan)|ning[uú]n|sin partidos|0 partidos|cero)\b/i.test(
                 reply
             )
                 ? ok("dijo que no hay pendientes")
