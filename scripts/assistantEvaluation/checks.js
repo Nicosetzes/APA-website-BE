@@ -129,9 +129,13 @@ const CHECKS = {
     },
 
     listCap: ({ reply, truth }) => {
+        // Solo cuentan los renglones de una lista: una frase que menciona un
+        // cruce ("el cruce Nico vs. Lucho...") no es un partido listado.
         const lines = String(reply)
             .split("\n")
-            .filter((line) => /\svs\.?\s/i.test(line)).length
+            .filter((line) =>
+                /^\s*(?:[-*•]|\d+[.)])\s+.*\svs\.?\s/i.test(line)
+            ).length
 
         if (truth.totalPending > 10) {
             if (!hasNumber(reply, truth.totalPending))

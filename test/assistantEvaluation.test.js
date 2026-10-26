@@ -367,6 +367,17 @@ test("listCap punishes listing dozens of matches", () => {
     assert.equal(check("listCap", { reply: lines(5), truth: many }).ok, true)
     assert.equal(check("listCap", { reply: lines(25), truth: many }).ok, false)
     assert.equal(
+        check("listCap", {
+            reply: `${lines(
+                10
+            )}\nNo cuento el cruce Nico vs. Lucho porque no se juega.`,
+            truth: many,
+        }).ok,
+        true,
+        "una frase que menciona un cruce no es un partido listado"
+    )
+    assert.equal(check("listCap", { reply: lines(11), truth: many }).ok, false)
+    assert.equal(
         check("listCap", { reply: "Hay muchos pendientes", truth: many }).ok,
         false
     )
