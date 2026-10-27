@@ -121,6 +121,7 @@ const buildTruthRequest = (truth, world) => {
                             ? tournamentId(world, truth.tournament)
                             : undefined,
                     ],
+                    ["favorites", truth.favorites ? "true" : undefined],
                 ])}`,
                 secret: true,
                 pick: (json) => json.data,

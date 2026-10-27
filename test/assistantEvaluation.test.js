@@ -52,7 +52,7 @@ const world = buildWorld({
 test("the battery is about two dozen questions with unique ids", () => {
     const ids = QUESTIONS.map(({ id }) => id)
 
-    assert.ok(QUESTIONS.length >= 20 && QUESTIONS.length <= 32)
+    assert.ok(QUESTIONS.length >= 20 && QUESTIONS.length <= 33)
     assert.equal(new Set(ids).size, ids.length)
 })
 
@@ -226,6 +226,10 @@ test("the truth requests ask the backend exactly what the question is about", ()
     assert.equal(
         request("pend-todos").path,
         "/assistant/pending-matches?scope=involving"
+    )
+    assert.equal(
+        request("pend-otro-cuantos-cuales").path,
+        "/assistant/pending-matches?scope=involving&players=u-leo"
     )
     assert.equal(
         request("grupo-3").path,
@@ -968,12 +972,100 @@ test("the favorites questions: a two-message follow-up and a group one, both aga
     assert.match(resolveQuestion(group, empty).skipped, /falta x/)
     assert.match(
         buildTruthRequest(own.truth, world).path,
-        /^\/assistant\/pending-matches\?scope=involving&players=u-nico$/
+        /^\/assistant\/pending-matches\?scope=involving&players=u-nico&favorites=true$/
     )
     assert.match(
         buildTruthRequest(group.truth, world).path,
-        /scope=among&players=u-nico&players=u-leo/
+        /scope=among&players=u-nico&players=u-leo&favorites=true$/
     )
+})
+test("only the favorites questions ask the truth with favorites=true", () => {
+    for (const id of [
+        "pend-propios",
+        "pend-propios-cantidad",
+        "pend-propios-torneo",
+        "pend-otro",
+        "pend-otro-cuantos-cuales",
+        "pend-todos",
+        "grupo-3",
+        "memoria-seguimiento",
+    ]) {
+        const { truth } = QUESTIONS.find((question) => question.id === id)
+
+        assert.doesNotMatch(
+            buildTruthRequest(truth, world).path,
+            /favorites/,
+            id
+        )
+    }
+})
+test("the count questions run the no-list check and the plain pending ones the no-favorites check", () => {
+    const checksOf = (id) =>
+        QUESTIONS.find((question) => question.id === id).checks.map((spec) =>
+            Array.isArray(spec) ? spec[0] : spec
+        )
+    for (const id of ["pend-propios-cantidad", "pend-todos"]) {
+        assert.ok(checksOf(id).includes("noMatchList"), id)
+        assert.ok(checksOf(id).includes("pendingTotal"), id)
+    }
+    for (const id of [
+        "pend-propios",
+        "pend-propios-cantidad",
+        "pend-propios-torneo",
+        "pend-otro",
+        "pend-otro-cuantos-cuales",
+        "pend-todos",
+        "grupo-2",
+        "grupo-3",
+        "grupo-4",
+        "memoria-seguimiento",
+    ]) {
+        assert.ok(checksOf(id).includes("noUnrequestedFavorites"), id)
+    }
+    for (const id of ["fav-pendientes", "fav-grupo"])
+        assert.ok(!checksOf(id).includes("noUnrequestedFavorites"), id)
+})
+test("the count-then-list question asks how many and then which ones, about another player", () => {
+    const question = QUESTIONS.find(
+        ({ id }) => id === "pend-otro-cuantos-cuales"
+    )
+    assert.deepEqual(resolveQuestion(question, world).turns, [
+        "¿Cuántos partidos tiene Leo pendientes?",
+        "¿Cuáles son?",
+    ])
+    assert.equal(question.category, "pendientes de otro jugador")
+})
+test("noMatchList accepts a count with a breakdown and the offer to list, and rejects a list", () => {
+    for (const reply of [
+        "Tenés 11 partidos pendientes:\n- Copa Afinidades 2026: 7 ([ver](/tournaments/bbbbbbbbbbbbbbbbbbbbbbbb/playoffs))\n- Supercopa APA 2026: 4\n¿Querés que te diga cuáles son?",
+        "Tenés 3 partidos. Uno es el cruce Nico vs. Lucho de la Copa.",
+    ])
+        assert.equal(check("noMatchList", { reply }).ok, true, reply)
+    for (const reply of [
+        "Tenés 2:\n- Nico (Paraguay) vs Lucho (England), ida\n- Max (Spain) vs Nico (Denmark), vuelta",
+        "1. Nico vs. Lucho\n2. Max vs Nico",
+    ])
+        assert.equal(check("noMatchList", { reply }).ok, false, reply)
+})
+test("noUnrequestedFavorites tolerates the offer and other percentages, and rejects favorites nobody asked for", () => {
+    for (const reply of [
+        "Tenés 2 partidos:\n- Nico vs Lucho, ida\n- Max vs Nico, vuelta\n¿Querés que te cuente quién es favorito en cada duelo?",
+        "El 40% de tus pendientes son de la Copa.",
+        "Tenés 11 partidos pendientes.",
+    ])
+        assert.equal(check("noUnrequestedFavorites", { reply }).ok, true, reply)
+    for (const reply of [
+        "Según el modelo, sos favorito en:\nNico (Czech Republic) vs Lucho, vuelta: gran favorito (80%)",
+        "Max es favorito (49%)",
+        "Max es levemente favorito en ese duelo.",
+        "Según el modelo, la Copa pesa 40% de tus partidos.",
+        "Tenés 11 partidos.\n- Nico vs Lucho: 69 por ciento de probabilidad",
+    ])
+        assert.equal(
+            check("noUnrequestedFavorites", { reply }).ok,
+            false,
+            reply
+        )
 })
 test("percentsIn reads 54%, 54 %, 54,3 % and 54 por ciento as 54", () => {
     const { percentsIn } = require("../scripts/assistantEvaluation/checks")

@@ -14,8 +14,9 @@
  * informa. `turns` permite una conversación de varios mensajes: se evalúa la
  * última respuesta.
  *
- * Todas las preguntas juntas son 34 mensajes (la de memoria y la de favoritos
- * tienen dos), por debajo del tope de 40 por hora del asistente.
+ * Todas las preguntas juntas son 36 mensajes (la de memoria, la de favoritos y
+ * la de cantidad y seguimiento tienen dos), por debajo del tope de 40 por hora
+ * del asistente.
  */
 
 const NO_ID_CHECKS = ["noIds", "routesKnown"]
@@ -32,6 +33,7 @@ const QUESTIONS = [
             "pendingNames",
             "listCap",
             "viewLinks",
+            "noUnrequestedFavorites",
             ["maxWords", 260],
             ...NO_ID_CHECKS,
         ],
@@ -41,7 +43,13 @@ const QUESTIONS = [
         category: "pendientes propios",
         text: "¿Cuántos partidos me quedan por jugar en total?",
         truth: { kind: "pending", scope: "involving", players: ["me"] },
-        checks: ["pendingTotal", ["maxWords", 120], ...NO_ID_CHECKS],
+        checks: [
+            "pendingTotal",
+            "noMatchList",
+            "noUnrequestedFavorites",
+            ["maxWords", 120],
+            ...NO_ID_CHECKS,
+        ],
     },
     {
         id: "pend-propios-torneo",
@@ -59,6 +67,7 @@ const QUESTIONS = [
             "pendingNames",
             "listCap",
             "viewLinks",
+            "noUnrequestedFavorites",
             ...NO_ID_CHECKS,
         ],
     },
@@ -75,6 +84,24 @@ const QUESTIONS = [
             "pendingNames",
             "listCap",
             "viewLinks",
+            "noUnrequestedFavorites",
+            ...NO_ID_CHECKS,
+        ],
+    },
+    {
+        // Se evalúa la última respuesta: al pedir "cuáles son" tiene que volver
+        // a consultar sin el resumen y listar los partidos.
+        id: "pend-otro-cuantos-cuales",
+        category: "pendientes de otro jugador",
+        turns: ["¿Cuántos partidos tiene {x} pendientes?", "¿Cuáles son?"],
+        needs: ["x"],
+        truth: { kind: "pending", scope: "involving", players: ["x"] },
+        checks: [
+            "pendingTotal",
+            "pendingNames",
+            "listCap",
+            "viewLinks",
+            "noUnrequestedFavorites",
             ...NO_ID_CHECKS,
         ],
     },
@@ -83,7 +110,12 @@ const QUESTIONS = [
         category: "pendientes de otro jugador",
         text: "¿Cuántos partidos pendientes hay en total entre todos los jugadores?",
         truth: { kind: "pending", scope: "involving", players: [] },
-        checks: ["pendingTotal", ...NO_ID_CHECKS],
+        checks: [
+            "pendingTotal",
+            "noMatchList",
+            "noUnrequestedFavorites",
+            ...NO_ID_CHECKS,
+        ],
     },
 
     // --- Partidos jugables entre un grupo -------------------------------------
@@ -102,6 +134,7 @@ const QUESTIONS = [
             "pendingNames",
             "listCap",
             "viewLinks",
+            "noUnrequestedFavorites",
             ...NO_ID_CHECKS,
         ],
     },
@@ -111,7 +144,13 @@ const QUESTIONS = [
         text: "Estamos {x} y yo, ¿qué partidos hay entre nosotros?",
         needs: ["x"],
         truth: { kind: "pending", scope: "among", players: ["me", "x"] },
-        checks: ["pendingTotal", "pendingNames", "viewLinks", ...NO_ID_CHECKS],
+        checks: [
+            "pendingTotal",
+            "pendingNames",
+            "viewLinks",
+            "noUnrequestedFavorites",
+            ...NO_ID_CHECKS,
+        ],
     },
     {
         id: "grupo-4",
@@ -123,7 +162,13 @@ const QUESTIONS = [
             scope: "among",
             players: ["me", "x", "y", "z"],
         },
-        checks: ["pendingTotal", "listCap", "viewLinks", ...NO_ID_CHECKS],
+        checks: [
+            "pendingTotal",
+            "listCap",
+            "viewLinks",
+            "noUnrequestedFavorites",
+            ...NO_ID_CHECKS,
+        ],
     },
 
     // --- Historial entre jugadores -------------------------------------------
@@ -314,7 +359,12 @@ const QUESTIONS = [
             "¿Qué partidos tengo pendientes?",
             "¿Soy favorito en alguno de esos partidos?",
         ],
-        truth: { kind: "pending", scope: "involving", players: ["me"] },
+        truth: {
+            kind: "pending",
+            scope: "involving",
+            players: ["me"],
+            favorites: true,
+        },
         checks: [
             "favoriteFigures",
             ["favoriteMentioned", "me"],
@@ -328,7 +378,12 @@ const QUESTIONS = [
         category: "favoritos",
         text: "{x} y yo queremos jugar. De los partidos que tenemos pendientes entre nosotros, ¿quién es favorito en cada uno?",
         needs: ["x"],
-        truth: { kind: "pending", scope: "among", players: ["me", "x"] },
+        truth: {
+            kind: "pending",
+            scope: "among",
+            players: ["me", "x"],
+            favorites: true,
+        },
         checks: [
             "favoriteFigures",
             ["favoriteMentioned", "any"],
@@ -349,7 +404,12 @@ const QUESTIONS = [
             players: ["me"],
             tournament: "active",
         },
-        checks: ["pendingTotal", "listCap", ...NO_ID_CHECKS],
+        checks: [
+            "pendingTotal",
+            "listCap",
+            "noUnrequestedFavorites",
+            ...NO_ID_CHECKS,
+        ],
     },
 
     // --- Límites y seguridad (todas críticas) ------------------------------------

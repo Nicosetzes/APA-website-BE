@@ -577,7 +577,7 @@ const createStoredReader = (calls = []) =>
 const callRoute = async ({
     matches,
     tournaments = [league, cup, twoLegged, champions],
-    query = { scope: "involving" },
+    query = { scope: "involving", favorites: true },
     ...dependencies
 }) => {
     const logger = dependencies.logger ?? createLogger()
@@ -790,7 +790,7 @@ test("a decoration that throws never rejects the answer", async () => {
         logger: createLogger(),
     })
     const res = createResponse()
-    await handler({ query: { scope: "involving" } }, res)
+    await handler({ query: { scope: "involving", favorites: true } }, res)
     assert.equal(res.statusCode, 200)
     assert.equal(Object.hasOwn(res.body.data.matches[0], "favorite"), false)
 })
@@ -910,6 +910,123 @@ test("the answer never carries the draw, the rival's chance or ids of the model"
         }
     }
 })
+// ---------------------------------------------------------------------------
+// D2. Favoritos solo a pedido (favorites) y resumen (summaryOnly)
+// ---------------------------------------------------------------------------
+const spyController = async (query) => {
+    const seen = []
+    const handler = createGetAssistantPendingMatches({
+        retrieveAssistantPendingMatches: async (filters, injected) => {
+            seen.push({ filters, injected })
+            return { matches: [] }
+        },
+        logger: createLogger(),
+    })
+    const res = createResponse()
+    await handler({ query }, res)
+    return { seen: seen[0], res }
+}
+test("the controller hands addPredictions to the service only with favorites=true and without summaryOnly", async () => {
+    const cases = [
+        [{ scope: "involving" }, false],
+        [{ scope: "involving", favorites: false }, false],
+        [{ scope: "involving", favorites: false, summaryOnly: false }, false],
+        [{ scope: "involving", favorites: true }, true],
+        [{ scope: "involving", favorites: true, summaryOnly: false }, true],
+        [{ scope: "involving", favorites: true, summaryOnly: true }, false],
+        [{ scope: "involving", summaryOnly: true }, false],
+    ]
+    for (const [query, expected] of cases) {
+        const { seen, res } = await spyController(query)
+        assert.equal(
+            typeof seen.injected.addPredictions,
+            expected ? "function" : "undefined",
+            JSON.stringify(query)
+        )
+        assert.equal(res.statusCode, 200)
+    }
+})
+test("the controller passes summaryOnly to the service filters", async () => {
+    const summary = await spyController({
+        scope: "involving",
+        summaryOnly: true,
+    })
+    const detail = await spyController({ scope: "involving" })
+    assert.equal(summary.seen.filters.summaryOnly, true)
+    assert.notEqual(detail.seen.filters.summaryOnly, true)
+})
+test("without favorites the full chain reads no ratings and returns no favorite key", async () => {
+    const matches = [
+        mkMatch({ p1: NICO, p2: MAX, group: "A" }),
+        mkMatch({
+            tournament: cup,
+            type: "playoff",
+            playoff_id: 25,
+            p1: NICO,
+            p2: MAX,
+        }),
+    ]
+    const queries = [
+        { scope: "involving" },
+        { scope: "involving", favorites: false },
+        { scope: "involving", favorites: true, summaryOnly: true },
+    ]
+    for (const query of queries) {
+        const stored = counting(createStoredReader())
+        const retrieveAllMatches = counting(async () => HISTORY)
+        const { res, data } = await callRoute({
+            matches,
+            query,
+            retrieveStoredPredictionIndex: stored,
+            retrieveAllMatches,
+            readModelEnabled: () => true,
+        })
+        assert.equal(res.statusCode, 200)
+        assert.equal(stored.calls.length, 0, JSON.stringify(query))
+        assert.equal(retrieveAllMatches.calls.length, 0, JSON.stringify(query))
+        for (const item of data.matches)
+            assert.equal(Object.hasOwn(item, "favorite"), false)
+    }
+})
+test("with favorites=true the full chain reads the ratings and returns the favorite", async () => {
+    const matches = [mkMatch({ p1: NICO, p2: MAX, group: "A" })]
+    const stored = counting(createStoredReader())
+    const { data } = await callRoute({
+        matches,
+        query: { scope: "involving", favorites: true },
+        retrieveStoredPredictionIndex: stored,
+        readModelEnabled: () => true,
+    })
+    assert.equal(stored.calls.length, 1)
+    assert.equal(favoriteOf(data).player, "Nico")
+})
+test("the controller keeps the same answer shape with and without favorites, apart from the favorite key", async () => {
+    const matches = [
+        mkMatch({ p1: NICO, p2: MAX, group: "A" }),
+        mkMatch({ p1: LEO, p2: SANTI, group: "A" }),
+    ]
+    const plain = await callRoute({
+        matches,
+        query: { scope: "involving" },
+        retrieveStoredPredictionIndex: createStoredReader(),
+        readModelEnabled: () => true,
+    })
+    const withFavorites = await callRoute({
+        matches,
+        retrieveStoredPredictionIndex: createStoredReader(),
+        readModelEnabled: () => true,
+    })
+    const withoutFavorite = withFavorites.data.matches.map((item) => {
+        const copy = { ...item }
+        delete copy.favorite
+        return copy
+    })
+    assert.ok(withFavorites.data.matches.every((item) => "favorite" in item))
+    assert.deepEqual(plain.data, {
+        ...withFavorites.data,
+        matches: withoutFavorite,
+    })
+})
 test("the controller builds with defaults", () => {
     assert.equal(typeof createGetAssistantPendingMatches(), "function")
     assert.equal(
@@ -920,14 +1037,14 @@ test("the controller builds with defaults", () => {
 // ---------------------------------------------------------------------------
 // E. Tamaño de la respuesta
 // ---------------------------------------------------------------------------
-test("20 detailed matches with favorite stay far below the heavy-tool threshold", async () => {
+const twentyPendingMatches = () => {
     const pairs = [
         [NICO, MAX],
         [LEO, SANTI],
         [MAX, DANI],
         [SANTI, NICO],
     ]
-    const matches = Array.from({ length: 20 }, (_, position) => {
+    return Array.from({ length: 20 }, (_, position) => {
         const [p1, p2] = pairs[position % pairs.length]
         return position % 2
             ? mkMatch({
@@ -939,21 +1056,41 @@ test("20 detailed matches with favorite stay far below the heavy-tool threshold"
               })
             : mkMatch({ p1, p2, group: "A" })
     })
+}
+const addMixedPredictions = async ({ matches: sent, tournament }) =>
+    sent.map((match, position) => ({
+        ...match,
+        prediction:
+            position % 4 === 3
+                ? null
+                : String(tournament._id) === LEAGUE_ID
+                ? outcomes(0.62, { provisional: position === 0 })
+                : advance(0.18),
+    }))
+test("the summary-only answer is much smaller than the detailed one with favorites", async () => {
+    const matches = twentyPendingMatches()
+    const detailed = await runService(
+        { scope: "involving", limit: 20 },
+        { matches, addPredictions: addMixedPredictions }
+    )
+    const summary = await runService(
+        { scope: "involving", limit: 20, summaryOnly: true },
+        { matches, addPredictions: addMixedPredictions }
+    )
+    const sizeOf = (data) =>
+        estimateTokens(JSON.stringify({ success: true, data }))
+    assert.equal(summary.totalPending, 20)
+    assert.equal(summary.matches.length, 0)
+    assert.ok(
+        sizeOf(summary) < sizeOf(detailed) / 2,
+        `${sizeOf(summary)} vs ${sizeOf(detailed)} tokens`
+    )
+})
+test("20 detailed matches with favorite stay far below the heavy-tool threshold", async () => {
+    const matches = twentyPendingMatches()
     const result = await runService(
         { scope: "involving", limit: 20 },
-        {
-            matches,
-            addPredictions: async ({ matches: sent, tournament }) =>
-                sent.map((match, position) => ({
-                    ...match,
-                    prediction:
-                        position % 4 === 3
-                            ? null
-                            : String(tournament._id) === LEAGUE_ID
-                            ? outcomes(0.62, { provisional: position === 0 })
-                            : advance(0.18),
-                })),
-        }
+        { matches, addPredictions: addMixedPredictions }
     )
     assert.equal(result.matches.length, 20)
     const favorites = result.matches.map((item) => item.favorite)

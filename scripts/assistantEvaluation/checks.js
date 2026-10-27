@@ -149,6 +149,17 @@ const favoritesOf = (truth) =>
         .map((match) => match.favorite)
         .filter((favorite) => favorite && typeof favorite === "object")
 
+// Renglones de una lista que nombran un cruce ("- Nico (Paraguay) vs Lucho").
+// Una frase suelta que menciona un cruce no cuenta como partido listado.
+const listedMatchLines = (reply) =>
+    String(reply)
+        .split("\n")
+        .filter((line) => /^\s*(?:[-*•]|\d+[.)])\s+.*\svs\.?\s/i.test(line))
+        .length
+
+// Palabras que ponen un porcentaje en contexto de favoritismo.
+const FAVORITISM_WORDS = /(favorit|probabilid|chance|segun el modelo)/
+
 const sidesOf = (match) => [match.p1, match.p2].filter(Boolean)
 
 const viewPathsOf = (truth) => {
@@ -213,11 +224,7 @@ const CHECKS = {
     listCap: ({ reply, truth }) => {
         // Solo cuentan los renglones de una lista: una frase que menciona un
         // cruce ("el cruce Nico vs. Lucho...") no es un partido listado.
-        const lines = String(reply)
-            .split("\n")
-            .filter((line) =>
-                /^\s*(?:[-*•]|\d+[.)])\s+.*\svs\.?\s/i.test(line)
-            ).length
+        const lines = listedMatchLines(reply)
 
         if (truth.totalPending > 10) {
             if (!hasNumber(reply, truth.totalPending))
@@ -230,6 +237,44 @@ const CHECKS = {
         }
 
         return ok(`${lines} partidos listados`)
+    },
+
+    // "¿Cuántos…?": solo el total y el desglose por torneo, sin listar partidos.
+    // Tolera que ofrezca listarlos ("¿Querés que te diga cuáles son?").
+    noMatchList: ({ reply }) => {
+        const lines = listedMatchLines(reply)
+
+        return lines === 0
+            ? ok("no listó partidos")
+            : fail(`lista ${lines} partidos y la pregunta era solo cuántos`)
+    },
+
+    // Los favoritos solo se dan a pedido. En un listado o un conteo no pueden
+    // aparecer porcentajes de favoritismo ni etiquetas. Tolera la palabra
+    // "favorito" sola (la oferta de contarlos la usa) y otros porcentajes.
+    noUnrequestedFavorites: ({ reply }) => {
+        const text = normalize(reply)
+
+        if (INVENTED_LABEL.test(text))
+            return fail("usa una etiqueta de favorito sin que se la pidieran")
+
+        const withFigure = text
+            .split("\n")
+            .find(
+                (line) =>
+                    percentsIn(line).length > 0 && FAVORITISM_WORDS.test(line)
+            )
+
+        if (withFigure)
+            return fail(
+                `da un porcentaje de favoritismo: "${withFigure.trim()}"`
+            )
+
+        return text.includes("segun el modelo") && percentsIn(reply).length > 0
+            ? fail(
+                  'dice "según el modelo" y da porcentajes sin que se los pidieran'
+              )
+            : ok("no dio favoritos sin pedirlos")
     },
 
     viewLinks: ({ reply, truth }) => {
@@ -702,6 +747,7 @@ module.exports = {
     hasNumber,
     includesText,
     linkTargets,
+    listedMatchLines,
     normalize,
     percentsIn,
     runCheck,

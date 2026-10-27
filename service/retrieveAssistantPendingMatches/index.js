@@ -124,6 +124,7 @@ const buildPendingMatchesResponse = ({
     scope,
     playerIds,
     limit,
+    summaryOnly = false,
     now,
 }) => {
     const playerSet = new Set(playerIds)
@@ -212,7 +213,8 @@ const buildPendingMatchesResponse = ({
         .map((tournament) => perTournament.get(String(tournament._id)))
         .filter(Boolean)
 
-    const shown = playable.slice(0, limit)
+    // `summaryOnly` corta el detalle en 0: los totales siguen siendo los reales.
+    const shown = playable.slice(0, summaryOnly ? 0 : limit)
     const remaining = playable.length - shown.length
 
     return {
@@ -226,15 +228,17 @@ const buildPendingMatchesResponse = ({
         truncated: remaining > 0,
         awaitingOpponent: {
             count: awaiting.length,
-            matches: awaiting
-                .slice(0, MAX_AWAITING_OPPONENT_ITEMS)
-                .map(toAwaitingItem),
+            matches: summaryOnly
+                ? []
+                : awaiting
+                      .slice(0, MAX_AWAITING_OPPONENT_ITEMS)
+                      .map(toAwaitingItem),
         },
         excluded: { sameOwnerTies },
     }
 }
 
-const buildNotes = ({ response, unknownPlayers, extra }) => {
+const buildNotes = ({ response, unknownPlayers, extra, summaryOnly }) => {
     const notes = [...extra]
 
     if (unknownPlayers.length)
@@ -247,7 +251,12 @@ const buildNotes = ({ response, unknownPlayers, extra }) => {
             `${response.excluded.sameOwnerTies} cruce(s) entre dos equipos del mismo jugador no se cuentan: se resuelven por elección y no se juegan.`
         )
 
-    if (response.truncated)
+    if (summaryOnly) {
+        if (response.totalPending > 0)
+            notes.push(
+                `Respuesta resumida (summaryOnly): no se detallan los ${response.totalPending} partidos pendientes. Para listarlos, volvé a consultar sin summaryOnly.`
+            )
+    } else if (response.truncated)
         notes.push(
             `Hay ${response.remaining} partidos más que no se detallan. Para verlos, usá los viewPaths de byTournament.`
         )
@@ -262,6 +271,7 @@ const retrieveAssistantPendingMatches = async (filters, dependencies = {}) => {
         tournamentId,
         stage,
         limit,
+        summaryOnly = false,
     } = filters
     const findTournaments =
         dependencies.findTournamentsForAssistant || findTournamentsForAssistant
@@ -341,6 +351,7 @@ const retrieveAssistantPendingMatches = async (filters, dependencies = {}) => {
         scope,
         playerIds: knownIds,
         limit: effectiveLimit,
+        summaryOnly,
         now,
     })
 
@@ -391,7 +402,12 @@ const retrieveAssistantPendingMatches = async (filters, dependencies = {}) => {
         truncated: response.truncated,
         awaitingOpponent: response.awaitingOpponent,
         excluded: response.excluded,
-        notes: buildNotes({ response, unknownPlayers, extra: extraNotes }),
+        notes: buildNotes({
+            response,
+            unknownPlayers,
+            extra: extraNotes,
+            summaryOnly,
+        }),
     }
 }
 

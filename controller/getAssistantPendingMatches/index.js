@@ -34,14 +34,24 @@ const createGetAssistantPendingMatches = (dependencies = {}) => {
             : retrieveStoredPredictionIndex)
 
     return async (req, res) => {
-        const { players, scope, tournamentId, stage, limit } = req.query
+        const {
+            players,
+            scope,
+            tournamentId,
+            stage,
+            limit,
+            favorites,
+            summaryOnly,
+        } = req.query
         const storedOnce = retrieveStoredIndex
             ? once(retrieveStoredIndex)
             : undefined
         const liveOnce = once(retrieveEveryMatch)
         // Adorno (como `ratingChange` en el cara a cara): agrega `favorite` a
         // los partidos devueltos con la predicción del APA Rating 2.0, sin
-        // cambiar el motor. Nunca rechaza: si falla, salen sin `favorite`.
+        // cambiar el motor. Nunca rechaza: si falla, salen sin `favorite`. Solo
+        // se le entrega al servicio con `favorites=true` (y sin `summaryOnly`,
+        // que no devuelve partidos): sin eso no se lee ningún rating.
         const addPredictions = ({ matches, tournament }) =>
             decorateMatchesWithPrediction({
                 matches,
@@ -52,9 +62,13 @@ const createGetAssistantPendingMatches = (dependencies = {}) => {
                 logger,
                 options: dependencies.predictionOptions,
             })
+        const wantsFavorites = favorites === true && summaryOnly !== true
         const pending = await retrievePending(
-            { players, scope, tournamentId, stage, limit },
-            { addPredictions, logger }
+            { players, scope, tournamentId, stage, limit, summaryOnly },
+            {
+                addPredictions: wantsFavorites ? addPredictions : undefined,
+                logger,
+            }
         )
         return res.status(200).json({ success: true, data: pending })
     }

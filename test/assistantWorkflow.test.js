@@ -278,6 +278,70 @@ test("the tool queries drop empty values and split the player ids", () => {
     assert.deepEqual(evaluateQuery("listar_jugadores", {}), {})
 })
 
+test("favorites and summaryOnly travel only when the model sets them to true", () => {
+    for (const [name, scope] of [
+        ["pendientes_de_jugadores", "involving"],
+        ["partidos_jugables_entre_jugadores", "among"],
+    ]) {
+        const players = "u1,u2"
+
+        // Sin elegir nada (default false) no viaja ninguno de los dos.
+        assert.deepEqual(evaluateQuery(name, { players }), {
+            scope,
+            players: ["u1", "u2"],
+        })
+        assert.deepEqual(evaluateQuery(name, { players, favorites: true }), {
+            scope,
+            players: ["u1", "u2"],
+            favorites: true,
+        })
+        assert.deepEqual(
+            evaluateQuery(name, {
+                players,
+                favorites: false,
+                summaryOnly: false,
+            }),
+            { scope, players: ["u1", "u2"] }
+        )
+        assert.deepEqual(evaluateQuery(name, { players, summaryOnly: true }), {
+            scope,
+            players: ["u1", "u2"],
+            summaryOnly: true,
+        })
+        assert.deepEqual(
+            evaluateQuery(name, {
+                favorites: true,
+                summaryOnly: true,
+                players: "u1,u2",
+            }),
+            {
+                scope,
+                players: ["u1", "u2"],
+                favorites: true,
+                summaryOnly: true,
+            }
+        )
+    }
+})
+
+test("both pending tools declare favorites and summaryOnly as boolean with a false default", () => {
+    for (const name of [
+        "pendientes_de_jugadores",
+        "partidos_jugables_entre_jugadores",
+    ]) {
+        const { jsonQuery } = nodeNamed(name).parameters
+
+        assert.match(
+            jsonQuery,
+            /favorites: \$fromAI\('favorites', '[^']*SOLO[^']*', 'boolean', false\)/
+        )
+        assert.match(
+            jsonQuery,
+            /summaryOnly: \$fromAI\('summaryOnly', '[^']*CUÁNTOS[^']*', 'boolean', false\)/
+        )
+    }
+})
+
 test("players are sent as repeated query params, as the backend expects", () => {
     for (const tool of tools) {
         assert.equal(tool.parameters.options.queryParameterArrays, "repeat")
@@ -803,12 +867,24 @@ const promptLine = (start) =>
     readPrompt()
         .split("\n")
         .find((line) => line.startsWith(start))
-test("both pending tools say that each match may carry the favorite", () => {
+test("both pending tools say that the favorite only comes with favorites and that summaryOnly drops the matches", () => {
     for (const name of [
         "pendientes_de_jugadores",
         "partidos_jugables_entre_jugadores",
     ]) {
-        assert.match(nodeNamed(name).parameters.toolDescription, /favorite/)
+        const { toolDescription } = nodeNamed(name).parameters
+
+        assert.match(toolDescription, /favorite/)
+        assert.match(toolDescription, /favorites/)
+        assert.match(toolDescription, /summaryOnly/)
+        assert.doesNotMatch(
+            toolDescription,
+            /Cada partido puede traer favorite/
+        )
+        assert.doesNotMatch(
+            toolDescription,
+            /incluido favorite en cada partido/
+        )
         assert.match(
             promptLine(`-   \`${name}\`:`),
             /CÓMO PRESENTAR LOS FAVORITOS/
@@ -837,6 +913,37 @@ test("the prompt has a favorites section with the presentation rules", () => {
     )
     // Los límites de las etiquetas viven en el servidor, no en el prompt.
     assert.doesNotMatch(section, /0[,.]\d{2,3}/)
+})
+const promptSection = (title) => {
+    const prompt = readPrompt()
+    const start = prompt.indexOf(title)
+    assert.ok(start >= 0, title)
+    const end = prompt.indexOf("\n# ", start + 1)
+    return prompt.slice(start, end === -1 ? undefined : end)
+}
+test("the prompt asks for summaryOnly on 'cuántos', lists only on request and offers the favorites after listing", () => {
+    const pending = promptSection("# CÓMO PRESENTAR LOS PENDIENTES")
+
+    assert.match(pending, /CUÁNTOS/)
+    assert.match(pending, /`summaryOnly` en verdadero/)
+    assert.match(pending, /sin `summaryOnly`/)
+    assert.match(pending, /No listes ningún partido/)
+    assert.match(pending, /ofreciendo listarlos/)
+    assert.match(pending, /¿cuáles son\?/)
+    assert.match(pending, /volvé a llamar la herramienta sin `summaryOnly`/)
+    assert.match(pending, /Después de LISTAR pendientes/)
+    assert.match(pending, /quién es favorito en cada duelo/)
+    assert.match(pending, /no lo ofrezcas/)
+})
+test("the prompt asks for favorites only when the user asks and calls the tool again with favorites", () => {
+    const favorites = promptSection("# CÓMO PRESENTAR LOS FAVORITOS")
+
+    assert.match(favorites, /`favorites` en verdadero/)
+    assert.match(favorites, /únicamente cuando la persona pregunta/)
+    assert.match(favorites, /volvé a llamar la herramienta/)
+    assert.match(favorites, /Respondé con favoritos solo cuando los pidieron/)
+    assert.doesNotMatch(readPrompt(), /Solo agregá el favorito a un listado/)
+    assert.doesNotMatch(readPrompt(), /Cada partido pendiente puede traer/)
 })
 test("the README table lists every tool with its endpoint", () => {
     for (const tool of tools) {
@@ -888,6 +995,14 @@ test("the size-measuring script only reads and covers the assistant tools", () =
     const covered = requests.map(({ tool }) => tool.split(" (")[0])
     for (const tool of tools.map(({ name }) => name)) {
         assert.ok(covered.includes(tool), `no mide ${tool}`)
+    }
+
+    // Mide el listado normal, el peor caso con favoritos y el resumen.
+    for (const param of ["summaryOnly=true", "favorites=true"]) {
+        const request = requests.find(({ path }) => path.includes(param))
+
+        assert.ok(request, `no mide ${param}`)
+        assert.equal(request.secret, true, param)
     }
 })
 

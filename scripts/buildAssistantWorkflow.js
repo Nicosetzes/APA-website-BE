@@ -78,6 +78,16 @@ const compactQuery = (fields) =>
 // esquema de la herramienta y así no depende de cómo interprete las dobles.
 const quote = (text) => `'${text.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`
 
+// Parámetros booleanos de las dos herramientas de pendientes (mismo endpoint).
+// `|| ''` convierte `false` en vacío, que `compactQuery` no envía: el BE solo
+// recibe `favorites=true` o `summaryOnly=true` cuando el modelo los pide.
+const FAVORITES_PARAM = `favorites: $fromAI('favorites', ${quote(
+    "Poné true SOLO si el usuario pidió explícitamente saber quién es favorito, probabilidades o chances. En cualquier otro caso, false."
+)}, 'boolean', false) || ''`
+const SUMMARY_ONLY_PARAM = `summaryOnly: $fromAI('summaryOnly', ${quote(
+    "Poné true cuando el usuario pregunta solo CUÁNTOS partidos hay. False si pide ver cuáles son o los partidos."
+)}, 'boolean', false) || ''`
+
 const idList = (description, hasDefault) =>
     `String($fromAI('players', ${quote(description)}, 'string'${
         hasDefault ? ", ''" : ""
@@ -400,7 +410,7 @@ const buildWorkflow = () => {
         readTool({
             name: "pendientes_de_jugadores",
             description:
-                "Partidos sin jugar de los torneos activos en los que participa al menos uno de los jugadores indicados. Sin jugadores devuelve los pendientes de todos. Devuelve el total real de pendientes (totalPending), el desglose por torneo con la ruta del sitio para verlos y un detalle acotado de partidos (truncated indica si hay más). Los cruces de playoff con rival por definir vienen aparte en awaitingOpponent. Cada partido puede traer favorite: el favorito del duelo según el modelo de rating, con su etiqueta y su porcentaje de ganar o de avanzar de ronda (null si no hay un favorito claro o no hay dato).",
+                "Partidos sin jugar de los torneos activos en los que participa al menos uno de los jugadores indicados. Sin jugadores devuelve los pendientes de todos. Devuelve el total real de pendientes (totalPending), el desglose por torneo con la ruta del sitio para verlos y un detalle acotado de partidos (truncated indica si hay más). Los cruces de playoff con rival por definir vienen aparte en awaitingOpponent. Solo con favorites en true cada partido trae favorite: el favorito del duelo según el modelo de rating, con su etiqueta y su porcentaje de ganar o de avanzar de ronda (null si no hay un favorito claro o no hay dato); sin favorites no trae favorite, así que pedilo únicamente cuando el usuario pregunta por favoritos, probabilidades o chances. Con summaryOnly en true devuelve solo el total, el desglose por torneo y la cantidad de cruces esperando rival, sin partidos (usalo cuando preguntan solo cuántos).",
             endpoint: "/assistant/pending-matches",
             query: compactQuery(
                 [
@@ -411,6 +421,8 @@ const buildWorkflow = () => {
                     )}`,
                     "tournamentId: $fromAI('tournamentId', 'Id del torneo si el usuario pidió uno puntual. Vacío si no.', 'string', '')",
                     "stage: $fromAI('stage', 'Etapa si el usuario pidió una: regular, playin o playoff. Vacío si no.', 'string', '')",
+                    FAVORITES_PARAM,
+                    SUMMARY_ONLY_PARAM,
                 ].join(", ")
             ),
             secret: true,
@@ -419,7 +431,7 @@ const buildWorkflow = () => {
         readTool({
             name: "partidos_jugables_entre_jugadores",
             description:
-                "Partidos sin jugar que se pueden jugar ahora entre un grupo de al menos 2 jugadores: solo los partidos en los que ambos lados son jugadores del grupo. Sirve para 'nos juntamos Leo, Max y yo, ¿qué podemos jugar?'. Mismo formato de respuesta que pendientes_de_jugadores, incluido favorite en cada partido.",
+                "Partidos sin jugar que se pueden jugar ahora entre un grupo de al menos 2 jugadores: solo los partidos en los que ambos lados son jugadores del grupo. Sirve para 'nos juntamos Leo, Max y yo, ¿qué podemos jugar?'. Mismo formato de respuesta y mismos parámetros favorites y summaryOnly que pendientes_de_jugadores: favorite solo viene con favorites en true.",
             endpoint: "/assistant/pending-matches",
             query: compactQuery(
                 [
@@ -429,6 +441,8 @@ const buildWorkflow = () => {
                     )}`,
                     "tournamentId: $fromAI('tournamentId', 'Id del torneo si el usuario pidió uno puntual. Vacío si no.', 'string', '')",
                     "stage: $fromAI('stage', 'Etapa si el usuario pidió una: regular, playin o playoff. Vacío si no.', 'string', '')",
+                    FAVORITES_PARAM,
+                    SUMMARY_ONLY_PARAM,
                 ].join(", ")
             ),
             secret: true,

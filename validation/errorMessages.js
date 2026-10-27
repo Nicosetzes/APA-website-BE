@@ -132,6 +132,8 @@ const FIELD_LABELS = {
     matches: ["el parámetro matches", "m"],
     status: ["el estado", "m"],
     legacy: ["el parámetro legacy", "m"],
+    favorites: ["el parámetro favorites", "m"],
+    summaryOnly: ["el parámetro summaryOnly", "m"],
 }
 
 const MAX_ECHOED_KEY_LENGTH = 50

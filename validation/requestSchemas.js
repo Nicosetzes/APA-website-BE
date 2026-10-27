@@ -395,6 +395,11 @@ module.exports = {
                 .integer()
                 .min(1)
                 .default(DEFAULT_ASSISTANT_PENDING_LIMIT),
+            // Favoritos solo a pedido: sin `true` no se calcula `favorite`.
+            favorites: Joi.boolean().default(false),
+            // Solo totales y desglose, sin detalle de partidos. Si llega junto
+            // con `favorites`, gana `summaryOnly` (no hay partidos que decorar).
+            summaryOnly: Joi.boolean().default(false),
         }).unknown(false),
         body: emptyObject,
     },

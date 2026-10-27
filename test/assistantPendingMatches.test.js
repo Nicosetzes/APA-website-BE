@@ -327,6 +327,56 @@ test("more pending matches than the limit are counted but only `limit` are detai
     assert.equal(response.byTournament[0].pending, 25)
 })
 
+test("summaryOnly keeps the real totals and breakdown but details no match", () => {
+    const matches = [
+        ...Array.from({ length: 25 }, () =>
+            mkMatch({ p1: NICO, p2: MAX, group: "A" })
+        ),
+        mkMatch({
+            tournament: cup,
+            type: "playoff",
+            playoff_id: 1,
+            p1: NICO,
+            p2: null,
+        }),
+        mkMatch({
+            tournament: cup,
+            type: "playoff",
+            playoff_id: 2,
+            p1: null,
+            p2: NICO,
+        }),
+        mkMatch({ p1: NICO, p2: NICO }),
+    ]
+    const normal = build({ matches, playerIds: [NICO.id] })
+    const summary = build({
+        matches,
+        playerIds: [NICO.id],
+        summaryOnly: true,
+    })
+
+    assert.equal(summary.totalPending, 25)
+    assert.deepEqual(summary.byStage, normal.byStage)
+    assert.deepEqual(summary.byTournament, normal.byTournament)
+    assert.deepEqual(summary.excluded, { sameOwnerTies: 1 })
+    assert.deepEqual(summary.matches, [])
+    assert.equal(summary.returned, 0)
+    assert.equal(summary.remaining, 25)
+    assert.equal(summary.truncated, true)
+    assert.deepEqual(summary.awaitingOpponent, { count: 2, matches: [] })
+    assert.equal(normal.awaitingOpponent.count, 2)
+    assert.deepEqual(Object.keys(summary), Object.keys(normal))
+})
+
+test("summaryOnly without pending matches is not truncated", () => {
+    const summary = build({ playerIds: [NICO.id], summaryOnly: true })
+
+    assert.equal(summary.totalPending, 0)
+    assert.deepEqual(summary.matches, [])
+    assert.equal(summary.remaining, 0)
+    assert.equal(summary.truncated, false)
+})
+
 test("matches are ordered by tournament, stage and the fixture order of the FE", () => {
     const matches = [
         mkMatch({
@@ -622,6 +672,76 @@ test("the limit defaults to 10 and is capped at 20", async () => {
     assert.ok(result.notes.some((note) => note.includes("10 partidos más")))
 })
 
+test("the service with summaryOnly answers the summary note instead of the truncation one", async () => {
+    const matches = Array.from({ length: 25 }, () =>
+        mkMatch({ p1: NICO, p2: MAX })
+    )
+    const { result } = await runService(
+        { players: [NICO.id, "u-fantasma"], summaryOnly: true },
+        { matches }
+    )
+    const { result: detailed } = await runService(
+        { players: [NICO.id, "u-fantasma"] },
+        { matches }
+    )
+
+    assert.equal(result.filters.limit, DEFAULT_PENDING_LIMIT)
+    assert.equal(result.totalPending, 25)
+    assert.deepEqual(result.matches, [])
+    assert.equal(result.returned, 0)
+    assert.equal(result.remaining, 25)
+    assert.equal(result.truncated, true)
+    assert.deepEqual(Object.keys(result), Object.keys(detailed))
+    assert.ok(result.notes.some((note) => note.includes("u-fantasma")))
+    assert.ok(
+        result.notes.includes(
+            "Respuesta resumida (summaryOnly): no se detallan los 25 partidos pendientes. Para listarlos, volvé a consultar sin summaryOnly."
+        )
+    )
+    assert.ok(!result.notes.some((note) => note.includes("partidos más")))
+    assert.ok(detailed.notes.some((note) => note.includes("15 partidos más")))
+})
+
+test("summaryOnly keeps the effective limit, the inactive tournament note and adds no note without pending", async () => {
+    const capped = await runService(
+        { limit: 500, summaryOnly: true },
+        { matches: [mkMatch({ p1: NICO, p2: MAX })] }
+    )
+    assert.equal(capped.result.filters.limit, MAX_PENDING_LIMIT)
+
+    const inactive = await runService(
+        { tournamentId: CLOSED_ID, summaryOnly: true },
+        { tournaments: [closed] }
+    )
+    assert.equal(inactive.result.totalPending, 0)
+    assert.equal(inactive.result.notes.length, 1)
+    assert.ok(inactive.result.notes[0].includes("ya no está activo"))
+})
+
+test("the service never calls the predictor unless it is injected (summaryOnly or not)", async () => {
+    let calls = 0
+    const dependencies = {
+        findAllUsers: async () => users,
+        findTournamentsForAssistant: async () => [league],
+        findPendingMatchesForAssistant: async () => [
+            mkMatch({ p1: NICO, p2: MAX }),
+        ],
+        now: () => NOW,
+        addPredictions: async ({ matches }) => {
+            calls += 1
+            return matches
+        },
+    }
+
+    const summary = await retrieveAssistantPendingMatches(
+        { summaryOnly: true },
+        dependencies
+    )
+
+    assert.equal(calls, 0)
+    assert.deepEqual(summary.matches, [])
+})
+
 // ---------------------------------------------------------------------------
 // Consulta a Mongo
 // ---------------------------------------------------------------------------
@@ -688,7 +808,30 @@ test("the schema applies defaults and wraps a single player id", () => {
         players: ["u-nico"],
         scope: "involving",
         limit: DEFAULT_PENDING_LIMIT,
+        favorites: false,
+        summaryOnly: false,
     })
+})
+
+test("the schema accepts favorites and summaryOnly as booleans", () => {
+    const cases = [
+        [{ favorites: "true" }, { favorites: true, summaryOnly: false }],
+        [{ favorites: "false" }, { favorites: false, summaryOnly: false }],
+        [{ summaryOnly: "true" }, { favorites: false, summaryOnly: true }],
+        [{ summaryOnly: "false" }, { favorites: false, summaryOnly: false }],
+        [
+            { favorites: "true", summaryOnly: "true" },
+            { favorites: true, summaryOnly: true },
+        ],
+    ]
+
+    for (const [query, expected] of cases) {
+        const { value, error } = validateQuery(query)
+
+        assert.equal(error, undefined, JSON.stringify(query))
+        assert.equal(value.favorites, expected.favorites)
+        assert.equal(value.summaryOnly, expected.summaryOnly)
+    }
 })
 
 test("the schema accepts a limit above the maximum (the service caps it)", () => {
@@ -708,6 +851,10 @@ test("the schema rejects bad input", () => {
         { players: ["a", "b", "c", "d", "e", "f", "g"] },
         { players: "" },
         { page: "1" },
+        { favorites: "1" },
+        { favorites: "si" },
+        { summaryOnly: "talvez" },
+        { favorites: ["true", "false"] },
     ]
 
     for (const query of invalid) {
@@ -826,6 +973,8 @@ test("the route validates the query before reading", async (t) => {
             "?limit=0",
             "?players=a&players=a",
             "?page=2",
+            "?favorites=1",
+            "?summaryOnly=si",
         ]
 
         for (const query of queries) {
@@ -885,11 +1034,25 @@ test("GET /api/assistant/pending-matches answers the pending matches of a player
     )
 })
 
+const favoritesRouteMatches = () => [
+    mkMatch({ p1: NICO, p2: MAX, group: "A" }),
+    mkMatch({
+        tournament: cup,
+        type: "playoff",
+        playoff_id: 25,
+        p1: SANTI,
+        p2: NICO,
+    }),
+]
+
 test("the route adds the favorite key to every returned match (null when the model has no data)", async (t) => {
     await withApp(
         t,
         async ({ baseUrl }) => {
-            const response = await get(baseUrl, `?players=${NICO.id}`)
+            const response = await get(
+                baseUrl,
+                `?players=${NICO.id}&favorites=true`
+            )
             const body = await response.json()
             assert.equal(response.status, 200)
             assert.equal(body.data.matches.length, 2)
@@ -899,20 +1062,97 @@ test("the route adds the favorite key to every returned match (null when the mod
                 assert.equal(match.favorite, null)
             }
         },
-        {
-            matches: [
-                mkMatch({ p1: NICO, p2: MAX, group: "A" }),
-                mkMatch({
-                    tournament: cup,
-                    type: "playoff",
-                    playoff_id: 25,
-                    p1: SANTI,
-                    p2: NICO,
-                }),
-            ],
-        }
+        { matches: favoritesRouteMatches() }
     )
 })
+
+test("the route without favorites (or with favorites=false) answers no favorite key and reads only the pending matches", async (t) => {
+    await withApp(
+        t,
+        async ({ baseUrl, state }) => {
+            const omitted = await (
+                await get(baseUrl, `?players=${NICO.id}`)
+            ).json()
+
+            assert.equal(state.reads.matches.length, 1)
+
+            const explicit = await (
+                await get(baseUrl, `?players=${NICO.id}&favorites=false`)
+            ).json()
+
+            assert.equal(state.reads.matches.length, 2)
+
+            for (const body of [omitted, explicit]) {
+                assert.equal(body.success, true)
+                assert.equal(body.data.matches.length, 2)
+                for (const match of body.data.matches)
+                    assert.equal(Object.hasOwn(match, "favorite"), false)
+            }
+
+            assert.deepEqual(
+                { ...omitted.data, asOf: undefined },
+                { ...explicit.data, asOf: undefined }
+            )
+        },
+        { matches: favoritesRouteMatches() }
+    )
+})
+
+test("the route with summaryOnly answers the summary without matches, with or without favorites=true", async (t) => {
+    await withApp(
+        t,
+        async ({ baseUrl, state }) => {
+            const summary = await get(
+                baseUrl,
+                `?players=${NICO.id}&summaryOnly=true`
+            )
+            const body = await summary.json()
+
+            assert.equal(summary.status, 200)
+            assert.equal(body.data.totalPending, 2)
+            assert.deepEqual(body.data.matches, [])
+            assert.equal(body.data.returned, 0)
+            assert.equal(body.data.remaining, 2)
+            assert.equal(body.data.truncated, true)
+            assert.deepEqual(
+                body.data.byTournament.map(({ name, pending }) => [
+                    name,
+                    pending,
+                ]),
+                [
+                    ["Copa APA", 1],
+                    ["Liga APA", 1],
+                ]
+            )
+
+            const both = await get(
+                baseUrl,
+                `?players=${NICO.id}&summaryOnly=true&favorites=true`
+            )
+
+            assert.equal(both.status, 200)
+            assert.deepEqual(
+                { ...(await both.json()).data, asOf: undefined },
+                { ...body.data, asOf: undefined }
+            )
+            assert.equal(state.reads.matches.length, 2)
+        },
+        { matches: favoritesRouteMatches() }
+    )
+})
+test("the route rejects a non-boolean favorites with the project's validation error", async (t) => {
+    await withApp(t, async ({ baseUrl, state }) => {
+        const response = await get(baseUrl, "?favorites=quizas")
+        const body = await response.json()
+
+        assert.equal(response.status, 400)
+        assert.equal(body.error.code, "VALIDATION_ERROR")
+        assert.match(body.error.message, /favorites/)
+        assert.match(body.error.message, /verdadero o falso/)
+        assert.equal(state.reads.matches.length, 0)
+    })
+})
+
 test("the route answers a closed tournament as empty and an unknown one as 404", async (t) => {
     await withApp(t, async ({ baseUrl, state }) => {
         const closedResponse = await get(baseUrl, `?tournamentId=${CLOSED_ID}`)

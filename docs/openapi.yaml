@@ -1849,18 +1849,36 @@ paths:
                 en `false`; uno inexistente, 404.
 
 
-                **Favorito.** Cada partido de `matches` puede traer `favorite`
-                (ver el esquema): el favorito del duelo con su etiqueta y su
-                probabilidad de ganar o de avanzar. Se calcula solo para los
-                partidos detallados (hasta 20), nunca para todos los
-                pendientes. Costo: una lectura de los torneos, una de los
-                usuarios y una de los partidos pendientes, sin consultas por
-                torneo, más 2 lecturas del read-model de ratings (jugadores y
-                resumen de la fuente; los pendientes no tienen eventos), una
-                sola aunque haya varios torneos. Si el read-model está apagado
-                o desactualizado, cae a 1 lectura del historial liviano de
-                partidos. Es un adorno que nunca rechaza el pedido: si el
-                cálculo falla, los partidos salen sin `favorite`.
+                **Favorito (solo con `favorites=true`).** Con `favorites=true`
+                cada partido de `matches` trae `favorite` (ver el esquema): el
+                favorito del duelo con su etiqueta y su probabilidad de ganar
+                o de avanzar. Sin el parámetro (o con `favorites=false`) no se
+                consulta la predicción y los partidos no traen la clave
+                `favorite`. Se calcula solo para los partidos detallados (hasta
+                20), nunca para todos los pendientes. Costo, solo con
+                `favorites=true`: 2 lecturas del read-model de ratings
+                (jugadores y resumen de la fuente; los pendientes no tienen
+                eventos), una sola aunque haya varios torneos. Si el
+                read-model está apagado o desactualizado, cae a 1 lectura del
+                historial liviano de partidos. Sin favoritos, la consulta se
+                limita a una lectura de los torneos, una de los usuarios y una
+                de los partidos pendientes, sin consultas por torneo. Es un
+                adorno que nunca rechaza el pedido: si el cálculo falla, los
+                partidos salen sin `favorite`.
+
+
+                **Resumen (`summaryOnly=true`).** Responde solo el resumen, sin
+                detalle de partidos: `totalPending`, `byStage`, `byTournament`
+                (con `viewPaths`), `excluded` y `awaitingOpponent.count` son
+                los reales. `matches` es `[]` y `returned` es 0;
+                `awaitingOpponent.matches` es `[]`. `remaining` es igual a
+                `totalPending` y `truncated` es `true` si hay pendientes (el
+                detalle está cortado en 0), con una nota en `notes` que
+                lo explica. El `limit` no se usa para el detalle, pero
+                `filters.limit` informa el límite efectivo. Si llega junto con
+                `favorites=true`, se ignora `favorites` (no hay partidos para
+                calcular) y la respuesta es la misma que con `summaryOnly=true`
+                solo.
             security:
                 - recapSecret: []
             parameters:
@@ -1904,6 +1922,25 @@ paths:
                       type: integer
                       minimum: 1
                       default: 10
+                - in: query
+                  name: favorites
+                  required: false
+                  description: >-
+                      Con `true` cada partido detallado trae `favorite`. Con
+                      `false` o sin el parámetro no se calcula ni aparece la
+                      clave. Se ignora si `summaryOnly` es `true`.
+                  schema:
+                      type: boolean
+                      default: false
+                - in: query
+                  name: summaryOnly
+                  required: false
+                  description: >-
+                      Con `true` responde solo totales y desglose, sin detalle
+                      de partidos (`matches: []`).
+                  schema:
+                      type: boolean
+                      default: false
             responses:
                 "200":
                     description: Resumen de pendientes con el detalle acotado
@@ -3729,7 +3766,7 @@ components:
             type: object
             description: >-
                 Partido jugable en formato compacto: los campos sin valor no
-                se envían.
+                se envían. `favorite` solo viene con `favorites=true`.
             required:
                 [matchId, tournamentId, tournament, stage, p1, p2, viewPath]
             properties:
@@ -3778,8 +3815,9 @@ components:
                 `prediction` de fixture, play-in y playoffs, con los ratings
                 actuales). Solo se expone al favorito y su probabilidad: nunca
                 el empate, la del otro jugador, ids ni versiones del modelo.
-                La clave está en cada partido de `matches` cuando el cálculo
-                corrió; si el cálculo falla por completo, los partidos salen
+                La clave solo está con `favorites=true`, en cada partido de
+                `matches` cuando el cálculo corrió; sin ese parámetro no
+                aparece, y si el cálculo falla por completo los partidos salen
                 sin la clave (se trata igual que `null`). Un partido que no se
                 detalla (`truncated`) no tiene favorito.
 
@@ -3985,14 +4023,22 @@ components:
                                 $ref: "#/components/schemas/AssistantPendingTournament"
                         matches:
                             type: array
+                            description: Vacío con `summaryOnly=true`
                             items:
                                 $ref: "#/components/schemas/AssistantPendingMatch"
                         returned:
                             type: integer
+                            description: 0 con `summaryOnly=true`
                         remaining:
                             type: integer
+                            description: >-
+                                Pendientes sin detallar; con `summaryOnly=true`
+                                es igual a `totalPending`
                         truncated:
                             type: boolean
+                            description: >-
+                                Hay pendientes sin detallar; con
+                                `summaryOnly=true` es `true` si hay pendientes
                         awaitingOpponent:
                             type: object
                             required: [count, matches]
@@ -4001,6 +4047,7 @@ components:
                                     type: integer
                                 matches:
                                     type: array
+                                    description: Vacío con `summaryOnly=true`
                                     maxItems: 5
                                     items:
                                         $ref: "#/components/schemas/AssistantPendingAwaitingMatch"

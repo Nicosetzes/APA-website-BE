@@ -4,12 +4,12 @@ Cómo comprobar si Haiku 5.5 alcanza o hay que pasar a Sonnet 5.5. Esta guía y 
 
 ## Qué se mide
 
-Una batería de 32 preguntas (34 mensajes) en `scripts/assistantEvaluation/questions.js`. Cada una se envía al webhook real con la sesión de un usuario real, y la respuesta se compara con lo que calcula el propio backend para esa misma pregunta (no con lo que "debería" decir el modelo).
+Una batería de 33 preguntas (36 mensajes) en `scripts/assistantEvaluation/questions.js`. Cada una se envía al webhook real con la sesión de un usuario real, y la respuesta se compara con lo que calcula el propio backend para esa misma pregunta (no con lo que "debería" decir el modelo).
 
 | Categoría                  | Preguntas | Ejemplo                                                                                       |
 | -------------------------- | --------- | --------------------------------------------------------------------------------------------- |
 | Pendientes propios         | 3         | "¿Qué partidos tengo pendientes?"                                                             |
-| Pendientes de otro jugador | 2         | "¿Qué partidos le faltan jugar a Leo?"                                                        |
+| Pendientes de otro jugador | 3         | "¿Qué partidos le faltan jugar a Leo?"                                                        |
 | Partidos entre un grupo    | 3         | "Nos juntamos Leo, Max y yo, ¿qué podemos jugar?"                                             |
 | Historial entre jugadores  | 3         | "¿Cuál fue mi último partido contra Max en playoffs?"                                         |
 | Últimos partidos           | 2         | "De mis últimos 5 partidos, ¿cuál fue el partido en el que perdí más ELO?"                    |
@@ -25,7 +25,9 @@ Las preguntas se arman con los jugadores y torneos reales del sitio (por orden a
 
 ### Comprobaciones automáticas
 
-Miden hechos verificables: que el total de pendientes sea el real, que aparezcan los rivales, que con más de 10 pendientes diga el total y no liste más de 10 (el resto, con el enlace al torneo), que el balance (victorias, empates, derrotas) coincida, que el puesto y los puntos de la tabla sean los del backend, que la cantidad de títulos de un jugador sea la del palmarés del backend (`championTitles`) y que estén todos los campeones de los torneos históricos (`legacyChampionsListed`), que el líder del ranking vaya primero, que los enlaces existan y lleven a donde corresponde. En los favoritos de los pendientes, que las cifras sean las que trae el backend (`favoriteFigures`: acepta "54%", "54 %" y "54 por ciento", y falla si da porcentajes o etiquetas de favorito cuando el backend no marca ninguno), que dé la cifra de quien evalúa si es favorito (`favoriteMentioned`) y que nunca hable de empate (`noDrawMention`).
+Miden hechos verificables: que el total de pendientes sea el real, que aparezcan los rivales, que con más de 10 pendientes diga el total y no liste más de 10 (el resto, con el enlace al torneo), que el balance (victorias, empates, derrotas) coincida, que el puesto y los puntos de la tabla sean los del backend, que la cantidad de títulos de un jugador sea la del palmarés del backend (`championTitles`) y que estén todos los campeones de los torneos históricos (`legacyChampionsListed`), que el líder del ranking vaya primero, que los enlaces existan y lleven a donde corresponde. En los favoritos de los pendientes, que las cifras sean las que trae el backend (`favoriteFigures`: acepta "54%", "54 %" y "54 por ciento", y falla si da porcentajes o etiquetas de favorito cuando el backend no marca ninguno), que dé la cifra de quien evalúa si es favorito (`favoriteMentioned`) y que nunca hable de empate (`noDrawMention`). En esas preguntas la verdad se consulta al backend con `favorites=true`; en las demás de pendientes, sin ese parámetro.
+
+Los favoritos y el detalle son solo a pedido, y dos comprobaciones lo vigilan: en las preguntas de "cuántos" la respuesta no puede listar partidos (`noMatchList`; tolera que ofrezca listarlos) y en los pendientes sin pedido de favoritos no puede dar porcentajes de favoritismo ni etiquetas de favorito (`noUnrequestedFavorites`; acepta que ofrezca contarlos y otros porcentajes que no sean de favoritismo). La pregunta "¿Cuántos partidos tiene Leo pendientes?" seguida de "¿Cuáles son?" comprueba que, al pedir el detalle, el agente vuelve a consultar y lista.
 
 Cinco son **críticas** y una falla en cualquiera bloquea el veredicto aunque el resto salga perfecto:
 
@@ -44,7 +46,7 @@ Hay que mirarlo a mano en el detalle (`.json` que deja la corrida) y en las ejec
 
 ## Cómo correrla
 
-Hace falta un usuario real del sitio y los datos del webhook. Cada mensaje consume crédito de Claude (con Haiku 5.5, centavos para toda la corrida) y cuenta contra el tope de 40 mensajes por hora de ese usuario: una corrida usa 34, así que no se puede repetir dentro de la misma hora.
+Hace falta un usuario real del sitio y los datos del webhook. Cada mensaje consume crédito de Claude (con Haiku 5.5, centavos para toda la corrida) y cuenta contra el tope de 40 mensajes por hora de ese usuario: una corrida usa 36, así que no se puede repetir dentro de la misma hora.
 
 ```bash
 ASSISTANT_API=https://apa-website-be.vercel.app/api \
@@ -65,7 +67,7 @@ El webhook no devuelve el consumo de tokens, así que se mide con el gasto:
 
 1. En la consola de Anthropic anotá el gasto acumulado antes de empezar.
 2. Corré la batería.
-3. Anotá el gasto después. **Costo por mensaje = (gasto después − gasto antes) / 34.**
+3. Anotá el gasto después. **Costo por mensaje = (gasto después − gasto antes) / 36.**
 
 La consola puede tardar unos minutos en reflejar el gasto. Como referencia, el prompt pesa unos 8.000 tokens estimados (unos 25.600 caracteres, a 3,2 caracteres por token) y cada consulta hace de 2 a 4 llamadas al modelo, así que el orden de magnitud esperado con Haiku 5.5 es una fracción de centavo por mensaje; si da mucho más, hay una herramienta devolviendo demasiado (ver `npm run measure:assistant-tools`).
 
@@ -97,12 +99,12 @@ Omitidas (falta dato):      __
 Fallas críticas:            ninguna / (ids)
 Preguntas sin respuesta:    ninguna / (ids)
 Latencia promedio / p95:    __ ms / __ ms
-Mensajes:                   34
+Mensajes:                   36
 Gasto (antes → después):    USD __ → USD __   Costo por mensaje: USD __
 
 Por categoría:
   Pendientes propios            _/3
-  Pendientes de otro jugador    _/2
+  Pendientes de otro jugador    _/3
   Partidos entre un grupo       _/3
   Historial entre jugadores     _/3
   Últimos partidos              _/2
