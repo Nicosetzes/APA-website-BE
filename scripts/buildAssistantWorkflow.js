@@ -393,7 +393,7 @@ const buildWorkflow = () => {
         readTool({
             name: "pendientes_de_jugadores",
             description:
-                "Partidos sin jugar de los torneos activos en los que participa al menos uno de los jugadores indicados. Sin jugadores devuelve los pendientes de todos. Devuelve el total real de pendientes (totalPending), el desglose por torneo con la ruta del sitio para verlos y un detalle acotado de partidos (truncated indica si hay más). Los cruces de playoff con rival por definir vienen aparte en awaitingOpponent.",
+                "Partidos sin jugar de los torneos activos en los que participa al menos uno de los jugadores indicados. Sin jugadores devuelve los pendientes de todos. Devuelve el total real de pendientes (totalPending), el desglose por torneo con la ruta del sitio para verlos y un detalle acotado de partidos (truncated indica si hay más). Los cruces de playoff con rival por definir vienen aparte en awaitingOpponent. Cada partido puede traer favorite: el favorito del duelo según el modelo de rating, con su etiqueta y su porcentaje de ganar o de avanzar de ronda (null si no hay un favorito claro o no hay dato).",
             endpoint: "/assistant/pending-matches",
             query: compactQuery(
                 [
@@ -412,7 +412,7 @@ const buildWorkflow = () => {
         readTool({
             name: "partidos_jugables_entre_jugadores",
             description:
-                "Partidos sin jugar que se pueden jugar ahora entre un grupo de al menos 2 jugadores: solo los partidos en los que ambos lados son jugadores del grupo. Sirve para 'nos juntamos Leo, Max y yo, ¿qué podemos jugar?'. Mismo formato de respuesta que pendientes_de_jugadores.",
+                "Partidos sin jugar que se pueden jugar ahora entre un grupo de al menos 2 jugadores: solo los partidos en los que ambos lados son jugadores del grupo. Sirve para 'nos juntamos Leo, Max y yo, ¿qué podemos jugar?'. Mismo formato de respuesta que pendientes_de_jugadores, incluido favorite en cada partido.",
             endpoint: "/assistant/pending-matches",
             query: compactQuery(
                 [

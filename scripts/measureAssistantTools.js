@@ -41,6 +41,12 @@ const buildRequests = ({ players, tournaments, today = new Date() }) => {
             secret: true,
         },
         {
+            // Peor caso: el límite máximo de partidos, cada uno con favorite.
+            tool: "pendientes_de_jugadores (peor caso: 20 partidos)",
+            path: "/assistant/pending-matches?scope=involving&limit=20",
+            secret: true,
+        },
+        {
             tool: "pendientes_de_jugadores (uno)",
             path: `/assistant/pending-matches?scope=involving&players=${playerA?.id}`,
             secret: true,

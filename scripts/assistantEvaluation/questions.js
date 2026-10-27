@@ -14,8 +14,8 @@
  * informa. `turns` permite una conversación de varios mensajes: se evalúa la
  * última respuesta.
  *
- * Todas las preguntas juntas son 31 mensajes (la de memoria tiene dos), por
- * debajo del tope de 40 por hora del asistente.
+ * Todas las preguntas juntas son 34 mensajes (la de memoria y la de favoritos
+ * tienen dos), por debajo del tope de 40 por hora del asistente.
  */
 
 const NO_ID_CHECKS = ["noIds", "routesKnown"]
@@ -306,6 +306,37 @@ const QUESTIONS = [
         checks: ["recapUsed", ["maxWords", 300], ...NO_ID_CHECKS],
     },
 
+    // --- Favoritos de los partidos pendientes --------------------------------------
+    {
+        id: "fav-pendientes",
+        category: "favoritos",
+        turns: [
+            "¿Qué partidos tengo pendientes?",
+            "¿Soy favorito en alguno de esos partidos?",
+        ],
+        truth: { kind: "pending", scope: "involving", players: ["me"] },
+        checks: [
+            "favoriteFigures",
+            ["favoriteMentioned", "me"],
+            "noDrawMention",
+            ["maxWords", 260],
+            ...NO_ID_CHECKS,
+        ],
+    },
+    {
+        id: "fav-grupo",
+        category: "favoritos",
+        text: "{x} y yo queremos jugar. De los partidos que tenemos pendientes entre nosotros, ¿quién es favorito en cada uno?",
+        needs: ["x"],
+        truth: { kind: "pending", scope: "among", players: ["me", "x"] },
+        checks: [
+            "favoriteFigures",
+            ["favoriteMentioned", "any"],
+            "noDrawMention",
+            ["maxWords", 260],
+            ...NO_ID_CHECKS,
+        ],
+    },
     // --- Memoria de la conversación ----------------------------------------------
     {
         id: "memoria-seguimiento",

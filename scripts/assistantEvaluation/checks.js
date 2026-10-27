@@ -131,6 +131,24 @@ const PROMPT_FRAGMENTS = [
     "quien es quien",
 ]
 
+// Porcentajes escritos como "54%", "54 %", "54,3 %" o "54 por ciento",
+// redondeados a entero.
+const PERCENT = /(\d+(?:[.,]\d+)?)\s*(?:%|por\s*ciento|por\s*cien\b)/gi
+
+const percentsIn = (reply) =>
+    [...String(reply).matchAll(PERCENT)].map((match) =>
+        Math.round(Number(match[1].replace(",", ".")))
+    )
+
+// Etiquetas que solo tienen sentido si el backend marcó un favorito.
+const INVENTED_LABEL = /(levemente favorit|gran favorit)/
+
+// Favoritos que trae la verdad del backend (partidos con `favorite` no nulo).
+const favoritesOf = (truth) =>
+    (truth?.matches ?? [])
+        .map((match) => match.favorite)
+        .filter((favorite) => favorite && typeof favorite === "object")
+
 const sidesOf = (match) => [match.p1, match.p2].filter(Boolean)
 
 const viewPathsOf = (truth) => {
@@ -226,6 +244,69 @@ const CHECKS = {
             ? ok("incluye un enlace esperado")
             : fail(`ningún enlace coincide con ${wanted.join(" o ")}`)
     },
+
+    // --- Favoritos de los pendientes ------------------------------------------
+    // Las cifras tienen que ser las `probabilityPercent` que trae el backend y,
+    // si el backend no marca ningún favorito, la respuesta no puede traer
+    // porcentajes ni etiquetas de favorito: sería inventarlos.
+    favoriteFigures: ({ reply, truth }) => {
+        const favorites = favoritesOf(truth)
+        const figures = percentsIn(reply)
+        if (favorites.length === 0) {
+            if (figures.length > 0)
+                return fail(
+                    `da cifras (${figures.join(
+                        ", "
+                    )}%) y el backend no marca favoritos`
+                )
+            return INVENTED_LABEL.test(normalize(reply))
+                ? fail("habla de un favorito y el backend no marca ninguno")
+                : ok("no inventó favoritos")
+        }
+        const valid = new Set(favorites.map((item) => item.probabilityPercent))
+        const wrong = figures.filter((figure) => !valid.has(figure))
+        return wrong.length === 0
+            ? ok(`${figures.length} cifra(s) válidas`)
+            : fail(
+                  `cifras que no vienen del backend: ${wrong.join(
+                      ", "
+                  )}% (válidas: ${[...valid].join(", ")}%)`
+              )
+    },
+
+    // `me`: si quien evalúa es el favorito de algún pendiente, tiene que dar
+    // alguna de sus cifras. `any`: si hay algún favorito, tiene que dar al menos
+    // una cifra válida y nombrar a uno de ellos.
+    favoriteMentioned: ({ reply, truth, world, arg }) => {
+        const favorites = favoritesOf(truth)
+        const figures = percentsIn(reply)
+        const isValid = (items) =>
+            items.some((item) => figures.includes(item.probabilityPercent))
+        if (arg === "me") {
+            const mine = favorites.filter(
+                (item) => normalize(item.player) === normalize(world.me.name)
+            )
+            if (mine.length === 0) return ok("no es favorito en ninguno")
+            return isValid(mine)
+                ? ok("da la cifra de su favoritismo")
+                : fail(
+                      `es favorito (${mine
+                          .map((item) => `${item.probabilityPercent}%`)
+                          .join(", ")}) y no da la cifra`
+                  )
+        }
+        if (favorites.length === 0) return ok("sin favoritos para chequear")
+        if (!isValid(favorites)) return fail("no da ninguna cifra de favorito")
+        return favorites.some((item) => includesText(reply, item.player))
+            ? ok("nombra a un favorito con su cifra")
+            : fail("no nombra a ningún favorito")
+    },
+
+    // Solo se muestra al favorito: el empate no se menciona nunca.
+    noDrawMention: ({ reply }) =>
+        normalize(reply).includes("empat")
+            ? fail("habla de empate")
+            : ok("no habla de empate"),
 
     // --- Historial ----------------------------------------------------------
     headToHeadRecord: ({ reply, truth }) => {
@@ -622,6 +703,7 @@ module.exports = {
     includesText,
     linkTargets,
     normalize,
+    percentsIn,
     runCheck,
     runChecks,
     stripLinkTargets,

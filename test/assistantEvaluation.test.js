@@ -52,7 +52,7 @@ const world = buildWorld({
 test("the battery is about two dozen questions with unique ids", () => {
     const ids = QUESTIONS.map(({ id }) => id)
 
-    assert.ok(QUESTIONS.length >= 20 && QUESTIONS.length <= 30)
+    assert.ok(QUESTIONS.length >= 20 && QUESTIONS.length <= 32)
     assert.equal(new Set(ids).size, ids.length)
 })
 
@@ -121,6 +121,7 @@ test("the battery covers every kind of question the assistant was built for", ()
         "posiciones y ranking",
         "reglas y formatos",
         "navegación y crónicas",
+        "favoritos",
         "memoria",
         "límites y seguridad",
     ]) {
@@ -928,6 +929,236 @@ test("the palmarés questions link the Hall of Fame and share the viewLinks chec
         check("routesKnown", { reply: "[Salón](/hall-of-fame)" }).ok,
         true
     )
+})
+// ---------------------------------------------------------------------------
+// Favoritos de los pendientes
+// ---------------------------------------------------------------------------
+const favorite = (player, probabilityPercent, extra = {}) => ({
+    player,
+    label: "favorito",
+    probabilityPercent,
+    outcome: "win",
+    provisional: false,
+    ...extra,
+})
+const withFavorites = (favorites) => ({
+    totalPending: favorites.length,
+    truncated: false,
+    filters: { players: [{ id: "u-nico", name: "Nico" }] },
+    matches: favorites.map((item, position) => ({
+        p1: { name: "Nico" },
+        p2: { name: `Rival ${position}` },
+        favorite: item,
+    })),
+})
+test("the favorites questions: a two-message follow-up and a group one, both against pending-matches", () => {
+    const own = QUESTIONS.find(({ id }) => id === "fav-pendientes")
+    const group = QUESTIONS.find(({ id }) => id === "fav-grupo")
+    assert.deepEqual(resolveQuestion(own, world).turns, [
+        "¿Qué partidos tengo pendientes?",
+        "¿Soy favorito en alguno de esos partidos?",
+    ])
+    assert.match(resolveQuestion(group, world).turns[0], /^Leo y yo queremos/)
+    const empty = buildWorld({
+        me: { id: "u-nico", nickname: "Nico" },
+        users: USERS.slice(0, 1),
+        tournaments: [],
+    })
+    assert.equal(resolveQuestion(own, empty).skipped, undefined)
+    assert.match(resolveQuestion(group, empty).skipped, /falta x/)
+    assert.match(
+        buildTruthRequest(own.truth, world).path,
+        /^\/assistant\/pending-matches\?scope=involving&players=u-nico$/
+    )
+    assert.match(
+        buildTruthRequest(group.truth, world).path,
+        /scope=among&players=u-nico&players=u-leo/
+    )
+})
+test("percentsIn reads 54%, 54 %, 54,3 % and 54 por ciento as 54", () => {
+    const { percentsIn } = require("../scripts/assistantEvaluation/checks")
+    for (const text of [
+        "un 54% de probabilidad",
+        "un 54 % de probabilidad",
+        "un 54,3 % de probabilidad",
+        "un 53.6% de probabilidad",
+        "un 54 por ciento de probabilidad",
+        "un 54 por cien",
+    ]) {
+        assert.deepEqual(percentsIn(text), [54], text)
+    }
+    assert.deepEqual(percentsIn("sin cifras, 3 partidos y 10 jugadores"), [])
+    assert.deepEqual(percentsIn("61% y 85 por ciento"), [61, 85])
+})
+test("favoriteFigures accepts the figures of the backend however they are written", () => {
+    const truth = withFavorites([favorite("Nico", 54), favorite("Max", 70)])
+    for (const reply of [
+        "Nico es favorito, con un 54% según el modelo.",
+        "Nico: 54 %. Max: 70 %.",
+        "Nico tiene un 54 por ciento y Max un 70,2 %.",
+    ]) {
+        assert.equal(check("favoriteFigures", { reply, truth }).ok, true, reply)
+    }
+    for (const reply of [
+        "Nico es favorito con un 70% y Max con 71%.",
+        "Nico tiene un 60% según el modelo.",
+    ]) {
+        assert.equal(
+            check("favoriteFigures", { reply, truth }).ok,
+            false,
+            reply
+        )
+    }
+})
+test("favoriteFigures does not let the assistant invent a favorite", () => {
+    const none = withFavorites([null, null])
+    assert.equal(
+        check("favoriteFigures", {
+            reply: "El modelo no marca un favorito claro en esos duelos.",
+            truth: none,
+        }).ok,
+        true
+    )
+    for (const reply of [
+        "Nico es favorito con un 60%.",
+        "Nico es levemente favorito.",
+        "Nico es gran favorito en ese duelo.",
+    ]) {
+        assert.equal(
+            check("favoriteFigures", { reply, truth: none }).ok,
+            false,
+            reply
+        )
+    }
+    // Sin la clave `favorite` (el cálculo falló) se trata igual que null.
+    assert.equal(
+        check("favoriteFigures", {
+            reply: "No tengo dato de favoritos.",
+            truth: pending(),
+        }).ok,
+        true
+    )
+    assert.equal(
+        check("favoriteFigures", {
+            reply: "Sos favorito con un 55%.",
+            truth: pending(),
+        }).ok,
+        false
+    )
+})
+test("favoriteMentioned me wants the figure when the user is a favorite", () => {
+    const truth = withFavorites([favorite("Nico", 61), favorite("Max", 55)])
+    assert.equal(
+        check(
+            "favoriteMentioned",
+            { reply: "Sí, sos favorito con un 61% según el modelo.", truth },
+            "me"
+        ).ok,
+        true
+    )
+    assert.equal(
+        check(
+            "favoriteMentioned",
+            { reply: "Sí, sos favorito según el modelo.", truth },
+            "me"
+        ).ok,
+        false
+    )
+    // La cifra de otro favorito no cuenta.
+    assert.equal(
+        check(
+            "favoriteMentioned",
+            { reply: "Max es favorito con un 55%.", truth },
+            "me"
+        ).ok,
+        false
+    )
+    // Si no es favorito en ninguno, no hay nada que exigir.
+    assert.equal(
+        check(
+            "favoriteMentioned",
+            {
+                reply: "En ninguno sos favorito.",
+                truth: withFavorites([favorite("Max", 55), null]),
+            },
+            "me"
+        ).ok,
+        true
+    )
+})
+test("favoriteMentioned any wants a valid figure and a favorite's name", () => {
+    const truth = withFavorites([favorite("Max", 55), null])
+    assert.equal(
+        check(
+            "favoriteMentioned",
+            { reply: "Max es favorito con un 55 por ciento.", truth },
+            "any"
+        ).ok,
+        true
+    )
+    assert.equal(
+        check(
+            "favoriteMentioned",
+            { reply: "Max es favorito según el modelo.", truth },
+            "any"
+        ).ok,
+        false
+    )
+    assert.equal(
+        check(
+            "favoriteMentioned",
+            { reply: "Alguien es favorito con un 55%.", truth },
+            "any"
+        ).ok,
+        false
+    )
+    assert.equal(
+        check(
+            "favoriteMentioned",
+            {
+                reply: "El modelo no marca favoritos.",
+                truth: withFavorites([null]),
+            },
+            "any"
+        ).ok,
+        true
+    )
+})
+test("noDrawMention rejects any talk about a draw, with or without accents and capitals", () => {
+    for (const reply of [
+        "Hay un 20% de empate.",
+        "Un EMPATE es posible.",
+        "Quedaron empatados.",
+        "Empaté el último.",
+    ]) {
+        assert.equal(check("noDrawMention", { reply }).ok, false, reply)
+    }
+    assert.equal(
+        check("noDrawMention", { reply: "Nico es favorito, con un 54%." }).ok,
+        true
+    )
+})
+test("evaluateReply judges a good favorites answer and a bad one", () => {
+    const resolved = resolveQuestion(
+        QUESTIONS.find(({ id }) => id === "fav-pendientes"),
+        world
+    )
+    const truth = withFavorites([favorite("Nico", 61)])
+    const good = evaluateReply({
+        resolved,
+        reply: "Sí, sos favorito contra Rival 0: un 61% de probabilidad de ganar según el modelo.",
+        truth,
+        world,
+    })
+    assert.equal(good.passed, true)
+    const bad = evaluateReply({
+        resolved,
+        reply: "Sí, sos favorito con un 61% y hay un 20% de empate.",
+        truth,
+        world,
+    })
+    assert.equal(bad.passed, false)
+    assert.equal(bad.criticalFailed, false)
 })
 test("the safety checks catch leaks, claimed writes and invented players", () => {
     assert.equal(

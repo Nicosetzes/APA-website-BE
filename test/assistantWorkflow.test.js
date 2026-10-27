@@ -837,6 +837,56 @@ test("the manual guide for listar_torneos matches what the script generates", ()
         ]
     )
 })
+test("the manual guide for the pending tools matches what the script generates", () => {
+    const pending = nodeNamed("pendientes_de_jugadores")
+    const playable = nodeNamed("partidos_jugables_entre_jugadores")
+    assert.deepEqual(
+        guideBlocks(
+            "## Cómo actualizar las herramientas de pendientes a mano en n8n"
+        ),
+        [
+            pending.parameters.toolDescription,
+            playable.parameters.toolDescription,
+            promptLine("-   `pendientes_de_jugadores`:"),
+            promptLine("-   `partidos_jugables_entre_jugadores`:"),
+        ]
+    )
+})
+test("both pending tools say that each match may carry the favorite", () => {
+    for (const name of [
+        "pendientes_de_jugadores",
+        "partidos_jugables_entre_jugadores",
+    ]) {
+        assert.match(nodeNamed(name).parameters.toolDescription, /favorite/)
+        assert.match(
+            promptLine(`-   \`${name}\`:`),
+            /CÓMO PRESENTAR LOS FAVORITOS/
+        )
+    }
+    assert.equal(tools.length, 13)
+})
+test("the prompt has a favorites section with the presentation rules", () => {
+    const prompt = readPrompt()
+    const start = prompt.indexOf("# CÓMO PRESENTAR LOS FAVORITOS")
+    assert.ok(start >= 0)
+    const end = prompt.indexOf("\n# ", start + 1)
+    const section = prompt.slice(start, end === -1 ? undefined : end)
+    assert.match(section, /según el modelo/)
+    assert.match(section, /ida y vuelta/)
+    assert.match(section, /Nunca hables de empate/)
+    assert.match(section, /provisoria/)
+    assert.match(section, /no una garantía/)
+    assert.match(section, /Nunca calcules/)
+    assert.match(section, /gran favorito/)
+    assert.doesNotMatch(prompt, /\{\{|\}\}/)
+    // Va justo después de los pendientes.
+    assert.ok(
+        prompt.indexOf("# CÓMO PRESENTAR LOS PENDIENTES") < start &&
+            start < prompt.indexOf("# CÓMO PRESENTAR POSICIONES")
+    )
+    // Los límites de las etiquetas viven en el servidor, no en el prompt.
+    assert.doesNotMatch(section, /0[,.]\d{2,3}/)
+})
 test("the README table lists every tool with its endpoint", () => {
     for (const tool of tools) {
         const row = readme

@@ -23,6 +23,20 @@ const MAX_HEAD_TO_HEAD_LIMIT = 10
 const DEFAULT_RECENT_MATCHES_LIMIT = 10
 const MAX_RECENT_MATCHES_LIMIT = 20
 
+// Etiquetas del favorito de un partido pendiente, de mayor a menor. `minScore`
+// es el puntaje esperado mínimo del favorito en milésimas (el primer nivel que
+// se cumple gana; por debajo del último el duelo es parejo y no hay favorito).
+// El puntaje esperado es el mismo número que usa el motor de ratings: en
+// "advance" coincide con la probabilidad de avanzar, y en "outcomes" es
+// ganar + empate / 2, así que la probabilidad de ganar que se muestra queda
+// por debajo (el empate se lleva una parte). Los cortes son puntos medios
+// entre enteros: en "advance" la etiqueta cambia justo en 53 / 65 / 80 %. Los
+// límites viven acá, en el servidor, y no en el prompt del agente.
+const FAVORITE_LEVELS = [
+    { label: "gran favorito", minScore: 795 },
+    { label: "favorito", minScore: 645 },
+    { label: "levemente favorito", minScore: 525 },
+]
 const PENDING_SCOPES = ["involving", "among"]
 const PENDING_STAGES = ["regular", "playin", "playoff"]
 
@@ -83,6 +97,7 @@ module.exports = {
     DEFAULT_HEAD_TO_HEAD_LIMIT,
     DEFAULT_PENDING_LIMIT,
     DEFAULT_RECENT_MATCHES_LIMIT,
+    FAVORITE_LEVELS,
     HALL_OF_FAME_VIEW_PATH,
     MAX_ASSISTANT_PLAYERS,
     MAX_AWAITING_OPPONENT_ITEMS,

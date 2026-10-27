@@ -12,6 +12,7 @@ const {
 } = require("./../../dao")
 const { HttpError } = require("../../middleware/httpErrors")
 const { omitNil } = require("../../utils/omitNil")
+const { attachFavorites } = require("./favorite")
 
 const STAGE_RANK = { regular: 0, playin: 1, playoff: 2 }
 const UNKNOWN_STAGE_RANK = 3
@@ -342,6 +343,34 @@ const retrieveAssistantPendingMatches = async (filters, dependencies = {}) => {
         limit: effectiveLimit,
         now,
     })
+
+    // Adorno: agrega `favorite` solo a los partidos que se devuelven (máx. 20).
+    // Nunca rechaza la respuesta: si falla, los partidos salen sin `favorite`.
+    if (
+        typeof dependencies.addPredictions === "function" &&
+        response.matches.length > 0
+    ) {
+        try {
+            response.matches = await attachFavorites({
+                items: response.matches,
+                rawById: new Map(
+                    matches.map((match) => [String(match._id), match])
+                ),
+                tournamentsById: new Map(
+                    activeTournaments.map((tournament) => [
+                        String(tournament._id),
+                        tournament,
+                    ])
+                ),
+                addPredictions: dependencies.addPredictions,
+                logger: dependencies.logger,
+            })
+        } catch (error) {
+            dependencies.logger?.warn?.("assistant_favorites_unavailable", {
+                message: error?.message,
+            })
+        }
+    }
 
     return {
         asOf: response.asOf,

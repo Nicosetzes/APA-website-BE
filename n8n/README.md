@@ -65,6 +65,7 @@ Todas son `GET`: el agente no puede escribir. El secreto solo viaja a los endpoi
 Lo que devuelve una herramienta se reenvía al modelo en cada vuelta del agente, así que una respuesta grande cuesta tokens y distrae. Por eso:
 
 -   Pendientes, historial y posiciones tienen endpoints propios (`/api/assistant/*`) con respuesta compacta y tope de detalle: pendientes detalla 10 partidos por defecto (máximo 20), historial 5 (máximo 10) y últimos partidos 10 (máximo 20). Con más de 10 pendientes el agente dice el total, el desglose por torneo, lista los 10 del detalle y da el enlace de cada torneo. La tabla original trae las últimas jornadas completas de cada equipo y es varias veces más grande (un test fija una reducción de al menos 3 veces con datos de ejemplo; con torneos de 48 equipos es mucho más).
+-   Cada partido pendiente detallado puede traer `favorite` (unos 110 caracteres como máximo, o 16 si es `null`): el favorito del duelo con su etiqueta y su porcentaje de ganar o de avanzar. Se calcula solo para los partidos del detalle (máximo 20), no para todos los pendientes; con el read-model de ratings son 2 lecturas por pedido (una sola aunque haya varios torneos) y, si ese está apagado o desactualizado, 1 lectura del historial como respaldo. Si el cálculo falla, los partidos salen sin `favorite` y el pedido no se rechaza. Con 20 partidos y todos con `favorite` la respuesta queda en unos 2.800 tokens estimados (sin favoritos eran unos 2.100), por debajo del umbral de ~4.000; `npm run measure:assistant-tools` la mide con datos reales.
 -   `campeones_de_torneos` devuelve el palmarés completo (torneos y jugadores, con los títulos ya contados) sin parámetros ni tope: son unos 1.750 tokens estimados (a 3,2 caracteres por token) con los 20 torneos terminados de la base de referencia y crece alrededor de 60 tokens por cada torneo terminado nuevo. No se acota porque el palmarés completo es chico, y existe porque `listar_torneos` no trae los torneos históricos (un test fija que con el tamaño real del sitio queda por debajo de 2.500 tokens).
 -   El ranking, el rating por período y las estadísticas de un jugador ya son chicos y se usan tal cual.
 -   Las crónicas son texto largo (típicamente unos pocos miles de caracteres, con un tope de 50.000). El prompt le pide al agente resumirlas.
@@ -293,6 +294,29 @@ Este cambio va junto con el anterior: `listar_torneos` no incluye los torneos hi
     ```
 
 4. También tienen cambios `n8n/routes.md` (las líneas de `/hall-of-fame` y de las vistas de un torneo) y `n8n/knowledge.md` (la frase "tal como los devuelven `listar_torneos` y `campeones_de_torneos`"): copiá esas líneas al _System Message_ si lo editás a mano.
+
+## Cómo actualizar las herramientas de pendientes a mano en n8n
+
+Para que `pendientes_de_jugadores` y `partidos_jugables_entre_jugadores` cuenten quién es el favorito de cada partido, sin importar el JSON de nuevo. Los valores salen de `scripts/buildAssistantWorkflow.js` (lo que genera `n8n/assistant.json`) y un test los compara con esta guía: si cambian allá, cambian acá. La URL y la consulta de las dos herramientas no cambian (`https://apa-website-be.vercel.app/api/assistant/pending-matches`, con el mismo secreto): solo cambian las descripciones y el _System Message_, porque el endpoint ya devuelve `favorite` en cada partido.
+
+1. En el nodo `pendientes_de_jugadores`, en **Description** (_Set Manually_) reemplazá el texto por exactamente:
+    ```
+    Partidos sin jugar de los torneos activos en los que participa al menos uno de los jugadores indicados. Sin jugadores devuelve los pendientes de todos. Devuelve el total real de pendientes (totalPending), el desglose por torneo con la ruta del sitio para verlos y un detalle acotado de partidos (truncated indica si hay más). Los cruces de playoff con rival por definir vienen aparte en awaitingOpponent. Cada partido puede traer favorite: el favorito del duelo según el modelo de rating, con su etiqueta y su porcentaje de ganar o de avanzar de ronda (null si no hay un favorito claro o no hay dato).
+    ```
+2. En el nodo `partidos_jugables_entre_jugadores`, en **Description** reemplazá el texto por exactamente:
+    ```
+    Partidos sin jugar que se pueden jugar ahora entre un grupo de al menos 2 jugadores: solo los partidos en los que ambos lados son jugadores del grupo. Sirve para 'nos juntamos Leo, Max y yo, ¿qué podemos jugar?'. Mismo formato de respuesta que pendientes_de_jugadores, incluido favorite en cada partido.
+    ```
+3. En el nodo **APA Assistant**, en el _System Message_, reemplazá la línea de `pendientes_de_jugadores` en `# HERRAMIENTAS` por:
+    ```
+    -   `pendientes_de_jugadores`: partidos sin jugar en los que participa alguno de los jugadores ("¿qué partidos tengo pendientes?", "¿qué le falta jugar a Leo?"). Sin jugadores trae los pendientes de todos. Con el id de un torneo, solo los de ese torneo. Cada partido puede traer el favorito del duelo (ver CÓMO PRESENTAR LOS FAVORITOS).
+    ```
+4. En el mismo lugar, reemplazá la línea de `partidos_jugables_entre_jugadores` por:
+    ```
+    -   `partidos_jugables_entre_jugadores`: partidos que se pueden jugar entre un grupo de al menos 2 jugadores ("nos juntamos Leo, Max y yo, ¿qué podemos jugar?"). Si el usuario dice "nosotros" o "yo", incluí su id. Cada partido puede traer el favorito del duelo (ver CÓMO PRESENTAR LOS FAVORITOS).
+    ```
+5. Copiá también al _System Message_ la sección `# CÓMO PRESENTAR LOS FAVORITOS` de `n8n/system-prompt.md` (va justo después de `# CÓMO PRESENTAR LOS PENDIENTES`) y la línea nueva del final de `## APA Rating (el ELO del sitio)` de `n8n/knowledge.md`. Sin esas reglas el agente recibe `favorite` pero no sabe cómo redactarlo.
+6. Probalo: pedí "¿Qué partidos tengo pendientes?" y después "¿Soy favorito en alguno de esos partidos?". Lo esperado es que nombre solo a los duelos donde sos el favorito, con la etiqueta y el porcentaje "según el modelo", sin hablar de empate ni de la probabilidad del rival.
 
 ## Seguridad
 

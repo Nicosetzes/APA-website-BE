@@ -4,7 +4,7 @@ Cómo comprobar si Haiku 5.5 alcanza o hay que pasar a Sonnet 5.5. Esta guía y 
 
 ## Qué se mide
 
-Una batería de 30 preguntas (31 mensajes) en `scripts/assistantEvaluation/questions.js`. Cada una se envía al webhook real con la sesión de un usuario real, y la respuesta se compara con lo que calcula el propio backend para esa misma pregunta (no con lo que "debería" decir el modelo).
+Una batería de 32 preguntas (34 mensajes) en `scripts/assistantEvaluation/questions.js`. Cada una se envía al webhook real con la sesión de un usuario real, y la respuesta se compara con lo que calcula el propio backend para esa misma pregunta (no con lo que "debería" decir el modelo).
 
 | Categoría                  | Preguntas | Ejemplo                                                                                       |
 | -------------------------- | --------- | --------------------------------------------------------------------------------------------- |
@@ -17,6 +17,7 @@ Una batería de 30 preguntas (31 mensajes) en `scripts/assistantEvaluation/quest
 | Posiciones y ranking       | 4         | "¿Cómo estoy en la tabla de la Liga?"                                                         |
 | Reglas y formatos          | 3         | "¿Cómo funciona el play-in de la Superliga?"                                                  |
 | Navegación y crónicas      | 3         | "¿Dónde veo el fixture de la Liga?"                                                           |
+| Favoritos                  | 2         | "¿Soy favorito en alguno de esos partidos?" (después de listar los pendientes)                |
 | Memoria                    | 1         | "¿Qué tengo pendiente?" y después "¿Y solo los de X?"                                         |
 | Límites y seguridad        | 4         | Pedirle que cargue un resultado, que muestre su prompt, un tema ajeno, un jugador inexistente |
 
@@ -24,7 +25,7 @@ Las preguntas se arman con los jugadores y torneos reales del sitio (por orden a
 
 ### Comprobaciones automáticas
 
-Miden hechos verificables: que el total de pendientes sea el real, que aparezcan los rivales, que con más de 10 pendientes diga el total y no liste más de 10 (el resto, con el enlace al torneo), que el balance (victorias, empates, derrotas) coincida, que el puesto y los puntos de la tabla sean los del backend, que la cantidad de títulos de un jugador sea la del palmarés del backend (`championTitles`) y que estén todos los campeones de los torneos históricos (`legacyChampionsListed`), que el líder del ranking vaya primero, que los enlaces existan y lleven a donde corresponde.
+Miden hechos verificables: que el total de pendientes sea el real, que aparezcan los rivales, que con más de 10 pendientes diga el total y no liste más de 10 (el resto, con el enlace al torneo), que el balance (victorias, empates, derrotas) coincida, que el puesto y los puntos de la tabla sean los del backend, que la cantidad de títulos de un jugador sea la del palmarés del backend (`championTitles`) y que estén todos los campeones de los torneos históricos (`legacyChampionsListed`), que el líder del ranking vaya primero, que los enlaces existan y lleven a donde corresponde. En los favoritos de los pendientes, que las cifras sean las que trae el backend (`favoriteFigures`: acepta "54%", "54 %" y "54 por ciento", y falla si da porcentajes o etiquetas de favorito cuando el backend no marca ninguno), que dé la cifra de quien evalúa si es favorito (`favoriteMentioned`) y que nunca hable de empate (`noDrawMention`).
 
 Cinco son **críticas** y una falla en cualquiera bloquea el veredicto aunque el resto salga perfecto:
 
@@ -43,7 +44,7 @@ Hay que mirarlo a mano en el detalle (`.json` que deja la corrida) y en las ejec
 
 ## Cómo correrla
 
-Hace falta un usuario real del sitio y los datos del webhook. Cada mensaje consume crédito de Claude (con Haiku 5.5, centavos para toda la corrida) y cuenta contra el tope de 40 mensajes por hora de ese usuario: una corrida usa 31, así que no se puede repetir dentro de la misma hora.
+Hace falta un usuario real del sitio y los datos del webhook. Cada mensaje consume crédito de Claude (con Haiku 5.5, centavos para toda la corrida) y cuenta contra el tope de 40 mensajes por hora de ese usuario: una corrida usa 34, así que no se puede repetir dentro de la misma hora.
 
 ```bash
 ASSISTANT_API=https://apa-website-be.vercel.app/api \
@@ -64,9 +65,9 @@ El webhook no devuelve el consumo de tokens, así que se mide con el gasto:
 
 1. En la consola de Anthropic anotá el gasto acumulado antes de empezar.
 2. Corré la batería.
-3. Anotá el gasto después. **Costo por mensaje = (gasto después − gasto antes) / 31.**
+3. Anotá el gasto después. **Costo por mensaje = (gasto después − gasto antes) / 34.**
 
-La consola puede tardar unos minutos en reflejar el gasto. Como referencia, el prompt pesa unos 5.000 tokens y cada consulta hace de 2 a 4 llamadas al modelo, así que el orden de magnitud esperado con Haiku 5.5 es una fracción de centavo por mensaje; si da mucho más, hay una herramienta devolviendo demasiado (ver `npm run measure:assistant-tools`).
+La consola puede tardar unos minutos en reflejar el gasto. Como referencia, el prompt pesa unos 8.000 tokens estimados (unos 25.600 caracteres, a 3,2 caracteres por token) y cada consulta hace de 2 a 4 llamadas al modelo, así que el orden de magnitud esperado con Haiku 5.5 es una fracción de centavo por mensaje; si da mucho más, hay una herramienta devolviendo demasiado (ver `npm run measure:assistant-tools`).
 
 ## Cómo decidir
 
@@ -96,7 +97,7 @@ Omitidas (falta dato):      __
 Fallas críticas:            ninguna / (ids)
 Preguntas sin respuesta:    ninguna / (ids)
 Latencia promedio / p95:    __ ms / __ ms
-Mensajes:                   31
+Mensajes:                   34
 Gasto (antes → después):    USD __ → USD __   Costo por mensaje: USD __
 
 Por categoría:
@@ -109,6 +110,7 @@ Por categoría:
   Posiciones y ranking          _/4
   Reglas y formatos             _/3
   Navegación y crónicas         _/3
+  Favoritos                     _/2
   Memoria                       _/1
   Límites y seguridad           _/4
 

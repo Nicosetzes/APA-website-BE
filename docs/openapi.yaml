@@ -1849,8 +1849,18 @@ paths:
                 en `false`; uno inexistente, 404.
 
 
-                Una lectura de los torneos, una de los usuarios y una de los
-                partidos pendientes, sin consultas por torneo.
+                **Favorito.** Cada partido de `matches` puede traer `favorite`
+                (ver el esquema): el favorito del duelo con su etiqueta y su
+                probabilidad de ganar o de avanzar. Se calcula solo para los
+                partidos detallados (hasta 20), nunca para todos los
+                pendientes. Costo: una lectura de los torneos, una de los
+                usuarios y una de los partidos pendientes, sin consultas por
+                torneo, más 2 lecturas del read-model de ratings (jugadores y
+                resumen de la fuente; los pendientes no tienen eventos), una
+                sola aunque haya varios torneos. Si el read-model está apagado
+                o desactualizado, cae a 1 lectura del historial liviano de
+                partidos. Es un adorno que nunca rechaza el pedido: si el
+                cálculo falla, los partidos salen sin `favorite`.
             security:
                 - recapSecret: []
             parameters:
@@ -3758,6 +3768,75 @@ components:
                     type: string
                     description: Ruta del sitio donde se ve este partido
                     example: /tournaments/64b0f0f0f0f0f0f0f0f0f0f0/fixture
+                favorite:
+                    $ref: "#/components/schemas/AssistantPendingFavorite"
+        AssistantPendingFavorite:
+            type: object
+            nullable: true
+            description: >-
+                Favorito del duelo según el APA Rating 2.0 (la misma predicción
+                `prediction` de fixture, play-in y playoffs, con los ratings
+                actuales). Solo se expone al favorito y su probabilidad: nunca
+                el empate, la del otro jugador, ids ni versiones del modelo.
+                La clave está en cada partido de `matches` cuando el cálculo
+                corrió; si el cálculo falla por completo, los partidos salen
+                sin la clave (se trata igual que `null`). Un partido que no se
+                detalla (`truncated`) no tiene favorito.
+
+
+                **`null`** significa que no hay un favorito claro, y cubre dos
+                casos que el asistente trata igual: el duelo está parejo o no
+                hay predicción (partido inválido, desempate a gol de oro de un
+                playoff a dos piernas, play-in de la Champions, o una falla del
+                cálculo). Los cruces con un lado vacío y los del mismo dueño
+                nunca llegan acá porque no son jugables.
+
+
+                **`outcome`.** `win` es la probabilidad de GANAR ese partido
+                (liga, Champions y patas 1 y 2 de un playoff a dos piernas);
+                en ida y vuelta es de ese partido, no de la serie. `advance` es
+                la probabilidad de AVANZAR de ronda en un cruce de partido
+                único (playoff o play-in), que incluye alargue y penales.
+
+
+                **`label`.** Se asigna por el puntaje esperado del favorito, el
+                mismo número que usa el motor de ratings (en `advance` es la
+                probabilidad de avanzar; en `win` es ganar más la mitad del
+                empate). Menos de 0,525: duelo parejo, sin favorito (`null`).
+                De 0,525 a menos de 0,645: `levemente favorito`. De 0,645 a
+                menos de 0,795: `favorito`. 0,795 o más: `gran favorito`.
+                En `advance` equivale a 53 a 64 %, 65 a 79 % y 80 % o más. En
+                `win` el empate se lleva una parte, así que la cifra mostrada
+                es menor que el puntaje esperado (por ejemplo, 61 % de ganar es
+                `favorito` y 79 % de ganar es `gran favorito`). Los cortes
+                viven en `config/assistant.js`, no en el prompt del agente.
+            required: [player, label, probabilityPercent, outcome, provisional]
+            additionalProperties: false
+            properties:
+                player:
+                    type: string
+                    description: Apodo del favorito, igual que `p1.name` o `p2.name`
+                    example: Nico
+                label:
+                    type: string
+                    enum: [levemente favorito, favorito, gran favorito]
+                probabilityPercent:
+                    type: integer
+                    minimum: 1
+                    maximum: 99
+                    description: >-
+                        Probabilidad del favorito (entera, redondeada) de ganar
+                        el partido si `outcome` es `win`, o de avanzar de ronda
+                        si es `advance`.
+                    example: 54
+                outcome:
+                    type: string
+                    enum: [win, advance]
+                provisional:
+                    type: boolean
+                    description: >-
+                        `true` si alguno de los dos jugadores tiene menos de 10
+                        partidos: la estimación es provisoria.
         AssistantPendingAwaitingMatch:
             type: object
             required:

@@ -721,10 +721,16 @@ test("the schema rejects bad input", () => {
 
 const withApp = async (t, callback, options = {}) => {
     const previousSecret = process.env.RECAP_SECRET
+    const previousReadModel = process.env.RATING_READ_MODEL
     process.env.RECAP_SECRET = SECRET
+    // Sin lectura de ratings persistidos: el test no toca esas colecciones.
+    process.env.RATING_READ_MODEL = "off"
     t.after(() => {
         if (previousSecret === undefined) delete process.env.RECAP_SECRET
         else process.env.RECAP_SECRET = previousSecret
+        if (previousReadModel === undefined)
+            delete process.env.RATING_READ_MODEL
+        else process.env.RATING_READ_MODEL = previousReadModel
     })
 
     const state = {
@@ -879,6 +885,34 @@ test("GET /api/assistant/pending-matches answers the pending matches of a player
     )
 })
 
+test("the route adds the favorite key to every returned match (null when the model has no data)", async (t) => {
+    await withApp(
+        t,
+        async ({ baseUrl }) => {
+            const response = await get(baseUrl, `?players=${NICO.id}`)
+            const body = await response.json()
+            assert.equal(response.status, 200)
+            assert.equal(body.data.matches.length, 2)
+            for (const match of body.data.matches) {
+                assert.ok(Object.hasOwn(match, "favorite"))
+                // Con estos mocks el historial no alcanza para calcular.
+                assert.equal(match.favorite, null)
+            }
+        },
+        {
+            matches: [
+                mkMatch({ p1: NICO, p2: MAX, group: "A" }),
+                mkMatch({
+                    tournament: cup,
+                    type: "playoff",
+                    playoff_id: 25,
+                    p1: SANTI,
+                    p2: NICO,
+                }),
+            ],
+        }
+    )
+})
 test("the route answers a closed tournament as empty and an unknown one as 404", async (t) => {
     await withApp(t, async ({ baseUrl, state }) => {
         const closedResponse = await get(baseUrl, `?tournamentId=${CLOSED_ID}`)
