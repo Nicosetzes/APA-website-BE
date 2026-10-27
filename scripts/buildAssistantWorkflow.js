@@ -385,7 +385,7 @@ const buildWorkflow = () => {
         readTool({
             name: "listar_torneos",
             description:
-                "Lista todos los torneos del sitio (menos los históricos sin reglas definidas) con su id, nombre, formato, si está en curso (ongoing true) o terminado (ongoing false), fechas y quién ganó. Usala para convertir el nombre de un torneo en su id, para saber qué torneos están activos y para saber con qué formato se juega cada uno.",
+                "Lista los torneos con partidos del sitio (NO incluye los torneos históricos de 2016 a 2019 del Salón de la Fama) con su id, nombre, formato, si está en curso (ongoing true) o terminado (ongoing false), fechas y quién ganó. Usala para convertir el nombre de un torneo en su id, para saber qué torneos están activos y para saber con qué formato se juega cada uno. Para campeones, subcampeones, títulos o palmarés (incluidos los torneos históricos) usá campeones_de_torneos.",
             endpoint: "/tournaments",
             query: "={{ JSON.stringify({ legacy: false }) }}",
             position: [1376, 400],
@@ -527,6 +527,15 @@ const buildWorkflow = () => {
             secret: true,
             position: [1632, 560],
         }),
+        readTool({
+            name: "campeones_de_torneos",
+            description:
+                "Palmarés de TODOS los torneos terminados y válidos, incluidos los históricos de 2016 a 2019 que no tienen partidos cargados. Por torneo (del más nuevo al más viejo): campeón y subcampeón con su equipo, fecha de cierre, formato y si es histórico. Por jugador, ya contados: títulos y subcampeonatos, con el nombre de los torneos de cada uno. Sirve para 'cuántos títulos ganó X', 'quién ganó tal torneo' y 'quiénes fueron campeones'. Si campeón y subcampeón son la misma persona, el torneo cuenta como título y no como subcampeonato. No necesita parámetros.",
+            endpoint: "/assistant/champions",
+            query: "={{ JSON.stringify({}) }}",
+            secret: true,
+            position: [1760, 560],
+        }),
     ]
 
     // Las herramientas no declaran id: se les da uno fijo para que el export
@@ -556,6 +565,7 @@ const buildWorkflow = () => {
         "resumen_del_dia",
         "cronica_de_torneo",
         "ultimos_partidos_de_jugador",
+        "campeones_de_torneos",
     ]
 
     return {

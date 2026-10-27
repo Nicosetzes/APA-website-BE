@@ -54,6 +54,9 @@ Al agregar un formato o una vista nueva, actualizá el documento que corresponda
 | `resumen_del_dia`                   | `GET /api/recaps/:date` (o `latest`)                 | no      |
 | `cronica_de_torneo`                 | `GET /api/tournaments/:id/recap`                     | no      |
 | `ultimos_partidos_de_jugador`       | `GET /api/assistant/recent-matches`                  | sí      |
+| `campeones_de_torneos`              | `GET /api/assistant/champions`                       | sí      |
+
+`listar_torneos` no incluye los 9 torneos históricos de 2016 a 2019 del Salón de la Fama (no tienen partidos ni reglas), así que no sirve para palmarés: campeones, subcampeones y títulos de todos los torneos terminados salen de `campeones_de_torneos`.
 
 Todas son `GET`: el agente no puede escribir. El secreto solo viaja a los endpoints `/api/assistant/*`.
 
@@ -62,6 +65,7 @@ Todas son `GET`: el agente no puede escribir. El secreto solo viaja a los endpoi
 Lo que devuelve una herramienta se reenvía al modelo en cada vuelta del agente, así que una respuesta grande cuesta tokens y distrae. Por eso:
 
 -   Pendientes, historial y posiciones tienen endpoints propios (`/api/assistant/*`) con respuesta compacta y tope de detalle: pendientes detalla 10 partidos por defecto (máximo 20), historial 5 (máximo 10) y últimos partidos 10 (máximo 20). Con más de 10 pendientes el agente dice el total, el desglose por torneo, lista los 10 del detalle y da el enlace de cada torneo. La tabla original trae las últimas jornadas completas de cada equipo y es varias veces más grande (un test fija una reducción de al menos 3 veces con datos de ejemplo; con torneos de 48 equipos es mucho más).
+-   `campeones_de_torneos` devuelve el palmarés completo (torneos y jugadores, con los títulos ya contados) sin parámetros ni tope: son unos 1.750 tokens estimados (a 3,2 caracteres por token) con los 20 torneos terminados de la base de referencia y crece alrededor de 60 tokens por cada torneo terminado nuevo. No se acota porque el palmarés completo es chico, y existe porque `listar_torneos` no trae los torneos históricos (un test fija que con el tamaño real del sitio queda por debajo de 2.500 tokens).
 -   El ranking, el rating por período y las estadísticas de un jugador ya son chicos y se usan tal cual.
 -   Las crónicas son texto largo (típicamente unos pocos miles de caracteres, con un tope de 50.000). El prompt le pide al agente resumirlas.
 
@@ -79,7 +83,7 @@ Con datos reales se puede medir cada herramienta con `npm run measure:assistant-
 
 1. En n8n: **Workflows → Import from file** → `n8n/assistant.json`.
 2. Abrí el nodo **Claude Haiku** y elegí tu credencial de Anthropic. Verificá que el modelo sea `claude-haiku-5-5`. Si no aparece en la lista, escribilo como ID.
-3. Abrí cada herramienta con 🔒 (`pendientes_de_jugadores`, `partidos_jugables_entre_jugadores`, `historial_entre_jugadores`, `posiciones_de_torneo`, `ultimos_partidos_de_jugador`) y confirmá la credencial del secreto.
+3. Abrí cada herramienta con 🔒 (`pendientes_de_jugadores`, `partidos_jugables_entre_jugadores`, `historial_entre_jugadores`, `posiciones_de_torneo`, `ultimos_partidos_de_jugador`, `campeones_de_torneos`) y confirmá la credencial del secreto.
 4. En el nodo **Chat Webhook**, revisá _Allowed Origins (CORS)_: por defecto `https://sitioapa.com.ar`, `https://apa-website-fe.vercel.app` y `http://localhost:3000` (este último solo para desarrollo; sacalo en producción si no lo necesitás).
 5. **Publicá** el workflow. La URL de producción queda así:
 
@@ -232,6 +236,63 @@ Para sumar `ultimos_partidos_de_jugador` a un workflow que ya está importado, s
     Y copiá también al _System Message_ la sección `# CÓMO PRESENTAR LOS ÚLTIMOS PARTIDOS DE UN JUGADOR` de `n8n/system-prompt.md` (va antes de `# CÓMO RESPONDER SOBRE REGLAS Y FORMATOS`) y la frase final que `system-prompt.md` agrega a la línea de `historial_entre_jugadores` ("Sin un rival nombrado no sirve: …"). Sin esas reglas el agente usa la herramienta pero no sabe presentar la mayor pérdida o ganancia de rating.
 
 6. Probalo con "¿cuáles fueron mis últimos 5 partidos?" y mirá en la ejecución que la herramienta haya recibido `player` y `limit: 5`. El repositorio ya tiene todo esto (`n8n/assistant.json` y `system-prompt.md`), así que no hay nada que copiar de vuelta; solo que importar el JSON de nuevo reemplaza lo que hayas hecho a mano por lo mismo.
+
+## Cómo agregar `campeones_de_torneos` a mano en n8n
+
+Para sumar `campeones_de_torneos` a un workflow que ya está importado, sin importar el JSON de nuevo. Los valores salen de `scripts/buildAssistantWorkflow.js` (lo que genera `n8n/assistant.json`) y un test los compara con esta guía: si cambian allá, cambian acá.
+
+1. En el workflow, duplicá el nodo `ultimos_partidos_de_jugador` (ya tiene la credencial del secreto y las opciones) y renombralo a `campeones_de_torneos`. Tiene que quedar conectado al nodo **APA Assistant** por la entrada _Tool_.
+2. Configurá el nodo así:
+    - **Method**: `GET` (en la herramienta HTTP no se cambia: es el valor por defecto).
+    - **URL**: `https://apa-website-be.vercel.app/api/assistant/champions`
+    - **Authentication**: _Generic Credential Type_ → _Custom Auth_, con la misma credencial del secreto de los recaps (`X-Recap-Secret`) que usan las demás herramientas con 🔒.
+    - **Send Query Parameters**: activado, _Specify Query Parameters_ en _Using JSON_.
+    - **Options**: _Timeout_ 30000 y _Never Error_ activado (igual que las otras).
+3. En **Description** (_Set Manually_) pegá exactamente:
+
+    ```
+    Palmarés de TODOS los torneos terminados y válidos, incluidos los históricos de 2016 a 2019 que no tienen partidos cargados. Por torneo (del más nuevo al más viejo): campeón y subcampeón con su equipo, fecha de cierre, formato y si es histórico. Por jugador, ya contados: títulos y subcampeonatos, con el nombre de los torneos de cada uno. Sirve para 'cuántos títulos ganó X', 'quién ganó tal torneo' y 'quiénes fueron campeones'. Si campeón y subcampeón son la misma persona, el torneo cuenta como título y no como subcampeonato. No necesita parámetros.
+    ```
+
+4. En **JSON** (la consulta) pegá esta expresión. La herramienta no tiene parámetros: el backend rechaza cualquier query con 400, así que no hay que agregar ninguno.
+
+    ```
+    ={{ JSON.stringify({}) }}
+    ```
+
+5. En el nodo **APA Assistant**, en el _System Message_, agregá esta línea en `# HERRAMIENTAS`, justo antes de la de `listar_torneos`:
+
+    ```
+    -   `campeones_de_torneos`: el palmarés de TODOS los torneos terminados, también los históricos de 2016 a 2019: campeón y subcampeón de cada uno, y cuántos títulos y subcampeonatos tiene cada jugador, ya contados ("¿cuántos títulos ganó Santi?", "¿quién ganó la Copa del Mundo 2018?", "¿quiénes fueron campeones?", "¿quién es el último campeón?"). No necesita parámetros.
+    ```
+
+    Y copiá también al _System Message_ la sección `# CÓMO PRESENTAR EL PALMARÉS` de `n8n/system-prompt.md` (va antes de `# CÓMO RESPONDER SOBRE REGLAS Y FORMATOS`). Sin esas reglas el agente usa la herramienta pero no sabe contar ni presentar títulos y subcampeonatos.
+
+6. Probalo con "¿cuántos títulos ganó Santi en la historia APA?" y mirá en la ejecución que la herramienta haya sido `campeones_de_torneos`. Con los datos de la base de referencia (6 de octubre de 2026) lo esperado es 1 título (Copa América 2019) y 4 subcampeonatos. El repositorio ya tiene todo esto (`n8n/assistant.json` y `system-prompt.md`), así que no hay nada que copiar de vuelta; solo que importar el JSON de nuevo reemplaza lo que hayas hecho a mano por lo mismo.
+
+## Cómo actualizar `listar_torneos` a mano en n8n
+
+Este cambio va junto con el anterior: `listar_torneos` no incluye los torneos históricos de 2016 a 2019 y ahora su descripción lo dice y manda a `campeones_de_torneos` para el palmarés. La URL y la consulta no cambian (`https://apa-website-be.vercel.app/api/tournaments` con `={{ JSON.stringify({ legacy: false }) }}`).
+
+1. En el nodo `listar_torneos`, en **Description** (_Set Manually_) reemplazá el texto por exactamente:
+
+    ```
+    Lista los torneos con partidos del sitio (NO incluye los torneos históricos de 2016 a 2019 del Salón de la Fama) con su id, nombre, formato, si está en curso (ongoing true) o terminado (ongoing false), fechas y quién ganó. Usala para convertir el nombre de un torneo en su id, para saber qué torneos están activos y para saber con qué formato se juega cada uno. Para campeones, subcampeones, títulos o palmarés (incluidos los torneos históricos) usá campeones_de_torneos.
+    ```
+
+2. En el nodo **APA Assistant**, en el _System Message_, reemplazá la línea de `listar_torneos` en `# HERRAMIENTAS` por:
+
+    ```
+    -   `listar_torneos`: los torneos con partidos (no incluye los históricos de 2016 a 2019) con su id, nombre, formato, si están en curso o terminados y quién ganó. Sirve para pasar un nombre a id, saber cuáles están activos y con qué formato se juega cada uno. Para campeones, subcampeones y títulos usá `campeones_de_torneos`.
+    ```
+
+3. En `# QUIÉN ES QUIÉN`, reemplazá la línea del torneo por nombre por:
+
+    ```
+    -   Para un torneo por nombre usá `listar_torneos` y buscá el id. Si hay dos parecidos, preguntá cuál. Los torneos históricos de 2016 a 2019 no están en `listar_torneos`: para esos, y para saber quién ganó un torneo, usá `campeones_de_torneos`.
+    ```
+
+4. También tienen cambios `n8n/routes.md` (las líneas de `/hall-of-fame` y de las vistas de un torneo) y `n8n/knowledge.md` (la frase "tal como los devuelven `listar_torneos` y `campeones_de_torneos`"): copiá esas líneas al _System Message_ si lo editás a mano.
 
 ## Seguridad
 

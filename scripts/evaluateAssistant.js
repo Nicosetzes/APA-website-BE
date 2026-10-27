@@ -3,7 +3,7 @@
  * scripts/assistantEvaluation/questions.js a través del webhook real de n8n, con
  * una sesión de un usuario real, y compara cada respuesta con lo que calcula el
  * propio backend. Solo hace lecturas y mensajes de chat (nada se escribe en la
- * base). Cada mensaje consume crédito de Claude: son unas 29 consultas.
+ * base). Cada mensaje consume crédito de Claude: son unas 31 consultas.
  *
  *   ASSISTANT_API=https://apa-website-be.vercel.app/api \
  *   ASSISTANT_WEBHOOK=https://<tu-n8n>/webhook/apa-assistant \

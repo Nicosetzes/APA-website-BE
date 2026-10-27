@@ -1,4 +1,5 @@
 const getAllTimeFaceToFace = require("./getAllTimeFaceToFace")
+const getAssistantChampions = require("./getAssistantChampions")
 const getAssistantHeadToHead = require("./getAssistantHeadToHead")
 const getAssistantPendingMatches = require("./getAssistantPendingMatches")
 const getAssistantRecentMatches = require("./getAssistantRecentMatches")
@@ -45,6 +46,7 @@ const getRatingsPeriod = require("./getRatingsPeriod")
 
 module.exports = {
     getAllTimeFaceToFace,
+    getAssistantChampions,
     getAssistantHeadToHead,
     getAssistantPendingMatches,
     getAssistantRecentMatches,

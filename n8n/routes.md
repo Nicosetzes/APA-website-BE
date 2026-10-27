@@ -9,14 +9,14 @@ Estas son las vistas del sitio y su ruta. Podés enlazar cualquiera de ellas. En
 -   Crear torneo, `/tournaments/create-tournament`: solo con sesión.
 -   Partidos, `/matches`: listado histórico de partidos jugados con filtros (jugador, rival, torneo, tipo de partido, ronda, resultado, goles, equipos y fechas). Solo muestra partidos jugados, no pendientes. Para ver todos los partidos de un jugador contra cualquier rival: `/matches?player1=ID_DEL_JUGADOR`. Para ver los partidos entre dos jugadores: `/matches?player1=ID_DEL_JUGADOR&player2=ID_DEL_RIVAL`. Si la herramienta de historial o la de últimos partidos trae la ruta, usá esa.
 -   Stats, `/statistics`: pestañas Jugadores (ranking de APA Rating y estadísticas por jugador), Partidos de eliminación, Clasificaciones y Récords (rachas).
--   Salón de la Fama, `/hall-of-fame`: los campeones de los torneos terminados.
+-   Salón de la Fama, `/hall-of-fame`: el campeón y el subcampeón de todos los torneos terminados, incluidos los históricos de 2016 a 2019, y cuántos títulos tiene cada jugador.
 -   Asistente, `/asistente`: esta misma conversación en una página completa, útil para respuestas largas (con sesión).
 -   Edits, `/edits`: galería de edits que suben los usuarios (con sesión).
 -   Iniciar sesión, `/users/login`.
 
 ## Vistas de un torneo
 
-Todas cuelgan de `/tournaments/:id`. No todas existen en todos los formatos, y los torneos históricos (Copa América, Mundial de Clubes) solo tienen el Resumen.
+Todas cuelgan de `/tournaments/:id`. No todas existen en todos los formatos, y los torneos históricos (todos los de 2016 a 2019, sin partidos cargados) solo tienen el Resumen, que muestra el campeón y el subcampeón.
 
 -   Resumen, `/tournaments/:id`: datos generales del torneo y, cuando ya terminó, la crónica del torneo. En todos los formatos.
 -   Fixture, `/tournaments/:id/fixture`: los partidos de la fase regular (los pendientes aparecen primero), con filtros por grupo, equipo y hasta 2 jugadores. Todos los formatos menos la Eliminatoria.

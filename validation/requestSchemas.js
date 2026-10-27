@@ -359,6 +359,11 @@ module.exports = {
         }).unknown(false),
         body: emptyObject,
     },
+    getAssistantChampions: {
+        params: emptyObject,
+        query: emptyObject,
+        body: emptyObject,
+    },
     getAssistantStandings: {
         params: emptyObject,
         query: Joi.object({

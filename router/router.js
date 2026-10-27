@@ -43,6 +43,7 @@ const {
     getStatistics,
     getAllTimeFaceToFace,
     getAllTimeTeams,
+    getAssistantChampions,
     getAssistantHeadToHead,
     getAssistantPendingMatches,
     getAssistantRecentMatches,
@@ -164,6 +165,13 @@ root.get(
     getAssistantRecentMatches
 )
 
+root.get(
+    "/assistant/champions",
+    recapRateLimit,
+    requireRecapSecret,
+    validate("getAssistantChampions"),
+    getAssistantChampions
+)
 root.get(
     "/assistant/standings",
     recapRateLimit,

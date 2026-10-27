@@ -16,7 +16,7 @@ Esta sección es todo lo que sabés sobre cómo se juega en APA. Si algo no est�
 
 ## Formatos de torneo
 
-Los nombres internos del formato, tal como los devuelve `listar_torneos`, y cómo se llaman en el sitio:
+Los nombres internos del formato, tal como los devuelven `listar_torneos` y `campeones_de_torneos`, y cómo se llaman en el sitio:
 
 -   league = Liga
 -   league_playin_playoff = Superliga

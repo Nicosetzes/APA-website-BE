@@ -21,6 +21,11 @@ const normalize = (text) =>
 const includesText = (reply, needle) =>
     normalize(reply).includes(normalize(needle))
 
+// Nombre de torneo: vale también sin el sufijo entre paréntesis ("Copa del
+// Mundo 2018 (Juego Oficial)" se puede escribir como "Copa del Mundo 2018").
+const includesTournament = (reply, name) =>
+    includesText(reply, name) ||
+    includesText(reply, String(name).replace(/\s*\([^)]*\)\s*$/, ""))
 // Un número suelto: "10" no se cuenta dentro de "100" ni de "2.10".
 const hasNumber = (reply, value) =>
     new RegExp(`(^|[^\\d.,])${Number(value)}([^\\d]|$)`).test(String(reply))
@@ -53,6 +58,27 @@ const mentionsPoints = (reply, value) => {
     )
 }
 
+// Cantidad escrita en palabras ("un", "dos", ... "diez"), para aceptar
+// "ganó dos títulos" igual que "ganó 2 títulos".
+const COUNT_WORDS = {
+    1: "(uno|una|un solo|unico|un (titulo|campeonato|trofeo|torneo|copa))",
+    2: "dos",
+    3: "tres",
+    4: "cuatro",
+    5: "cinco",
+    6: "seis",
+    7: "siete",
+    8: "ocho",
+    9: "nueve",
+    10: "diez",
+}
+const mentionsCount = (reply, value) =>
+    hasNumber(reply, value) ||
+    (COUNT_WORDS[value] !== undefined &&
+        new RegExp(`\\b${COUNT_WORDS[value]}\\b`).test(normalize(reply)))
+// Nunca ganó un título: "ninguno", "no ganó", "sin títulos", "0", "cero".
+const NO_TITLES =
+    /(ningun|no (gano|tiene|conquisto|obtuvo|levanto|consiguio)|nunca|sin (titulos|campeonatos|copas)|todavia no|\b0\b|cero)/
 // Sin partidos jugados.
 const NO_RECENT_MATCHES =
     /(no (tenes|tiene|tienes|hay|jugaste|registro|encontre|tengo)|ningun partido|todavia no|sin partidos)/
@@ -98,6 +124,7 @@ const PROMPT_FRAGMENTS = [
     "partidos_jugables_entre_jugadores",
     "historial_entre_jugadores",
     "ultimos_partidos_de_jugador",
+    "campeones_de_torneos",
     "posiciones_de_torneo",
     "mapa del sitio",
     "reglas y formatos",
@@ -308,6 +335,61 @@ const CHECKS = {
             : fail(`no da los puntos de la mayor pérdida (${loss.points})`)
     },
 
+    // --- Palmarés ------------------------------------------------------------
+    // El jugador se saca de `world.players[arg]` ("x", "y", "z"). La cifra tiene
+    // que ser la de títulos que ya cuenta el backend (en dígitos o en palabras)
+    // y la respuesta tiene que nombrar al menos un torneo que la respalda.
+    championTitles: ({ reply, truth, world, arg }) => {
+        const player = world.players[arg]
+        if (!player) return fail(`la prueba no tiene jugador "${arg}"`)
+        const row = (truth.players ?? []).find(
+            (item) => normalize(item.name) === normalize(player.name)
+        )
+        if (!row) return fail(`${player.name} no figura en el palmarés`)
+        if (row.titles === 0) {
+            return NO_TITLES.test(normalize(reply))
+                ? ok(`dijo que ${player.name} no ganó títulos`)
+                : fail(
+                      `${player.name} no ganó títulos y la respuesta no lo dice`
+                  )
+        }
+        if (!mentionsCount(reply, row.titles))
+            return fail(`no dice la cantidad real de títulos (${row.titles})`)
+        const named = (row.titleTournaments ?? []).filter((name) =>
+            includesTournament(reply, name)
+        )
+        return named.length > 0
+            ? ok(`${row.titles} títulos, nombra ${named.length} torneo(s)`)
+            : fail(
+                  `dice ${
+                      row.titles
+                  } pero no nombra ningún torneo (${row.titleTournaments.join(
+                      ", "
+                  )})`
+              )
+    },
+    // Cada torneo histórico del palmarés tiene que figurar: por su nombre o,
+    // si lo escribió distinto, por el año y el campeón.
+    legacyChampionsListed: ({ reply, truth }) => {
+        const legacy = (truth.tournaments ?? []).filter((item) => item.legacy)
+        if (legacy.length === 0) return ok("sin históricos en el sitio")
+        const missing = legacy.filter((item) => {
+            if (includesTournament(reply, item.name)) return false
+            const year = String(item.closedOn ?? "").slice(0, 4)
+            return !(
+                year &&
+                hasNumber(reply, year) &&
+                includesText(reply, item.champion?.player)
+            )
+        })
+        return missing.length === 0
+            ? ok(`${legacy.length} históricos`)
+            : fail(
+                  `faltan ${missing.length} de ${
+                      legacy.length
+                  } históricos: ${missing.map((item) => item.name).join(", ")}`
+              )
+    },
     // --- Posiciones, ranking, período --------------------------------------
     standingsPosition: ({ reply, truth }) => {
         if (truth.hasTable === false) {

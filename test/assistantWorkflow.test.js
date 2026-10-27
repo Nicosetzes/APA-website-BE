@@ -22,6 +22,7 @@ const {
 } = require("../scripts/buildAssistantWorkflow")
 
 const exported = JSON.parse(fs.readFileSync(OUTPUT_PATH, "utf8"))
+const N8N_DIR = path.join(__dirname, "..", "n8n")
 const nodeNamed = (name) => exported.nodes.find((node) => node.name === name)
 const tools = exported.nodes.filter(
     (node) => node.type === "n8n-nodes-base.httpRequestTool"
@@ -78,7 +79,7 @@ test("node ids and names are unique", () => {
 })
 
 test("the agent tools are read-only: GET requests to the backend only", () => {
-    assert.equal(tools.length, 12)
+    assert.equal(tools.length, 13)
 
     for (const tool of tools) {
         const method = tool.parameters.method ?? "GET"
@@ -610,6 +611,7 @@ test("the new query tools build their query from what the model chooses", () => 
         { tournamentId: "t1", group: "C", playerId: "u1" }
     )
     assert.deepEqual(evaluateQuery("ranking_de_jugadores", {}), {})
+    assert.deepEqual(evaluateQuery("campeones_de_torneos", {}), {})
     assert.deepEqual(
         evaluateQuery("rating_en_periodo", {
             dateFrom: "2026-10-01",
@@ -681,8 +683,9 @@ test("the recent-matches tool is a secret-protected GET appended after the exist
     assert.equal(tool.type, "n8n-nodes-base.httpRequestTool")
     assert.deepEqual(Object.keys(tool.credentials), ["httpTemplatedCustomAuth"])
     assert.equal(tool.parameters.options.timeout, 30000)
-    // Al final: los ids de los nodos ya importados no cambian.
-    assert.equal(index, exported.nodes.length - 1)
+    // Al final de las herramientas: los ids de los nodos ya importados no
+    // cambian. Después vino `campeones_de_torneos`.
+    assert.equal(index, exported.nodes.length - 2)
     assert.ok(tool.id.endsWith(String(index).padStart(12, "0")))
     assert.deepEqual(exported.connections.ultimos_partidos_de_jugador, {
         ai_tool: [[{ node: "APA Assistant", type: "ai_tool", index: 0 }]],
@@ -722,6 +725,144 @@ test("the prompt teaches the recent-matches tool: examples, the BE-computed rati
     }
 })
 
+test("the champions tool is a secret-protected GET appended last, without parameters", () => {
+    const tool = nodeNamed("campeones_de_torneos")
+    const index = exported.nodes.indexOf(tool)
+    assert.equal(tool.parameters.url, `${API}/assistant/champions`)
+    assert.equal(tool.parameters.method ?? "GET", "GET")
+    assert.equal(tool.type, "n8n-nodes-base.httpRequestTool")
+    assert.deepEqual(Object.keys(tool.credentials), ["httpTemplatedCustomAuth"])
+    assert.equal(tool.parameters.options.timeout, 30000)
+    // Última del arreglo: los ids de los nodos ya importados no cambian.
+    assert.equal(index, exported.nodes.length - 1)
+    assert.ok(tool.id.endsWith(String(index).padStart(12, "0")))
+    assert.deepEqual(exported.connections.campeones_de_torneos, {
+        ai_tool: [[{ node: "APA Assistant", type: "ai_tool", index: 0 }]],
+    })
+    // El endpoint rechaza cualquier query: la herramienta no manda ninguna.
+    assert.doesNotMatch(tool.parameters.jsonQuery, /\$fromAI/)
+    assert.match(tool.parameters.toolDescription, /históricos/)
+})
+test("listar_torneos says it leaves out the historic tournaments and points to the champions tool", () => {
+    const tool = nodeNamed("listar_torneos")
+    // La consulta no cambia: el FE y las demás preguntas siguen igual.
+    assert.equal(
+        tool.parameters.jsonQuery,
+        "={{ JSON.stringify({ legacy: false }) }}"
+    )
+    assert.match(
+        tool.parameters.toolDescription,
+        /NO incluye los torneos históricos/
+    )
+    assert.match(tool.parameters.toolDescription, /campeones_de_torneos/)
+})
+test("the prompt teaches the champions tool: examples, the BE-computed counts and the historic tournaments", () => {
+    const prompt = readPrompt()
+    for (const example of [
+        "¿cuántos títulos ganó Santi?",
+        "¿quién ganó la Copa del Mundo 2018?",
+        "¿quiénes fueron campeones?",
+    ]) {
+        assert.ok(prompt.includes(example), example)
+    }
+    assert.match(prompt, /# CÓMO PRESENTAR EL PALMARÉS/)
+    // Los totales vienen contados: el modelo no suma a mano.
+    assert.match(prompt, /nunca cuentes ni sumes títulos a mano/)
+    assert.match(
+        prompt,
+        /misma persona, ese torneo es un título y no un subcampeonato/
+    )
+    assert.match(prompt, /Copa del Mundo 2018 y su versión Juego Oficial/)
+    assert.match(prompt, /no tienen partidos cargados/)
+    assert.match(prompt, /\(\/hall-of-fame\)/)
+    // Los históricos no están en `listar_torneos`.
+    assert.match(prompt, /no incluye los históricos de 2016 a 2019/)
+    assert.doesNotMatch(prompt, /\{\{|\}\}/)
+})
+test("the site map says what the Hall of Fame and the historic tournaments show", () => {
+    const routes = fs.readFileSync(path.join(N8N_DIR, "routes.md"), "utf8")
+    assert.match(
+        routes,
+        /`\/hall-of-fame`: el campeón y el subcampeón de todos los torneos terminados, incluidos los históricos/
+    )
+    assert.match(routes, /todos los de 2016 a 2019/)
+    const knowledge = fs.readFileSync(
+        path.join(N8N_DIR, "knowledge.md"),
+        "utf8"
+    )
+    assert.match(knowledge, /`listar_torneos` y `campeones_de_torneos`/)
+})
+// La guía del README para cargar a mano la herramienta y el cambio de
+// `listar_torneos` repite textos del generador y del prompt: se comparan para
+// que no se desincronicen.
+const readme = fs
+    .readFileSync(path.join(N8N_DIR, "README.md"), "utf8")
+    .replace(/\r\n/g, "\n")
+const guideBlocks = (heading) => {
+    const start = readme.indexOf(heading)
+    assert.ok(start >= 0, heading)
+    const end = readme.indexOf("\n## ", start + heading.length)
+    const section = readme.slice(start, end === -1 ? undefined : end)
+    return [...section.matchAll(/```\n([\s\S]*?)\n\s*```/g)].map(([, block]) =>
+        block.replace(/^ {4}/gm, "")
+    )
+}
+const promptLine = (start) =>
+    readPrompt()
+        .split("\n")
+        .find((line) => line.startsWith(start))
+test("the manual guide for campeones_de_torneos matches what the script generates", () => {
+    const tool = nodeNamed("campeones_de_torneos")
+    const section = readme.slice(
+        readme.indexOf("## Cómo agregar `campeones_de_torneos` a mano en n8n")
+    )
+    assert.ok(section.includes(tool.parameters.url))
+    assert.deepEqual(
+        guideBlocks("## Cómo agregar `campeones_de_torneos` a mano en n8n"),
+        [
+            tool.parameters.toolDescription,
+            tool.parameters.jsonQuery,
+            promptLine("-   `campeones_de_torneos`:"),
+        ]
+    )
+})
+test("the manual guide for listar_torneos matches what the script generates", () => {
+    const tool = nodeNamed("listar_torneos")
+    assert.deepEqual(
+        guideBlocks("## Cómo actualizar `listar_torneos` a mano en n8n"),
+        [
+            tool.parameters.toolDescription,
+            promptLine("-   `listar_torneos`:"),
+            promptLine("-   Para un torneo por nombre usá `listar_torneos`"),
+        ]
+    )
+})
+test("the README table lists every tool with its endpoint", () => {
+    for (const tool of tools) {
+        const row = readme
+            .split("\n")
+            .find((line) => line.startsWith(`| \`${tool.name}\``))
+        assert.ok(row, `la tabla del README no lista ${tool.name}`)
+        const route = tool.parameters.url
+            .replace(/^=/, "")
+            .replace(API, "")
+            .split("/")
+            .slice(0, 3)
+            .join("/")
+        assert.ok(
+            row
+                .replace(/:[a-zA-Z]+/g, "")
+                .includes(route.replace(/\{\{.*$/, "").replace(/\/$/, "")),
+            `${tool.name}: ${route}`
+        )
+        const needsSecret = Boolean(tool.credentials)
+        assert.equal(
+            row.trimEnd().endsWith(needsSecret ? "sí      |" : "no      |"),
+            true,
+            tool.name
+        )
+    }
+})
 test("the size-measuring script only reads and covers the assistant tools", () => {
     const { buildRequests } = require("../scripts/measureAssistantTools")
     const requests = buildRequests({

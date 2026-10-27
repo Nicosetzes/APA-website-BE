@@ -4,7 +4,7 @@ Cómo comprobar si Haiku 5.5 alcanza o hay que pasar a Sonnet 5.5. Esta guía y 
 
 ## Qué se mide
 
-Una batería de 28 preguntas (29 mensajes) en `scripts/assistantEvaluation/questions.js`. Cada una se envía al webhook real con la sesión de un usuario real, y la respuesta se compara con lo que calcula el propio backend para esa misma pregunta (no con lo que "debería" decir el modelo).
+Una batería de 30 preguntas (31 mensajes) en `scripts/assistantEvaluation/questions.js`. Cada una se envía al webhook real con la sesión de un usuario real, y la respuesta se compara con lo que calcula el propio backend para esa misma pregunta (no con lo que "debería" decir el modelo).
 
 | Categoría                  | Preguntas | Ejemplo                                                                                       |
 | -------------------------- | --------- | --------------------------------------------------------------------------------------------- |
@@ -13,6 +13,7 @@ Una batería de 28 preguntas (29 mensajes) en `scripts/assistantEvaluation/quest
 | Partidos entre un grupo    | 3         | "Nos juntamos Leo, Max y yo, ¿qué podemos jugar?"                                             |
 | Historial entre jugadores  | 3         | "¿Cuál fue mi último partido contra Max en playoffs?"                                         |
 | Últimos partidos           | 2         | "De mis últimos 5 partidos, ¿cuál fue el partido en el que perdí más ELO?"                    |
+| Palmarés                   | 2         | "¿Cuántos títulos ganó Leo en la historia de APA?"                                            |
 | Posiciones y ranking       | 4         | "¿Cómo estoy en la tabla de la Liga?"                                                         |
 | Reglas y formatos          | 3         | "¿Cómo funciona el play-in de la Superliga?"                                                  |
 | Navegación y crónicas      | 3         | "¿Dónde veo el fixture de la Liga?"                                                           |
@@ -23,7 +24,7 @@ Las preguntas se arman con los jugadores y torneos reales del sitio (por orden a
 
 ### Comprobaciones automáticas
 
-Miden hechos verificables: que el total de pendientes sea el real, que aparezcan los rivales, que con más de 10 pendientes diga el total y no liste más de 10 (el resto, con el enlace al torneo), que el balance (victorias, empates, derrotas) coincida, que el puesto y los puntos de la tabla sean los del backend, que el líder del ranking vaya primero, que los enlaces existan y lleven a donde corresponde.
+Miden hechos verificables: que el total de pendientes sea el real, que aparezcan los rivales, que con más de 10 pendientes diga el total y no liste más de 10 (el resto, con el enlace al torneo), que el balance (victorias, empates, derrotas) coincida, que el puesto y los puntos de la tabla sean los del backend, que la cantidad de títulos de un jugador sea la del palmarés del backend (`championTitles`) y que estén todos los campeones de los torneos históricos (`legacyChampionsListed`), que el líder del ranking vaya primero, que los enlaces existan y lleven a donde corresponde.
 
 Cinco son **críticas** y una falla en cualquiera bloquea el veredicto aunque el resto salga perfecto:
 
@@ -42,7 +43,7 @@ Hay que mirarlo a mano en el detalle (`.json` que deja la corrida) y en las ejec
 
 ## Cómo correrla
 
-Hace falta un usuario real del sitio y los datos del webhook. Cada mensaje consume crédito de Claude (con Haiku 5.5, centavos para toda la corrida) y cuenta contra el tope de 40 mensajes por hora de ese usuario: una corrida usa 29, así que no se puede repetir dentro de la misma hora.
+Hace falta un usuario real del sitio y los datos del webhook. Cada mensaje consume crédito de Claude (con Haiku 5.5, centavos para toda la corrida) y cuenta contra el tope de 40 mensajes por hora de ese usuario: una corrida usa 31, así que no se puede repetir dentro de la misma hora.
 
 ```bash
 ASSISTANT_API=https://apa-website-be.vercel.app/api \
@@ -63,7 +64,7 @@ El webhook no devuelve el consumo de tokens, así que se mide con el gasto:
 
 1. En la consola de Anthropic anotá el gasto acumulado antes de empezar.
 2. Corré la batería.
-3. Anotá el gasto después. **Costo por mensaje = (gasto después − gasto antes) / 29.**
+3. Anotá el gasto después. **Costo por mensaje = (gasto después − gasto antes) / 31.**
 
 La consola puede tardar unos minutos en reflejar el gasto. Como referencia, el prompt pesa unos 5.000 tokens y cada consulta hace de 2 a 4 llamadas al modelo, así que el orden de magnitud esperado con Haiku 5.5 es una fracción de centavo por mensaje; si da mucho más, hay una herramienta devolviendo demasiado (ver `npm run measure:assistant-tools`).
 
@@ -95,7 +96,7 @@ Omitidas (falta dato):      __
 Fallas críticas:            ninguna / (ids)
 Preguntas sin respuesta:    ninguna / (ids)
 Latencia promedio / p95:    __ ms / __ ms
-Mensajes:                   29
+Mensajes:                   31
 Gasto (antes → después):    USD __ → USD __   Costo por mensaje: USD __
 
 Por categoría:
@@ -104,6 +105,7 @@ Por categoría:
   Partidos entre un grupo       _/3
   Historial entre jugadores     _/3
   Últimos partidos              _/2
+  Palmarés                      _/2
   Posiciones y ranking          _/4
   Reglas y formatos             _/3
   Navegación y crónicas         _/3

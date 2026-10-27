@@ -14,7 +14,7 @@
  * informa. `turns` permite una conversación de varios mensajes: se evalúa la
  * última respuesta.
  *
- * Todas las preguntas juntas son 29 mensajes (la de memoria tiene dos), por
+ * Todas las preguntas juntas son 31 mensajes (la de memoria tiene dos), por
  * debajo del tope de 40 por hora del asistente.
  */
 
@@ -178,6 +178,22 @@ const QUESTIONS = [
         checks: ["recentBiggestLoss", ["maxWords", 200], ...NO_ID_CHECKS],
     },
 
+    // --- Palmarés (incluye los torneos históricos) ------------------------------
+    {
+        id: "palmares-titulos",
+        category: "palmarés",
+        text: "¿Cuántos títulos ganó {x} en la historia de APA?",
+        needs: ["x"],
+        truth: { kind: "champions" },
+        checks: [["championTitles", "x"], "viewLinks", ...NO_ID_CHECKS],
+    },
+    {
+        id: "palmares-historicos",
+        category: "palmarés",
+        text: "¿Quiénes fueron campeones de los torneos históricos de 2016 a 2019?",
+        truth: { kind: "champions" },
+        checks: ["legacyChampionsListed", ...NO_ID_CHECKS],
+    },
     // --- Posiciones, ranking y rating -----------------------------------------
     {
         id: "tabla-propia",

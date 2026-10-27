@@ -34,6 +34,9 @@ const VIEW_PATH_BY_STAGE = {
     playoff: (tournamentId) => `/tournaments/${tournamentId}/playoffs`,
 }
 
+// Salón de la Fama (campeones y subcampeones de todos los torneos terminados,
+// incluidos los históricos). Ruta `HALL_OF_FAME` de `routesConfig.js` del FE.
+const HALL_OF_FAME_VIEW_PATH = "/hall-of-fame"
 const buildViewPath = (tournamentId, stage) => {
     const build = VIEW_PATH_BY_STAGE[stage]
     return build ? build(tournamentId) : `/tournaments/${tournamentId}`
@@ -80,6 +83,7 @@ module.exports = {
     DEFAULT_HEAD_TO_HEAD_LIMIT,
     DEFAULT_PENDING_LIMIT,
     DEFAULT_RECENT_MATCHES_LIMIT,
+    HALL_OF_FAME_VIEW_PATH,
     MAX_ASSISTANT_PLAYERS,
     MAX_AWAITING_OPPONENT_ITEMS,
     MAX_HEAD_TO_HEAD_LIMIT,

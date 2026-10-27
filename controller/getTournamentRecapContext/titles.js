@@ -440,4 +440,6 @@ module.exports = {
     buildTitleContext,
     computeTitleRanking,
     isHallOfFameTournament,
+    playerKey,
+    sortedHallOfFame,
 }

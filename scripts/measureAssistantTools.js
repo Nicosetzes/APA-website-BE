@@ -62,6 +62,11 @@ const buildRequests = ({ players, tournaments, today = new Date() }) => {
             secret: true,
         },
         { tool: "resumen_del_dia", path: "/recaps/latest" },
+        {
+            tool: "campeones_de_torneos",
+            path: "/assistant/champions",
+            secret: true,
+        },
     ]
 
     if (tournament) {

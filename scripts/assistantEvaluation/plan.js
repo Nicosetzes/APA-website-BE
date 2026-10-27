@@ -145,6 +145,12 @@ const buildTruthRequest = (truth, world) => {
                 secret: true,
                 pick: (json) => json.data,
             }
+        case "champions":
+            return {
+                path: "/assistant/champions",
+                secret: true,
+                pick: (json) => json.data,
+            }
         case "standings":
             return {
                 path: `/assistant/standings?${params([

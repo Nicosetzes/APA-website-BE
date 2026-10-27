@@ -2129,6 +2129,78 @@ paths:
                             schema:
                                 $ref: "#/components/schemas/ErrorResponse"
 
+    /api/assistant/champions:
+        get:
+            tags: [Assistant]
+            summary: Campeones, subcampeones y títulos de todos los torneos terminados, para el agente del chat
+            description: >-
+                Lo llama el agente de n8n (solo lectura, mismo secreto que los
+                recaps). No tiene parámetros: el palmarés completo es chico y
+                cualquier query da 400.
+
+
+                **Qué cuenta.** Los mismos torneos que el Salón de la Fama del
+                sitio: terminados (`ongoing: false`), válidos (`valid` distinto
+                de `false`) y con campeón registrado, **incluidos los
+                históricos de 2016 a 2019** (`legacy: true`), que no tienen
+                partidos cargados pero sí campeón y finalista. A diferencia de
+                `GET /api/tournaments?legacy=false`, que los deja afuera. Los
+                torneos en curso y los inválidos no cuentan. Un torneo
+                terminado y válido sin campeón se informa en `notes`.
+
+
+                **Torneos.** `tournaments` va del más nuevo al más viejo (el
+                primero es el último campeón). Cada fila trae `champion` y
+                `runnerUp` con el nombre del jugador y del equipo, la fecha de
+                cierre (`closedOn`, solo el año en los históricos) y
+                `legacy: true` si es histórico. Dos torneos pueden tener el
+                mismo nombre base (Copa del Mundo 2018 y su versión Juego
+                Oficial): son filas separadas.
+
+
+                **Jugadores.** `players` trae, ya contados, `titles` y
+                `runnerUps` de cada jugador (los usuarios sin títulos van con
+                0), su `rank` y los nombres de los torneos de cada uno. Si
+                campeón y subcampeón son la misma persona (dos equipos suyos o,
+                en una liga, primero y segundo), el torneo cuenta como título y
+                no como subcampeonato, y la fila lleva
+                `sameChampionAndRunnerUp: true`. El nombre es el apodo actual
+                del usuario; si el id ya no es un usuario, el que quedó
+                guardado al cerrar el torneo.
+
+
+                La respuesta no lleva ids. `viewPath` lleva al Salón de la Fama
+                del sitio.
+            security:
+                - recapSecret: []
+            responses:
+                "200":
+                    description: Palmarés por torneo y por jugador
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/AssistantChampionsResponse"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    description: Secreto ausente o inválido (INVALID_RECAP_SECRET)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "429":
+                    description: Demasiados secretos inválidos desde la misma IP (TOO_MANY_RECAP_ATTEMPTS)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "503":
+                    description: El secreto no está configurado en el servidor (RECAP_SECRET_NOT_CONFIGURED)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+
     /api/assistant/standings:
         get:
             tags: [Assistant]
@@ -3425,6 +3497,104 @@ components:
                                 Listado de partidos del sitio filtrado por el
                                 jugador (y por etapa y torneo si se pidieron)
                             example: /matches?player1=u1&type=playoff
+                        notes:
+                            type: array
+                            items:
+                                type: string
+        AssistantChampionsSide:
+            type: object
+            required: [player]
+            properties:
+                player:
+                    type: string
+                team:
+                    type: string
+        AssistantChampionsTournament:
+            type: object
+            required: [name, champion]
+            properties:
+                name:
+                    type: string
+                closedOn:
+                    type: string
+                    description: Día de cierre; solo el año en los torneos históricos
+                    example: "2018"
+                format:
+                    type: string
+                legacy:
+                    type: boolean
+                    description: Solo viene (en `true`) en los torneos históricos
+                champion:
+                    $ref: "#/components/schemas/AssistantChampionsSide"
+                runnerUp:
+                    $ref: "#/components/schemas/AssistantChampionsSide"
+                sameChampionAndRunnerUp:
+                    type: boolean
+                    description: >-
+                        Solo viene (en `true`) si campeón y subcampeón son la
+                        misma persona: cuenta como título, no como subcampeonato
+        AssistantChampionsPlayer:
+            type: object
+            required: [name, rank, titles, runnerUps]
+            properties:
+                name:
+                    type: string
+                rank:
+                    type: integer
+                    description: Más títulos primero; a igualdad, más títulos y subcampeonatos
+                titles:
+                    type: integer
+                runnerUps:
+                    type: integer
+                titleTournaments:
+                    type: array
+                    description: Torneos que ganó, del más nuevo al más viejo (no viene si no ganó ninguno)
+                    items:
+                        type: string
+                runnerUpTournaments:
+                    type: array
+                    description: Torneos donde fue subcampeón (no viene si no fue ninguno)
+                    items:
+                        type: string
+        AssistantChampionsResponse:
+            type: object
+            required: [success, data]
+            properties:
+                success:
+                    type: boolean
+                data:
+                    type: object
+                    required:
+                        [
+                            asOf,
+                            criterion,
+                            totalTournaments,
+                            tournaments,
+                            players,
+                            viewPath,
+                            notes,
+                        ]
+                    properties:
+                        asOf:
+                            type: string
+                            format: date-time
+                        criterion:
+                            type: string
+                            description: Qué torneos cuentan y cómo se cuentan títulos y subcampeonatos
+                        totalTournaments:
+                            type: integer
+                        tournaments:
+                            type: array
+                            description: Del más nuevo al más viejo
+                            items:
+                                $ref: "#/components/schemas/AssistantChampionsTournament"
+                        players:
+                            type: array
+                            items:
+                                $ref: "#/components/schemas/AssistantChampionsPlayer"
+                        viewPath:
+                            type: string
+                            example: /hall-of-fame
                         notes:
                             type: array
                             items:
