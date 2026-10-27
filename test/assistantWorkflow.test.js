@@ -172,6 +172,9 @@ test("the agent uses Haiku 5.5, a short memory and a bounded loop", () => {
 
     assert.equal(model.parameters.model.value, MODEL_ID)
     assert.equal(MODEL_ID, "claude-haiku-5-5")
+    // Con el razonamiento activo, recortar la memoria rompe la charla (400
+    // "thinking block bound to a different conversation").
+    assert.equal(model.parameters.options.thinkingMode, "disabled")
     assert.ok(agent.parameters.options.maxIterations <= 10)
     assert.equal(agent.parameters.options.enableStreaming, false)
     assert.equal(agent.onError, "continueErrorOutput")

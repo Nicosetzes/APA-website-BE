@@ -352,9 +352,8 @@ const buildWorkflow = () => {
                     value: MODEL_ID,
                 },
                 options: {
-                    // Incluye el razonamiento adaptativo del modelo: con poco
-                    // margen la respuesta puede cortarse.
                     maxTokensToSample: 4096,
+                    thinkingMode: "disabled",
                 },
             },
             id: "3c6b8e2d-5a9f-4d10-9e4b-7a1d0c8f2e11",
