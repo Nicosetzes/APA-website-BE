@@ -69,6 +69,7 @@ test("every question has a text, a known truth, and only known checks", () => {
     const kinds = [
         "pending",
         "headToHead",
+        "recentMatches",
         "standings",
         "ratings",
         "period",
@@ -114,6 +115,7 @@ test("the battery covers every kind of question the assistant was built for", ()
         "pendientes de otro jugador",
         "partidos entre un grupo",
         "historial entre jugadores",
+        "últimos partidos",
         "posiciones y ranking",
         "reglas y formatos",
         "navegación y crónicas",
@@ -229,6 +231,19 @@ test("the truth requests ask the backend exactly what the question is about", ()
     assert.equal(
         request("h2h-playoffs").path,
         "/assistant/head-to-head?playerA=u-nico&playerB=u-leo&stage=playoff&limit=5"
+    )
+    assert.equal(
+        request("ultimos-perdida-rating").path,
+        "/assistant/recent-matches?player=u-nico&limit=5"
+    )
+    assert.equal(request("ultimos-perdida-rating").secret, true)
+    assert.equal(
+        request("ultimos-perdida-rating").pick({ data: { a: 1 } }).a,
+        1
+    )
+    assert.equal(
+        request("ultimos-listado").path,
+        "/assistant/recent-matches?player=u-nico&limit=5"
     )
     assert.equal(
         request("tabla-propia").path,
@@ -454,6 +469,164 @@ test("headToHeadRecord and h2hLastMatch compare against the backend figures", ()
         check("h2hLastMatch", { reply: "Fue 2-2", truth: headToHead() }).ok,
         false
     )
+})
+
+const recent = (overrides = {}) => ({
+    player: { name: "Nico" },
+    totalMatches: 40,
+    returned: 3,
+    matches: [
+        {
+            playedOn: "2026-10-25",
+            opponent: "Max",
+            score: "3-1",
+            result: "win",
+        },
+        {
+            playedOn: "2026-10-22",
+            opponent: "Leo",
+            score: "0-2",
+            result: "loss",
+        },
+        {
+            playedOn: "2026-10-20",
+            opponent: "Max",
+            score: "1-1",
+            result: "draw",
+        },
+    ],
+    biggestRatingLoss: {
+        playedOn: "2026-10-22",
+        tournament: "Copa APA",
+        opponent: "Leo",
+        score: "0-2",
+        result: "loss",
+        points: -8.5,
+    },
+    biggestRatingGain: null,
+    ...overrides,
+})
+
+test("the recent-matches questions are two, both about the queried player's last 5", () => {
+    const questions = QUESTIONS.filter(
+        ({ category }) => category === "últimos partidos"
+    )
+
+    assert.equal(questions.length, 2)
+    for (const question of questions) {
+        assert.deepEqual(question.truth, {
+            kind: "recentMatches",
+            player: "me",
+            limit: 5,
+        })
+        assert.equal(question.needs, undefined)
+    }
+    assert.match(
+        questions.find(({ id }) => id === "ultimos-perdida-rating").text,
+        /perdí más ELO/
+    )
+})
+
+test("recentBiggestLoss needs the real rival and points, in any reasonable wording", () => {
+    const passes = (reply, truth = recent()) =>
+        check("recentBiggestLoss", { reply, truth }).ok
+
+    assert.equal(
+        passes("Contra Leo el 22/10/2026 (0-2), perdiste 8,5 puntos."),
+        true
+    )
+    assert.equal(passes("**Leo**: -8.5 puntos de rating"), true)
+    assert.equal(passes("Fue el de Leo: perdiste 8,50 puntos"), true)
+    assert.equal(passes("fue contra leo, -8,5"), true)
+    // Redondeado a un decimal, el mismo valor.
+    assert.equal(
+        passes("Contra Leo, 8,5 puntos", {
+            ...recent(),
+            biggestRatingLoss: { opponent: "Leo", points: -8.53 },
+        }),
+        true
+    )
+
+    // Otro rival, otros puntos o ninguno de los dos: tiene que fallar.
+    assert.equal(passes("Contra Max perdiste 8,5 puntos"), false)
+    assert.equal(passes("Contra Leo perdiste 9,5 puntos"), false)
+    assert.equal(passes("Contra Leo perdiste 18,5 puntos"), false)
+    assert.equal(passes("Contra Leo perdiste 8,55 puntos"), false)
+    assert.equal(passes("Contra Leo perdiste puntos"), false)
+    assert.equal(passes("Tuviste cinco partidos"), false)
+    assert.equal(
+        check("recentBiggestLoss", {
+            reply: "Contra Leo perdiste 18,5 puntos",
+            truth: recent(),
+        }).ok,
+        false
+    )
+})
+
+test("recentBiggestLoss without a loss only accepts saying so or that there is no data", () => {
+    const truth = recent({ biggestRatingLoss: null })
+    const passes = (reply) => check("recentBiggestLoss", { reply, truth }).ok
+
+    assert.equal(passes("En esos partidos no perdiste puntos de rating."), true)
+    assert.equal(passes("No tengo el dato de rating de esos partidos."), true)
+    assert.equal(passes("No hay datos de variación para esos partidos"), true)
+    assert.equal(passes("Ganaste puntos en todos."), true)
+    assert.equal(passes("Ningún partido te hizo perder puntos."), true)
+
+    assert.equal(
+        passes("El que más perdiste fue contra Leo, 8,5 puntos"),
+        false
+    )
+    assert.equal(passes("Jugaste cinco partidos"), false)
+})
+
+test("recentBiggestLoss fails when the player does not exist", () => {
+    assert.equal(
+        check("recentBiggestLoss", {
+            reply: "no perdiste puntos",
+            truth: { player: null, matches: [] },
+        }).ok,
+        false
+    )
+})
+
+test("recentMatchesListed wants the latest rival and score and a second rival", () => {
+    const passes = (reply, truth = recent()) =>
+        check("recentMatchesListed", { reply, truth }).ok
+
+    assert.equal(
+        passes(
+            "- 25/10: Nico (Boca) 3-1 Max (River), ganaste\n- 22/10: Nico 0-2 Leo, perdiste"
+        ),
+        true
+    )
+    assert.equal(
+        passes("Tus últimos partidos: 3 a 1 contra Max y 0 a 2 contra Leo"),
+        true
+    )
+    assert.equal(
+        passes(
+            "25/10 contra Max:\n- **Nico (Boca): 3**\n- **Max (River): 1**\n22/10 contra Leo"
+        ),
+        true
+    )
+
+    // Falta el rival del último, el marcador o los demás rivales.
+    assert.equal(
+        passes("Ganaste 3-1 contra Leo y perdiste contra Santi"),
+        false
+    )
+    assert.equal(passes("Jugaste contra Max y contra Leo"), false)
+    assert.equal(passes("Ganaste 3-1 contra Max"), false)
+    assert.equal(passes("Ganaste 2-0 contra Max y 0-2 contra Leo"), false)
+})
+
+test("recentMatchesListed with no matches needs to say so", () => {
+    const truth = recent({ matches: [], biggestRatingLoss: null })
+    const passes = (reply) => check("recentMatchesListed", { reply, truth }).ok
+
+    assert.equal(passes("Todavía no tenés partidos jugados."), true)
+    assert.equal(passes("Tus últimos partidos: 3-1 contra Max"), false)
 })
 
 test("the standings, ranking and period checks use the backend order", () => {

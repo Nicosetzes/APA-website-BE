@@ -53,6 +53,7 @@ Al agregar un formato o una vista nueva, actualizá el documento que corresponda
 | `estadisticas_de_jugador_en_torneo` | `GET /api/tournaments/:id/players/info`              | no      |
 | `resumen_del_dia`                   | `GET /api/recaps/:date` (o `latest`)                 | no      |
 | `cronica_de_torneo`                 | `GET /api/tournaments/:id/recap`                     | no      |
+| `ultimos_partidos_de_jugador`       | `GET /api/assistant/recent-matches`                  | sí      |
 
 Todas son `GET`: el agente no puede escribir. El secreto solo viaja a los endpoints `/api/assistant/*`.
 
@@ -60,7 +61,7 @@ Todas son `GET`: el agente no puede escribir. El secreto solo viaja a los endpoi
 
 Lo que devuelve una herramienta se reenvía al modelo en cada vuelta del agente, así que una respuesta grande cuesta tokens y distrae. Por eso:
 
--   Pendientes, historial y posiciones tienen endpoints propios (`/api/assistant/*`) con respuesta compacta y tope de detalle: pendientes detalla 10 partidos por defecto (máximo 20) e historial 5 (máximo 10). Con más de 10 pendientes el agente dice el total, el desglose por torneo, lista los 10 del detalle y da el enlace de cada torneo. La tabla original trae las últimas jornadas completas de cada equipo y es varias veces más grande (un test fija una reducción de al menos 3 veces con datos de ejemplo; con torneos de 48 equipos es mucho más).
+-   Pendientes, historial y posiciones tienen endpoints propios (`/api/assistant/*`) con respuesta compacta y tope de detalle: pendientes detalla 10 partidos por defecto (máximo 20), historial 5 (máximo 10) y últimos partidos 10 (máximo 20). Con más de 10 pendientes el agente dice el total, el desglose por torneo, lista los 10 del detalle y da el enlace de cada torneo. La tabla original trae las últimas jornadas completas de cada equipo y es varias veces más grande (un test fija una reducción de al menos 3 veces con datos de ejemplo; con torneos de 48 equipos es mucho más).
 -   El ranking, el rating por período y las estadísticas de un jugador ya son chicos y se usan tal cual.
 -   Las crónicas son texto largo (típicamente unos pocos miles de caracteres, con un tope de 50.000). El prompt le pide al agente resumirlas.
 
@@ -78,7 +79,7 @@ Con datos reales se puede medir cada herramienta con `npm run measure:assistant-
 
 1. En n8n: **Workflows → Import from file** → `n8n/assistant.json`.
 2. Abrí el nodo **Claude Haiku** y elegí tu credencial de Anthropic. Verificá que el modelo sea `claude-haiku-5-5`. Si no aparece en la lista, escribilo como ID.
-3. Abrí cada herramienta con 🔒 (`pendientes_de_jugadores`, `partidos_jugables_entre_jugadores`, `historial_entre_jugadores`) y confirmá la credencial del secreto.
+3. Abrí cada herramienta con 🔒 (`pendientes_de_jugadores`, `partidos_jugables_entre_jugadores`, `historial_entre_jugadores`, `posiciones_de_torneo`, `ultimos_partidos_de_jugador`) y confirmá la credencial del secreto.
 4. En el nodo **Chat Webhook**, revisá _Allowed Origins (CORS)_: por defecto `https://sitioapa.com.ar`, `https://apa-website-fe.vercel.app` y `http://localhost:3000` (este último solo para desarrollo; sacalo en producción si no lo necesitás).
 5. **Publicá** el workflow. La URL de producción queda así:
 
@@ -191,6 +192,46 @@ Una vez que el asistente esté probado, en _Settings_ de este workflow podés po
 4. Importá de nuevo el JSON en n8n. Importar crea un workflow nuevo: desactivá y archivá el anterior, o copiá solo el _System Message_ del nodo **APA Assistant**.
 
 El prompt no puede contener llaves dobles (`{{ }}`): n8n las evalúa como expresiones.
+
+## Cómo agregar la herramienta a mano en n8n
+
+Para sumar `ultimos_partidos_de_jugador` a un workflow que ya está importado, sin importar el JSON de nuevo. Los valores salen de `scripts/buildAssistantWorkflow.js` (lo que genera `n8n/assistant.json`); si cambian allá, cambian acá.
+
+1. En el workflow, duplicá el nodo `historial_entre_jugadores` (ya tiene la credencial del secreto y las opciones) y renombralo a `ultimos_partidos_de_jugador`. Tiene que quedar conectado al nodo **APA Assistant** por la entrada _Tool_.
+2. Configurá el nodo así:
+    - **Method**: `GET` (en la herramienta HTTP no se cambia: es el valor por defecto).
+    - **URL**: `https://apa-website-be.vercel.app/api/assistant/recent-matches`
+    - **Authentication**: _Generic Credential Type_ → _Custom Auth_, con la misma credencial del secreto de los recaps (`X-Recap-Secret`) que usan las demás herramientas con 🔒.
+    - **Send Query Parameters**: activado, _Specify Query Parameters_ en _Using JSON_.
+    - **Options**: _Timeout_ 30000 y _Never Error_ activado (igual que las otras).
+3. En **Description** (_Set Manually_) pegá exactamente:
+
+    ```
+    Últimos partidos jugados de UN jugador contra cualquier rival, del más nuevo al más viejo. Por partido: fecha, torneo, etapa, rival con los equipos de ambos, marcador desde el punto de vista del jugador, resultado (win, draw o loss) y ratingChange, los puntos de APA Rating que ganó o perdió en ese partido (null si no hay dato). Devuelve ya calculados el récord, el total de puntos de rating y la mayor pérdida y la mayor ganancia de rating entre esos partidos. Se puede acotar a una etapa o a un torneo. Para el cara a cara con un rival puntual usá historial_entre_jugadores.
+    ```
+
+4. En **JSON** (la consulta) pegá esta expresión. Cada parámetro lo define el modelo con `$fromAI(nombre, descripción, tipo, valor por defecto)`; los vacíos no se envían, porque el backend rechaza `stage=` o `tournamentId=` con 400:
+
+    ```
+    ={{ JSON.stringify(Object.fromEntries(Object.entries({ player: $fromAI('player', 'Id del jugador. Para la persona que escribe, el id del contexto.', 'string'), stage: $fromAI('stage', 'Etapa si el usuario pidió una: regular, playin o playoff. Vacío si no.', 'string', ''), tournamentId: $fromAI('tournamentId', 'Id del torneo si el usuario pidió uno puntual. Vacío si no.', 'string', ''), limit: $fromAI('limit', 'Cantidad de últimos partidos a considerar, entre 1 y 20', 'number', 10) }).filter(([, value]) => Array.isArray(value) ? value.length > 0 : value !== '' && value !== undefined && value !== null))) }}
+    ```
+
+    | Parámetro      | Tipo     | Requerido | Qué es                                                                 |
+    | -------------- | -------- | --------- | ---------------------------------------------------------------------- |
+    | `player`       | `string` | sí        | Id del jugador (el del CONTEXTO para "yo")                             |
+    | `stage`        | `string` | no        | `regular`, `playin` o `playoff`                                        |
+    | `tournamentId` | `string` | no        | Id del torneo                                                          |
+    | `limit`        | `number` | no        | Por defecto 10; el backend lo recorta a 1 como mínimo y 20 como máximo |
+
+5. En el nodo **APA Assistant**, en el _System Message_, agregá esta línea en `# HERRAMIENTAS`, justo después de la de `historial_entre_jugadores`:
+
+    ```
+    -   `ultimos_partidos_de_jugador`: los últimos partidos jugados de UN jugador contra cualquier rival, con el resultado y los puntos de rating que ganó o perdió en cada uno ("¿cuáles fueron mis últimos 5 partidos?", "¿en cuál perdí más ELO de mis últimos 5?", "¿cómo vengo en los últimos 10?"). Pasá en `limit` la cantidad que pidan (máximo 20; sin cantidad, 10) y la etapa o el torneo si los nombran. El "ELO" de la gente es el APA Rating. Para comparar a DOS jugadores nombrados, o si nombran un rival ("contra Max"), usá `historial_entre_jugadores`.
+    ```
+
+    Y copiá también al _System Message_ la sección `# CÓMO PRESENTAR LOS ÚLTIMOS PARTIDOS DE UN JUGADOR` de `n8n/system-prompt.md` (va antes de `# CÓMO RESPONDER SOBRE REGLAS Y FORMATOS`) y la frase final que `system-prompt.md` agrega a la línea de `historial_entre_jugadores` ("Sin un rival nombrado no sirve: …"). Sin esas reglas el agente usa la herramienta pero no sabe presentar la mayor pérdida o ganancia de rating.
+
+6. Probalo con "¿cuáles fueron mis últimos 5 partidos?" y mirá en la ejecución que la herramienta haya recibido `player` y `limit: 5`. El repositorio ya tiene todo esto (`n8n/assistant.json` y `system-prompt.md`), así que no hay nada que copiar de vuelta; solo que importar el JSON de nuevo reemplaza lo que hayas hecho a mano por lo mismo.
 
 ## Seguridad
 

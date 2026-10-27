@@ -55,6 +55,12 @@ const buildRequests = ({ players, tournaments, today = new Date() }) => {
             path: `/assistant/head-to-head?playerA=${playerA?.id}&playerB=${playerB?.id}`,
             secret: true,
         },
+        {
+            // Peor caso: el límite máximo de partidos.
+            tool: "ultimos_partidos_de_jugador",
+            path: `/assistant/recent-matches?player=${playerA?.id}&limit=20`,
+            secret: true,
+        },
         { tool: "resumen_del_dia", path: "/recaps/latest" },
     ]
 

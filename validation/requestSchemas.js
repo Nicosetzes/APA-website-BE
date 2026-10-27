@@ -8,6 +8,7 @@ const {
 const {
     DEFAULT_HEAD_TO_HEAD_LIMIT: DEFAULT_ASSISTANT_HEAD_TO_HEAD_LIMIT,
     DEFAULT_PENDING_LIMIT: DEFAULT_ASSISTANT_PENDING_LIMIT,
+    DEFAULT_RECENT_MATCHES_LIMIT: DEFAULT_ASSISTANT_RECENT_MATCHES_LIMIT,
     MAX_ASSISTANT_PLAYERS,
     PENDING_SCOPES,
     PENDING_STAGES,
@@ -338,6 +339,23 @@ module.exports = {
                 .integer()
                 .min(1)
                 .default(DEFAULT_ASSISTANT_HEAD_TO_HEAD_LIMIT),
+        }).unknown(false),
+        body: emptyObject,
+    },
+    getAssistantRecentMatches: {
+        params: emptyObject,
+        query: Joi.object({
+            player: assistantPlayerId.required(),
+            // Acota la lista a una etapa ("en playoffs") o a un torneo.
+            stage: Joi.string()
+                .valid(...PENDING_STAGES)
+                .optional(),
+            tournamentId: mongoId.optional(),
+            // Un límite mayor al máximo no es error: el servicio lo ajusta.
+            limit: Joi.number()
+                .integer()
+                .min(1)
+                .default(DEFAULT_ASSISTANT_RECENT_MATCHES_LIMIT),
         }).unknown(false),
         body: emptyObject,
     },

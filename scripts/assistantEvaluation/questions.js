@@ -14,7 +14,7 @@
  * informa. `turns` permite una conversación de varios mensajes: se evalúa la
  * última respuesta.
  *
- * Todas las preguntas juntas son 27 mensajes (la de memoria tiene dos), por
+ * Todas las preguntas juntas son 29 mensajes (la de memoria tiene dos), por
  * debajo del tope de 40 por hora del asistente.
  */
 
@@ -155,6 +155,27 @@ const QUESTIONS = [
         needs: ["x", "y"],
         truth: { kind: "headToHead", a: "x", b: "y" },
         checks: ["headToHeadRecord", ...NO_ID_CHECKS],
+    },
+
+    // --- Últimos partidos de un jugador ---------------------------------------
+    {
+        id: "ultimos-listado",
+        category: "últimos partidos",
+        text: "¿Cuáles fueron mis últimos 5 partidos?",
+        truth: { kind: "recentMatches", player: "me", limit: 5 },
+        checks: [
+            "recentMatchesListed",
+            "linkMatches",
+            ["maxWords", 260],
+            ...NO_ID_CHECKS,
+        ],
+    },
+    {
+        id: "ultimos-perdida-rating",
+        category: "últimos partidos",
+        text: "De mis últimos 5 partidos, ¿cuál fue el partido en el que perdí más ELO?",
+        truth: { kind: "recentMatches", player: "me", limit: 5 },
+        checks: ["recentBiggestLoss", ["maxWords", 200], ...NO_ID_CHECKS],
     },
 
     // --- Posiciones, ranking y rating -----------------------------------------

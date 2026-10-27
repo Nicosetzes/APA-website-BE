@@ -78,7 +78,7 @@ test("node ids and names are unique", () => {
 })
 
 test("the agent tools are read-only: GET requests to the backend only", () => {
-    assert.equal(tools.length, 11)
+    assert.equal(tools.length, 12)
 
     for (const tool of tools) {
         const method = tool.parameters.method ?? "GET"
@@ -585,6 +585,19 @@ test("the new query tools build their query from what the model chooses", () => 
         }
     )
     assert.deepEqual(
+        evaluateQuery("ultimos_partidos_de_jugador", { player: "u1" }),
+        { player: "u1", limit: 10 }
+    )
+    assert.deepEqual(
+        evaluateQuery("ultimos_partidos_de_jugador", {
+            player: "u1",
+            stage: "playoff",
+            tournamentId: "t1",
+            limit: 5,
+        }),
+        { player: "u1", stage: "playoff", tournamentId: "t1", limit: 5 }
+    )
+    assert.deepEqual(
         evaluateQuery("posiciones_de_torneo", { tournamentId: "t1" }),
         { tournamentId: "t1" }
     )
@@ -649,6 +662,7 @@ test("the prompt covers every tool and the standings, ranking and recap presenta
         "estadisticas_de_jugador_en_torneo",
         "resumen_del_dia",
         "cronica_de_torneo",
+        "ultimos_partidos_de_jugador",
     ]) {
         assert.ok(prompt.includes(`\`${name}\``), name)
     }
@@ -656,6 +670,56 @@ test("the prompt covers every tool and the standings, ranking and recap presenta
     assert.match(prompt, /CÓMO PRESENTAR POSICIONES, RANKING Y CRÓNICAS/)
     assert.match(prompt, /Hasta 10 filas por grupo/)
     assert.match(prompt, /G \(ganó\), E \(empató\) y P \(perdió\)/)
+})
+
+test("the recent-matches tool is a secret-protected GET appended after the existing tools", () => {
+    const tool = nodeNamed("ultimos_partidos_de_jugador")
+    const index = exported.nodes.indexOf(tool)
+
+    assert.equal(tool.parameters.url, `${API}/assistant/recent-matches`)
+    assert.equal(tool.parameters.method ?? "GET", "GET")
+    assert.equal(tool.type, "n8n-nodes-base.httpRequestTool")
+    assert.deepEqual(Object.keys(tool.credentials), ["httpTemplatedCustomAuth"])
+    assert.equal(tool.parameters.options.timeout, 30000)
+    // Al final: los ids de los nodos ya importados no cambian.
+    assert.equal(index, exported.nodes.length - 1)
+    assert.ok(tool.id.endsWith(String(index).padStart(12, "0")))
+    assert.deepEqual(exported.connections.ultimos_partidos_de_jugador, {
+        ai_tool: [[{ node: "APA Assistant", type: "ai_tool", index: 0 }]],
+    })
+    // Sin ids ni parámetro de rival: el cara a cara es otra herramienta.
+    assert.match(tool.parameters.toolDescription, /historial_entre_jugadores/)
+    assert.doesNotMatch(tool.parameters.jsonQuery, /opponent|playerB/)
+})
+
+test("the prompt teaches the recent-matches tool: examples, the BE-computed rating answer and the null case", () => {
+    const prompt = readPrompt()
+
+    for (const example of [
+        "¿cuáles fueron mis últimos 5 partidos?",
+        "¿en cuál perdí más ELO de mis últimos 5?",
+        "¿cómo vengo en los últimos 10?",
+    ]) {
+        assert.ok(prompt.includes(example), example)
+    }
+
+    assert.match(prompt, /CÓMO PRESENTAR LOS ÚLTIMOS PARTIDOS DE UN JUGADOR/)
+    // La mayor pérdida o ganancia viene calculada: el modelo no compara a mano.
+    assert.match(prompt, /`biggestRatingLoss`/)
+    assert.match(prompt, /`biggestRatingGain`/)
+    assert.match(prompt, /Nunca compares ni sumes puntos vos/)
+    // Sin dato de rating, lo dice en lugar de inventarlo.
+    assert.match(prompt, /`ratingChange` es null/)
+    // Dos jugadores nombrados siguen siendo del historial.
+    assert.match(
+        prompt,
+        /Para comparar a DOS jugadores nombrados[^.]*`historial_entre_jugadores`/
+    )
+    assert.doesNotMatch(prompt, /\{\{|\}\}/)
+    // Los bullets del prompt llevan guion y tres espacios.
+    for (const line of prompt.split("\n").filter((l) => /^-\s/.test(l))) {
+        assert.match(line, /^- {3}\S/, line.slice(0, 40))
+    }
 })
 
 test("the size-measuring script only reads and covers the assistant tools", () => {

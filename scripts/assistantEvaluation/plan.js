@@ -136,6 +136,15 @@ const buildTruthRequest = (truth, world) => {
                 secret: true,
                 pick: (json) => json.data,
             }
+        case "recentMatches":
+            return {
+                path: `/assistant/recent-matches?${params([
+                    ["player", playerId(world, truth.player)],
+                    ["limit", truth.limit],
+                ])}`,
+                secret: true,
+                pick: (json) => json.data,
+            }
         case "standings":
             return {
                 path: `/assistant/standings?${params([

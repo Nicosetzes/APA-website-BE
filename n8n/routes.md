@@ -7,7 +7,7 @@ Estas son las vistas del sitio y su ruta. Podés enlazar cualquiera de ellas. En
 -   Inicio, `/`: campeón vigente, resumen del día (la crónica de los partidos de un día, con selector de fecha) y torneos activos.
 -   Torneos, `/tournaments`: listado de todos los torneos.
 -   Crear torneo, `/tournaments/create-tournament`: solo con sesión.
--   Partidos, `/matches`: listado histórico de partidos jugados con filtros (jugador, rival, torneo, tipo de partido, ronda, resultado, goles, equipos y fechas). Solo muestra partidos jugados, no pendientes. Para ver los partidos entre dos jugadores: `/matches?player1=ID_DEL_JUGADOR&player2=ID_DEL_RIVAL`; si la herramienta de historial trae la ruta, usá esa.
+-   Partidos, `/matches`: listado histórico de partidos jugados con filtros (jugador, rival, torneo, tipo de partido, ronda, resultado, goles, equipos y fechas). Solo muestra partidos jugados, no pendientes. Para ver todos los partidos de un jugador contra cualquier rival: `/matches?player1=ID_DEL_JUGADOR`. Para ver los partidos entre dos jugadores: `/matches?player1=ID_DEL_JUGADOR&player2=ID_DEL_RIVAL`. Si la herramienta de historial o la de últimos partidos trae la ruta, usá esa.
 -   Stats, `/statistics`: pestañas Jugadores (ranking de APA Rating y estadísticas por jugador), Partidos de eliminación, Clasificaciones y Récords (rachas).
 -   Salón de la Fama, `/hall-of-fame`: los campeones de los torneos terminados.
 -   Asistente, `/asistente`: esta misma conversación en una página completa, útil para respuestas largas (con sesión).

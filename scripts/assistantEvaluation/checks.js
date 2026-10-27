@@ -25,6 +25,42 @@ const includesText = (reply, needle) =>
 const hasNumber = (reply, value) =>
     new RegExp(`(^|[^\\d.,])${Number(value)}([^\\d]|$)`).test(String(reply))
 
+// Marcador "a-b" en cualquier orden y con los separadores habituales ("3-1",
+// "3 a 1"), o escrito por jugador ("Nico (Portugal): 3").
+const mentionsScore = (reply, a, b) => {
+    const score = new RegExp(
+        `\\b(${a}\\s*(-|–|a)\\s*${b}|${b}\\s*(-|–|a)\\s*${a})\\b`
+    )
+    const listed = (goals) => new RegExp(`[:：]\\s*\\**${goals}\\b`).test(reply)
+
+    return score.test(reply) || (listed(a) && listed(b))
+}
+
+// Puntos de rating con coma o punto decimal, con o sin ceros de más ("8,5",
+// "8.50") y también redondeados a un decimal. El signo no importa: puede ser
+// "-8,5" o "perdiste 8,5".
+const mentionsPoints = (reply, value) => {
+    const points = Math.abs(Number(value))
+    const candidates = new Set([
+        String(points),
+        String(Number(points.toFixed(1))),
+    ])
+
+    return [...candidates].some((candidate) =>
+        new RegExp(
+            `(^|[^\\d.,])${candidate.replace(".", "[.,]")}0*(?![.,]?\\d)`
+        ).test(String(reply))
+    )
+}
+
+// Sin partidos jugados.
+const NO_RECENT_MATCHES =
+    /(no (tenes|tiene|tienes|hay|jugaste|registro|encontre|tengo)|ningun partido|todavia no|sin partidos)/
+
+// Sin pérdida de rating (nunca perdió puntos en esos partidos, o falta el dato).
+const NO_RATING_LOSS =
+    /(no (perdiste|perdio|bajaste|restaste|descontaste)|sin perder|ningun[oa]? [^.]*(perd|baj|rest)|(no|sin) (hay|tengo|tenes|hubo|cuento con) (el |ningun |ninguna )?(dato|datos|informacion|perdida)|no (hay|tengo) .*(variacion|cambio) de rating|ganaste puntos en todos|sumaste puntos en todos)/
+
 const wordCount = (text) =>
     String(text).trim().split(/\s+/).filter(Boolean).length
 
@@ -61,6 +97,7 @@ const PROMPT_FRAGMENTS = [
     "pendientes_de_jugadores",
     "partidos_jugables_entre_jugadores",
     "historial_entre_jugadores",
+    "ultimos_partidos_de_jugador",
     "posiciones_de_torneo",
     "mapa del sitio",
     "reglas y formatos",
@@ -212,6 +249,63 @@ const CHECKS = {
         return score.test(reply) || (listed(a) && listed(b))
             ? ok(`menciona el resultado ${a}-${b}`)
             : fail(`no menciona el resultado del último partido (${a}-${b})`)
+    },
+
+    // --- Últimos partidos de un jugador ---------------------------------------
+    recentMatchesListed: ({ reply, truth }) => {
+        if (!truth.player) return fail("el backend no encontró al jugador")
+
+        const [latest] = truth.matches ?? []
+
+        if (!latest) {
+            return NO_RECENT_MATCHES.test(normalize(reply))
+                ? ok("dijo que no hay partidos")
+                : fail("no hay partidos jugados y no lo dice")
+        }
+
+        const rivals = [
+            ...new Set(truth.matches.map((match) => match.opponent)),
+        ].filter(Boolean)
+        const mentioned = rivals.filter((name) => includesText(reply, name))
+        const [a, b] = String(latest.score).split("-")
+
+        // Alcanza con el rival y el marcador del más reciente y, si hubo más
+        // rivales, con que aparezca otro: no se exige copiar toda la lista.
+        if (latest.opponent && !includesText(reply, latest.opponent))
+            return fail(`no nombra al rival del último (${latest.opponent})`)
+        if (mentioned.length < Math.min(2, rivals.length))
+            return fail(
+                `menciona ${mentioned.length} de ${rivals.length} rivales`
+            )
+
+        return mentionsScore(reply, a, b)
+            ? ok(
+                  `${mentioned.length}/${rivals.length} rivales, último ${a}-${b}`
+              )
+            : fail(`no menciona el marcador del último partido (${a}-${b})`)
+    },
+
+    recentBiggestLoss: ({ reply, truth }) => {
+        if (!truth.player) return fail("el backend no encontró al jugador")
+
+        const loss = truth.biggestRatingLoss
+
+        if (!loss) {
+            return NO_RATING_LOSS.test(normalize(reply))
+                ? ok("dijo que no perdió puntos o que no hay dato")
+                : fail(
+                      "el backend no tiene una pérdida de rating y la respuesta no lo dice"
+                  )
+        }
+
+        if (loss.opponent && !includesText(reply, loss.opponent))
+            return fail(
+                `no nombra al rival de la mayor pérdida (${loss.opponent})`
+            )
+
+        return mentionsPoints(reply, loss.points)
+            ? ok(`${loss.opponent}: ${loss.points}`)
+            : fail(`no da los puntos de la mayor pérdida (${loss.points})`)
     },
 
     // --- Posiciones, ranking, período --------------------------------------

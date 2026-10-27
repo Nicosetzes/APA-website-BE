@@ -4,7 +4,7 @@ Cómo comprobar si Haiku 5.5 alcanza o hay que pasar a Sonnet 5.5. Esta guía y 
 
 ## Qué se mide
 
-Una batería de 26 preguntas (27 mensajes) en `scripts/assistantEvaluation/questions.js`. Cada una se envía al webhook real con la sesión de un usuario real, y la respuesta se compara con lo que calcula el propio backend para esa misma pregunta (no con lo que "debería" decir el modelo).
+Una batería de 28 preguntas (29 mensajes) en `scripts/assistantEvaluation/questions.js`. Cada una se envía al webhook real con la sesión de un usuario real, y la respuesta se compara con lo que calcula el propio backend para esa misma pregunta (no con lo que "debería" decir el modelo).
 
 | Categoría                  | Preguntas | Ejemplo                                                                                       |
 | -------------------------- | --------- | --------------------------------------------------------------------------------------------- |
@@ -12,6 +12,7 @@ Una batería de 26 preguntas (27 mensajes) en `scripts/assistantEvaluation/quest
 | Pendientes de otro jugador | 2         | "¿Qué partidos le faltan jugar a Leo?"                                                        |
 | Partidos entre un grupo    | 3         | "Nos juntamos Leo, Max y yo, ¿qué podemos jugar?"                                             |
 | Historial entre jugadores  | 3         | "¿Cuál fue mi último partido contra Max en playoffs?"                                         |
+| Últimos partidos           | 2         | "De mis últimos 5 partidos, ¿cuál fue el partido en el que perdí más ELO?"                    |
 | Posiciones y ranking       | 4         | "¿Cómo estoy en la tabla de la Liga?"                                                         |
 | Reglas y formatos          | 3         | "¿Cómo funciona el play-in de la Superliga?"                                                  |
 | Navegación y crónicas      | 3         | "¿Dónde veo el fixture de la Liga?"                                                           |
@@ -41,7 +42,7 @@ Hay que mirarlo a mano en el detalle (`.json` que deja la corrida) y en las ejec
 
 ## Cómo correrla
 
-Hace falta un usuario real del sitio y los datos del webhook. Cada mensaje consume crédito de Claude (con Haiku 5.5, centavos para toda la corrida) y cuenta contra el tope de 40 mensajes por hora de ese usuario: una corrida usa 27, así que no se puede repetir dentro de la misma hora.
+Hace falta un usuario real del sitio y los datos del webhook. Cada mensaje consume crédito de Claude (con Haiku 5.5, centavos para toda la corrida) y cuenta contra el tope de 40 mensajes por hora de ese usuario: una corrida usa 29, así que no se puede repetir dentro de la misma hora.
 
 ```bash
 ASSISTANT_API=https://apa-website-be.vercel.app/api \
@@ -62,7 +63,7 @@ El webhook no devuelve el consumo de tokens, así que se mide con el gasto:
 
 1. En la consola de Anthropic anotá el gasto acumulado antes de empezar.
 2. Corré la batería.
-3. Anotá el gasto después. **Costo por mensaje = (gasto después − gasto antes) / 27.**
+3. Anotá el gasto después. **Costo por mensaje = (gasto después − gasto antes) / 29.**
 
 La consola puede tardar unos minutos en reflejar el gasto. Como referencia, el prompt pesa unos 5.000 tokens y cada consulta hace de 2 a 4 llamadas al modelo, así que el orden de magnitud esperado con Haiku 5.5 es una fracción de centavo por mensaje; si da mucho más, hay una herramienta devolviendo demasiado (ver `npm run measure:assistant-tools`).
 
@@ -94,7 +95,7 @@ Omitidas (falta dato):      __
 Fallas críticas:            ninguna / (ids)
 Preguntas sin respuesta:    ninguna / (ids)
 Latencia promedio / p95:    __ ms / __ ms
-Mensajes:                   27
+Mensajes:                   29
 Gasto (antes → después):    USD __ → USD __   Costo por mensaje: USD __
 
 Por categoría:
@@ -102,6 +103,7 @@ Por categoría:
   Pendientes de otro jugador    _/2
   Partidos entre un grupo       _/3
   Historial entre jugadores     _/3
+  Últimos partidos              _/2
   Posiciones y ranking          _/4
   Reglas y formatos             _/3
   Navegación y crónicas         _/3

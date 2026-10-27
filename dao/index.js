@@ -26,6 +26,7 @@ const findRatingChangesByMatchIds = require("./findRatingChangesByMatchIds")
 const findRatingEventsByMatchIds = require("./findRatingEventsByMatchIds")
 const findRatingMatches = require("./findRatingMatches")
 const findRatingSourceStats = require("./findRatingSourceStats")
+const findRecentMatchesForAssistant = require("./findRecentMatchesForAssistant")
 const findTeamRemainingMatchesByTournamentId = require("./findTeamRemainingMatchesByTournamentId")
 const findTournamentById = require("./findTournamentById")
 const findTournamentIdsPlayedOnDate = require("./findTournamentIdsPlayedOnDate")
@@ -77,6 +78,7 @@ module.exports = {
     findRatingEventsByMatchIds,
     findRatingMatches,
     findRatingSourceStats,
+    findRecentMatchesForAssistant,
     findTeamRemainingMatchesByTournamentId,
     findTournamentById,
     findTournamentIdsPlayedOnDate,

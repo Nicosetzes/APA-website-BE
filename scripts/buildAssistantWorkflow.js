@@ -509,6 +509,24 @@ const buildWorkflow = () => {
             query: "={{ JSON.stringify({}) }}",
             position: [1504, 560],
         }),
+        // Al final de la lista: los ids de las herramientas sin id salen del
+        // índice, y así los nodos ya importados en n8n no cambian de id.
+        readTool({
+            name: "ultimos_partidos_de_jugador",
+            description:
+                "Últimos partidos jugados de UN jugador contra cualquier rival, del más nuevo al más viejo. Por partido: fecha, torneo, etapa, rival con los equipos de ambos, marcador desde el punto de vista del jugador, resultado (win, draw o loss) y ratingChange, los puntos de APA Rating que ganó o perdió en ese partido (null si no hay dato). Devuelve ya calculados el récord, el total de puntos de rating y la mayor pérdida y la mayor ganancia de rating entre esos partidos. Se puede acotar a una etapa o a un torneo. Para el cara a cara con un rival puntual usá historial_entre_jugadores.",
+            endpoint: "/assistant/recent-matches",
+            query: compactQuery(
+                [
+                    "player: $fromAI('player', 'Id del jugador. Para la persona que escribe, el id del contexto.', 'string')",
+                    "stage: $fromAI('stage', 'Etapa si el usuario pidió una: regular, playin o playoff. Vacío si no.', 'string', '')",
+                    "tournamentId: $fromAI('tournamentId', 'Id del torneo si el usuario pidió uno puntual. Vacío si no.', 'string', '')",
+                    "limit: $fromAI('limit', 'Cantidad de últimos partidos a considerar, entre 1 y 20', 'number', 10)",
+                ].join(", ")
+            ),
+            secret: true,
+            position: [1632, 560],
+        }),
     ]
 
     // Las herramientas no declaran id: se les da uno fijo para que el export
@@ -537,6 +555,7 @@ const buildWorkflow = () => {
         "estadisticas_de_jugador_en_torneo",
         "resumen_del_dia",
         "cronica_de_torneo",
+        "ultimos_partidos_de_jugador",
     ]
 
     return {

@@ -17,6 +17,12 @@ const MAX_AWAITING_OPPONENT_ITEMS = 5
 const DEFAULT_HEAD_TO_HEAD_LIMIT = 5
 const MAX_HEAD_TO_HEAD_LIMIT = 10
 
+// Últimos partidos de un jugador. El `limit` se recorta a este máximo en el
+// servidor, y el resumen (récord, rating) se calcula sobre los partidos que
+// se devuelven.
+const DEFAULT_RECENT_MATCHES_LIMIT = 10
+const MAX_RECENT_MATCHES_LIMIT = 20
+
 const PENDING_SCOPES = ["involving", "among"]
 const PENDING_STAGES = ["regular", "playin", "playoff"]
 
@@ -57,16 +63,32 @@ const buildHeadToHeadViewPath = (
     return `/matches?${params.join("&")}`
 }
 
+// Con un solo jugador (`player1`) el listado de partidos del FE muestra todos
+// sus partidos jugados, contra cualquier rival (`MatchListing` no exige
+// `player2`). `type` y `tournamentId` los acotan igual que en el cara a cara.
+const buildPlayerMatchesViewPath = (playerId, { stage, tournamentId } = {}) => {
+    const params = [`player1=${encodeURIComponent(playerId)}`]
+
+    if (stage) params.push(`type=${encodeURIComponent(stage)}`)
+    if (tournamentId)
+        params.push(`tournamentId=${encodeURIComponent(tournamentId)}`)
+
+    return `/matches?${params.join("&")}`
+}
+
 module.exports = {
     DEFAULT_HEAD_TO_HEAD_LIMIT,
     DEFAULT_PENDING_LIMIT,
+    DEFAULT_RECENT_MATCHES_LIMIT,
     MAX_ASSISTANT_PLAYERS,
     MAX_AWAITING_OPPONENT_ITEMS,
     MAX_HEAD_TO_HEAD_LIMIT,
     MAX_PENDING_LIMIT,
+    MAX_RECENT_MATCHES_LIMIT,
     PENDING_SCOPES,
     PENDING_STAGES,
     buildHeadToHeadViewPath,
+    buildPlayerMatchesViewPath,
     buildStandingsViewPath,
     buildViewPath,
 }

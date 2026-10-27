@@ -16,6 +16,7 @@ const originateTournament = require("./originateTournament")
 const originateWorldCupPlayoffByTournamentId = require("./originateWorldCupPlayoffByTournamentId")
 const retrieveAssistantHeadToHead = require("./retrieveAssistantHeadToHead")
 const retrieveAssistantPendingMatches = require("./retrieveAssistantPendingMatches")
+const retrieveAssistantRecentMatches = require("./retrieveAssistantRecentMatches")
 const retrieveAssistantStandings = require("./retrieveAssistantStandings")
 const retrieveAllUsers = require("./retrieveAllUsers")
 const retrieveAllMatches = require("./retrieveAllMatches")
@@ -66,6 +67,7 @@ module.exports = {
     originateWorldCupPlayoffByTournamentId,
     retrieveAssistantHeadToHead,
     retrieveAssistantPendingMatches,
+    retrieveAssistantRecentMatches,
     retrieveAssistantStandings,
     retrieveAllUsers,
     retrieveAllMatches,

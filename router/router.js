@@ -45,6 +45,7 @@ const {
     getAllTimeTeams,
     getAssistantHeadToHead,
     getAssistantPendingMatches,
+    getAssistantRecentMatches,
     getAssistantStandings,
     postEdits,
     postEditsUpload,
@@ -153,6 +154,14 @@ root.get(
     requireRecapSecret,
     validate("getAssistantHeadToHead"),
     getAssistantHeadToHead
+)
+
+root.get(
+    "/assistant/recent-matches",
+    recapRateLimit,
+    requireRecapSecret,
+    validate("getAssistantRecentMatches"),
+    getAssistantRecentMatches
 )
 
 root.get(

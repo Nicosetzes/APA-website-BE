@@ -2027,6 +2027,108 @@ paths:
                             schema:
                                 $ref: "#/components/schemas/ErrorResponse"
 
+    /api/assistant/recent-matches:
+        get:
+            tags: [Assistant]
+            summary: Últimos partidos jugados de un jugador, para el agente del chat
+            description: >-
+                Lo llama el agente de n8n (solo lectura, mismo secreto que los
+                recaps). Lee solo los partidos jugados del jugador contra
+                cualquier rival (no hay filtro por rival: para un cara a cara
+                existe `GET /api/assistant/head-to-head`). Los pendientes no
+                se incluyen.
+
+
+                **Detalle acotado.** `matches` trae los últimos `limit`
+                partidos, del más nuevo al más viejo (los sin fecha al final,
+                mismo criterio que el cara a cara): 10 por defecto y un valor
+                mayor a 20 se ajusta a 20. Cada partido se ve desde el
+                jugador consultado: `score` son sus goles primero, `result`
+                es `win`, `draw` o `loss`, y `opponent`, `playerTeam` y
+                `opponentTeam` son nombres (la respuesta no lleva ids de
+                partido ni de torneo). El criterio es el del sitio: un empate
+                en goles es empate aunque se haya definido por penales (se
+                informan aparte en `shootout`). Los partidos inválidos
+                (`valid: false`) y los sin goles completos no cuentan y se
+                informan en `excluded`.
+
+
+                **Rating.** `ratingChange` son los puntos de APA Rating que
+                ganó o perdió el jugador consultado en ese partido (negativo si
+                perdió). Es `null` si no hay dato (read-model desactualizado o
+                partido sin evento): el campo siempre se envía.
+
+
+                **Resumen.** Se calcula sobre los partidos devueltos, no sobre
+                `totalMatches`: `record`, `ratingChangeTotal` (suma de los que
+                tienen dato; `null` si ninguno), `withoutRatingChange` (cuántos
+                no tienen dato), `biggestRatingLoss` y `biggestRatingGain` (el
+                partido con la mayor pérdida o ganancia; `null` si ninguno
+                perdió o ganó puntos; ante igualdad, el más nuevo).
+
+
+                `viewPath` lleva al listado de partidos del sitio filtrado por
+                el jugador (`/matches?player1=...`). Un jugador inexistente no
+                es error: la respuesta es 200 con `player: null`,
+                `unknownPlayers`, `record: null` y una nota.
+            security:
+                - recapSecret: []
+            parameters:
+                - in: query
+                  name: player
+                  required: true
+                  description: Id del jugador (el que devuelve `GET /api/users`)
+                  schema:
+                      type: string
+                - in: query
+                  name: stage
+                  required: false
+                  description: Cuenta solo los partidos de esa etapa
+                  schema:
+                      type: string
+                      enum: [regular, playin, playoff]
+                - in: query
+                  name: tournamentId
+                  required: false
+                  description: Cuenta solo los partidos de ese torneo
+                  schema:
+                      $ref: "#/components/schemas/MongoId"
+                - in: query
+                  name: limit
+                  required: false
+                  description: Últimos partidos detallados (máximo efectivo 20)
+                  schema:
+                      type: integer
+                      minimum: 1
+                      default: 10
+            responses:
+                "200":
+                    description: Últimos partidos del jugador y resumen
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/AssistantRecentMatchesResponse"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    description: Secreto ausente o inválido (INVALID_RECAP_SECRET)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "429":
+                    description: Demasiados secretos inválidos desde la misma IP (TOO_MANY_RECAP_ATTEMPTS)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+                "503":
+                    description: El secreto no está configurado en el servidor (RECAP_SECRET_NOT_CONFIGURED)
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+
     /api/assistant/standings:
         get:
             tags: [Assistant]
@@ -3152,6 +3254,177 @@ components:
                                 Listado de partidos del sitio filtrado por los dos
                                 jugadores (y por etapa y torneo si se pidieron)
                             example: /matches?player1=u1&player2=u2&type=playoff
+                        notes:
+                            type: array
+                            items:
+                                type: string
+        AssistantRecentMatch:
+            type: object
+            description: >-
+                Partido visto desde el jugador consultado. Los campos sin valor
+                no se envían, salvo `ratingChange`, que siempre va.
+            required: [score, result, ratingChange]
+            properties:
+                playedOn:
+                    type: string
+                    description: >-
+                        Día argentino (`YYYY-MM-DD`) o, según la precisión,
+                        `YYYY-MM`, `YYYY` o `aprox. YYYY-MM`
+                    example: "2026-10-20"
+                tournament:
+                    type: string
+                stage:
+                    type: string
+                    enum: [regular, playin, playoff]
+                group:
+                    type: string
+                round:
+                    type: string
+                leg:
+                    type: integer
+                opponent:
+                    type: string
+                    description: Apodo del rival
+                playerTeam:
+                    type: string
+                opponentTeam:
+                    type: string
+                score:
+                    type: string
+                    description: Goles del jugador consultado y del rival, en ese orden
+                    example: 3-1
+                result:
+                    type: string
+                    enum: [win, draw, loss]
+                shootout:
+                    type: object
+                    description: Solo si el empate se definió por penales
+                    properties:
+                        winner:
+                            type: string
+                            nullable: true
+                        score:
+                            type: string
+                            nullable: true
+                            example: 5-4
+                ratingChange:
+                    type: number
+                    nullable: true
+                    description: >-
+                        Puntos de APA Rating que ganó (positivo) o perdió
+                        (negativo) el jugador consultado; `null` si no hay dato
+        AssistantRecentMatchRef:
+            type: object
+            nullable: true
+            description: Referencia a un partido de la lista
+            required: [score, result, points]
+            properties:
+                playedOn:
+                    type: string
+                tournament:
+                    type: string
+                opponent:
+                    type: string
+                score:
+                    type: string
+                    example: 0-2
+                result:
+                    type: string
+                    enum: [win, draw, loss]
+                points:
+                    type: number
+                    description: Negativo en la mayor pérdida, positivo en la mayor ganancia
+        AssistantRecentMatchesResponse:
+            type: object
+            required: [success, data]
+            properties:
+                success:
+                    type: boolean
+                data:
+                    type: object
+                    required: [asOf, record, matches, notes]
+                    properties:
+                        asOf:
+                            type: string
+                            format: date-time
+                        player:
+                            type: object
+                            nullable: true
+                            description: "`null` si el jugador no existe"
+                            required: [name]
+                            properties:
+                                name:
+                                    type: string
+                        unknownPlayers:
+                            type: array
+                            description: Solo si el jugador no existe
+                            items:
+                                type: string
+                        criterion:
+                            type: string
+                            description: Cómo se cuentan resultados, penales y rating
+                        totalMatches:
+                            type: integer
+                            description: >-
+                                Partidos válidos y completos que cumplen el
+                                filtro, antes de aplicar `limit`
+                        returned:
+                            type: integer
+                        record:
+                            type: object
+                            nullable: true
+                            description: Sobre los partidos devueltos
+                            required: [matches, wins, draws, losses]
+                            properties:
+                                matches:
+                                    type: integer
+                                wins:
+                                    type: integer
+                                draws:
+                                    type: integer
+                                losses:
+                                    type: integer
+                        ratingChangeTotal:
+                            type: number
+                            nullable: true
+                            description: >-
+                                Suma de `ratingChange` de los partidos con dato;
+                                `null` si ninguno tiene
+                        withoutRatingChange:
+                            type: integer
+                            description: Partidos devueltos sin dato de rating
+                        biggestRatingLoss:
+                            $ref: "#/components/schemas/AssistantRecentMatchRef"
+                        biggestRatingGain:
+                            $ref: "#/components/schemas/AssistantRecentMatchRef"
+                        matches:
+                            type: array
+                            items:
+                                $ref: "#/components/schemas/AssistantRecentMatch"
+                        excluded:
+                            type: object
+                            required: [invalid, incomplete]
+                            properties:
+                                invalid:
+                                    type: integer
+                                incomplete:
+                                    type: integer
+                        filters:
+                            type: object
+                            description: Filtros aplicados (`null` si no hay)
+                            properties:
+                                stage:
+                                    type: string
+                                    nullable: true
+                                tournamentId:
+                                    type: string
+                                    nullable: true
+                        viewPath:
+                            type: string
+                            description: >-
+                                Listado de partidos del sitio filtrado por el
+                                jugador (y por etapa y torneo si se pidieron)
+                            example: /matches?player1=u1&type=playoff
                         notes:
                             type: array
                             items:
