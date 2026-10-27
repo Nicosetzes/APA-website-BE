@@ -354,6 +354,13 @@ const buildWorkflow = () => {
                 options: {
                     maxTokensToSample: 4096,
                     thinkingMode: "disabled",
+                    // Caché de prompt de Anthropic: el prompt (~8.000 tokens) y
+                    // las herramientas se repiten en cada vuelta del agente y en
+                    // cada mensaje de la charla. Las lecturas del caché cuestan
+                    // una fracción de la entrada normal; la escritura, un 25 %
+                    // más. Con 5 minutos ya se aprovechan las 2 a 4 llamadas de
+                    // una misma consulta y los mensajes seguidos de una charla.
+                    promptCaching: "5m",
                 },
             },
             id: "3c6b8e2d-5a9f-4d10-9e4b-7a1d0c8f2e11",

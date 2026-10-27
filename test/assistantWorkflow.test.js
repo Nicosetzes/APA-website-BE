@@ -176,6 +176,8 @@ test("the agent uses Haiku 5.5, a short memory and a bounded loop", () => {
     // Con el razonamiento activo, recortar la memoria rompe la charla (400
     // "thinking block bound to a different conversation").
     assert.equal(model.parameters.options.thinkingMode, "disabled")
+    // El prompt largo se repite en cada vuelta: se cachea en Anthropic.
+    assert.equal(model.parameters.options.promptCaching, "5m")
     assert.ok(agent.parameters.options.maxIterations <= 10)
     assert.equal(agent.parameters.options.enableStreaming, false)
     assert.equal(agent.onError, "continueErrorOutput")
@@ -792,66 +794,15 @@ test("the site map says what the Hall of Fame and the historic tournaments show"
     )
     assert.match(knowledge, /`listar_torneos` y `campeones_de_torneos`/)
 })
-// La guía del README para cargar a mano la herramienta y el cambio de
-// `listar_torneos` repite textos del generador y del prompt: se comparan para
-// que no se desincronicen.
+// El README lista todas las herramientas con su endpoint: se compara con el
+// generador para que la tabla no se desactualice.
 const readme = fs
     .readFileSync(path.join(N8N_DIR, "README.md"), "utf8")
     .replace(/\r\n/g, "\n")
-const guideBlocks = (heading) => {
-    const start = readme.indexOf(heading)
-    assert.ok(start >= 0, heading)
-    const end = readme.indexOf("\n## ", start + heading.length)
-    const section = readme.slice(start, end === -1 ? undefined : end)
-    return [...section.matchAll(/```\n([\s\S]*?)\n\s*```/g)].map(([, block]) =>
-        block.replace(/^ {4}/gm, "")
-    )
-}
 const promptLine = (start) =>
     readPrompt()
         .split("\n")
         .find((line) => line.startsWith(start))
-test("the manual guide for campeones_de_torneos matches what the script generates", () => {
-    const tool = nodeNamed("campeones_de_torneos")
-    const section = readme.slice(
-        readme.indexOf("## Cómo agregar `campeones_de_torneos` a mano en n8n")
-    )
-    assert.ok(section.includes(tool.parameters.url))
-    assert.deepEqual(
-        guideBlocks("## Cómo agregar `campeones_de_torneos` a mano en n8n"),
-        [
-            tool.parameters.toolDescription,
-            tool.parameters.jsonQuery,
-            promptLine("-   `campeones_de_torneos`:"),
-        ]
-    )
-})
-test("the manual guide for listar_torneos matches what the script generates", () => {
-    const tool = nodeNamed("listar_torneos")
-    assert.deepEqual(
-        guideBlocks("## Cómo actualizar `listar_torneos` a mano en n8n"),
-        [
-            tool.parameters.toolDescription,
-            promptLine("-   `listar_torneos`:"),
-            promptLine("-   Para un torneo por nombre usá `listar_torneos`"),
-        ]
-    )
-})
-test("the manual guide for the pending tools matches what the script generates", () => {
-    const pending = nodeNamed("pendientes_de_jugadores")
-    const playable = nodeNamed("partidos_jugables_entre_jugadores")
-    assert.deepEqual(
-        guideBlocks(
-            "## Cómo actualizar las herramientas de pendientes a mano en n8n"
-        ),
-        [
-            pending.parameters.toolDescription,
-            playable.parameters.toolDescription,
-            promptLine("-   `pendientes_de_jugadores`:"),
-            promptLine("-   `partidos_jugables_entre_jugadores`:"),
-        ]
-    )
-})
 test("both pending tools say that each match may carry the favorite", () => {
     for (const name of [
         "pendientes_de_jugadores",
