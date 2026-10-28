@@ -78,10 +78,127 @@ test("a rated league match yields every field, rounded", () => {
         expectedP1: 0.623,
         teamAdjustment: 7,
         kind: "expected_points",
+        favorite: { side: "p1", label: "levemente favorito" },
+        // 1012,3 contra 987,7: 24,6 puntos, justo debajo del primer corte.
+        ratingEdge: null,
+        overallGap: { side: "p1", points: 5, level: "notable" },
         winner: "p1",
         winnerExpectedScore: 0.623,
         ratingSwing: 4.3,
     })
+})
+
+test("favorite uses the assistant labels on the expected score of the favorite", () => {
+    const favoriteOf = (expectedP1, kind = "expected_points") => {
+        const tournament =
+            kind === "advance"
+                ? { format: "playoff", playoffMode: "single" }
+                : leagueTournament
+        const type = kind === "advance" ? "playoff" : "regular"
+        const [insight] = insightsOf(
+            [event({ expectedP1, type })],
+            [match({ type, playoff_id: type === "playoff" ? 5 : undefined })],
+            tournament
+        )
+        return insight.favorite
+    }
+
+    // Germany-Norway: Norway ganó siendo el de menos chances.
+    assert.deepEqual(favoriteOf(0.79, "advance"), {
+        side: "p1",
+        label: "favorito",
+    })
+    assert.deepEqual(favoriteOf(0.21, "advance"), {
+        side: "p2",
+        label: "favorito",
+    })
+    assert.deepEqual(favoriteOf(0.2, "advance"), {
+        side: "p2",
+        label: "gran favorito",
+    })
+    assert.deepEqual(favoriteOf(0.524), null)
+    assert.deepEqual(favoriteOf(0.525), {
+        side: "p1",
+        label: "levemente favorito",
+    })
+    assert.deepEqual(favoriteOf(0.475), {
+        side: "p2",
+        label: "levemente favorito",
+    })
+    assert.equal(favoriteOf(0.5), null)
+})
+
+test("a match without prediction kind has no favorite", () => {
+    const [insight] = insightsOf(
+        [event({ type: "playoff", expectedP1: 0.9 })],
+        [match({ type: "playoff", playoff_id: 9, leg: 3 })],
+        { format: "playoff", playoffMode: "two_legged" }
+    )
+
+    assert.equal(insight.kind, null)
+    assert.equal(insight.favorite, null)
+})
+
+test("ratingEdge levels change at 25, 75 and 150 points", () => {
+    const edgeOf = (diff, swap = false) => {
+        const [first, second] = swap ? [1000, 1000 + diff] : [1000 + diff, 1000]
+        const [insight] = insightsOf(
+            [
+                event({
+                    p1: side(1, { before: first }),
+                    p2: side(2, { before: second }),
+                }),
+            ],
+            [match()]
+        )
+        return insight.ratingEdge
+    }
+
+    assert.equal(edgeOf(24), null)
+    assert.deepEqual(edgeOf(25), { side: "p1", level: "slight" })
+    assert.deepEqual(edgeOf(74), { side: "p1", level: "slight" })
+    assert.deepEqual(edgeOf(75), { side: "p1", level: "clear" })
+    assert.deepEqual(edgeOf(149), { side: "p1", level: "clear" })
+    assert.deepEqual(edgeOf(150), { side: "p1", level: "large" })
+    assert.deepEqual(edgeOf(150, true), { side: "p2", level: "large" })
+    assert.equal(edgeOf(0), null)
+})
+
+test("overallGap levels change at 4 and 8 points and need both overalls", () => {
+    const gapOf = (overall1, overall2) => {
+        const [insight] = insightsOf(
+            [
+                event({
+                    p1: side(1, { teamOverall: overall1 }),
+                    p2: side(2, { teamOverall: overall2 }),
+                }),
+            ],
+            [match()]
+        )
+        return insight.overallGap
+    }
+
+    assert.equal(gapOf(80, 77), null)
+    assert.deepEqual(gapOf(80, 76), {
+        side: "p1",
+        points: 4,
+        level: "notable",
+    })
+    assert.equal(gapOf(77, 80), null)
+    assert.deepEqual(gapOf(76, 80), {
+        side: "p2",
+        points: 4,
+        level: "notable",
+    })
+    assert.deepEqual(gapOf(80, 73), {
+        side: "p1",
+        points: 7,
+        level: "notable",
+    })
+    assert.deepEqual(gapOf(80, 72), { side: "p1", points: 8, level: "large" })
+    assert.equal(gapOf(null, 72), null)
+    assert.equal(gapOf(80, null), null)
+    assert.equal(gapOf(80, 80), null)
 })
 
 test("when P2 wins, winnerExpectedScore is 1 - expectedP1 and the swing is absolute", () => {

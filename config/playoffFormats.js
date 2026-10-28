@@ -102,6 +102,26 @@ const getPlayoffRoundForId = (format, playoffId) =>
         return range && playoffId >= range[0] && playoffId <= range[1]
     }) ?? null
 
+const getNextPlayoffRound = (format, round) => {
+    const index = PLAYOFF_ROUNDS.indexOf(round)
+    if (index === -1) return null
+
+    const next = PLAYOFF_ROUNDS[index + 1]
+    if (!next || getPlayoffRoundIdRange(format, next) === null) return null
+
+    return next
+}
+
+const getPlayoffStartRound = (format) => {
+    const size = getPlayoffStartSize(format)
+
+    return (
+        PLAYOFF_ROUNDS.find(
+            (round) => TEAMS_BY_PLAYOFF_ROUND[round] === size
+        ) ?? null
+    )
+}
+
 module.exports = {
     DEFAULT_PLAYOFF_START_SIZE,
     FINAL_PLAYOFF_ID_BY_FORMAT,
@@ -109,8 +129,10 @@ module.exports = {
     PLAYOFF_ROUND_IDS_BY_FORMAT,
     PLAYOFF_START_SIZE_BY_FORMAT,
     getFinalPlayoffId,
+    getNextPlayoffRound,
     getPlayoffRoundForId,
     getPlayoffRoundIdRange,
+    getPlayoffStartRound,
     getPlayoffStartSize,
     hasTabulatedFinalPlayoffId,
     hasTabulatedPlayoffStartSize,

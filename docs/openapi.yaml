@@ -1715,9 +1715,12 @@ paths:
                 `directlyQualified` y `playinQualified` que ya trae la tabla.
                 Sí trae `matchInsights`: por cada partido rateado de ese día,
                 las odds previas del Rating APA 2.0 y el overall de cada
-                equipo, lo mínimo para detectar sorpresas. Los números son
-                crudos: las etiquetas (favorito, sorpresa) las pone quien
-                consume. Sin partidos ese día devuelve `data: []`.
+                equipo, y tres niveles ya calculados (`favorite` con las
+                etiquetas del asistente, `ratingEdge` y `overallGap`). El
+                resto de los números son crudos: la etiqueta de sorpresa la
+                pone quien consume. Cada cruce del cuadro trae `nextRound` y
+                el torneo `playoffStartRound`, para decir a qué fase avanza
+                un ganador. Sin partidos ese día devuelve `data: []`.
             parameters:
                 - in: query
                   name: date
@@ -2851,7 +2854,7 @@ components:
                             enum: [current]
                 rules:
                     type: object
-                    description: Reglas fijas del formato, para citar y no inferir
+                    description: Reglas fijas del formato, como insumo para explicar sin inferir
                     properties:
                         stages:
                             type: array
@@ -2871,6 +2874,21 @@ components:
                         knockout:
                             type: string
                             nullable: true
+                playoffStartRound:
+                    type: string
+                    nullable: true
+                    enum:
+                        [
+                            round_of_32,
+                            round_of_16,
+                            quarterfinal,
+                            semifinal,
+                            final,
+                        ]
+                    description: >-
+                        Primera ronda de eliminación del formato (la que
+                        disputan `getPlayoffStartSize` equipos). `null` si el
+                        formato no tiene playoff.
                 standings:
                     type: array
                     description: Una entrada por grupo (`group` null si no hay grupos); vacío en formatos sin fase regular
@@ -2909,6 +2927,20 @@ components:
                                         semifinal,
                                         final,
                                     ]
+                            nextRound:
+                                type: string
+                                nullable: true
+                                enum:
+                                    [
+                                        round_of_32,
+                                        round_of_16,
+                                        quarterfinal,
+                                        semifinal,
+                                        final,
+                                    ]
+                                description: >-
+                                    Ronda a la que pasa el ganador del cruce.
+                                    `null` en la final.
                             series:
                                 type: object
                                 nullable: true
@@ -2964,8 +2996,11 @@ components:
         RecapMatchInsight:
             type: object
             description: >-
-                Datos crudos de un partido rateado, para que el consumidor
-                decida qué es una sorpresa. Sin etiquetas ni umbrales.
+                Datos de un partido rateado, para que el consumidor decida qué
+                es una sorpresa. Los números son crudos; `favorite` usa los
+                niveles del asistente (`FAVORITE_LEVELS`) y `ratingEdge` y
+                `overallGap` traen niveles ya calculados
+                (`config/recapInsights.js`).
             required:
                 - matchId
                 - playedAt
@@ -2979,6 +3014,9 @@ components:
                 - expectedP1
                 - teamAdjustment
                 - kind
+                - favorite
+                - ratingEdge
+                - overallGap
                 - winner
                 - winnerExpectedScore
                 - ratingSwing
@@ -3034,6 +3072,56 @@ components:
                         predicción con sentido (pata 3 que desempata a gol de
                         oro, play-in de `champions_league`). Sale de
                         `predictionKind` (`service/playerRatings/prediction.js`).
+                favorite:
+                    type: object
+                    nullable: true
+                    required: [side, label]
+                    description: >-
+                        Favorito del partido según el puntaje esperado,
+                        con las mismas etiquetas del asistente. `null` si el
+                        duelo es parejo (por debajo de "levemente favorito") o
+                        `kind` es `null`.
+                    properties:
+                        side:
+                            type: string
+                            enum: [p1, p2]
+                        label:
+                            type: string
+                            enum: [levemente favorito, favorito, gran favorito]
+                ratingEdge:
+                    type: object
+                    nullable: true
+                    required: [side, level]
+                    description: >-
+                        Ventaja de rating entre los jugadores (sin equipo):
+                        `slight` desde 25 puntos, `clear` desde 75 y
+                        `large` desde 150. `side` es el de más rating.
+                        `null` por debajo de 25.
+                    properties:
+                        side:
+                            type: string
+                            enum: [p1, p2]
+                        level:
+                            type: string
+                            enum: [slight, clear, large]
+                overallGap:
+                    type: object
+                    nullable: true
+                    required: [side, points, level]
+                    description: >-
+                        Diferencia de overall entre los equipos: `notable`
+                        desde 4 puntos y `large` desde 8. `side` es el de
+                        más overall. `null` si falta algún overall o la
+                        diferencia es menor a 4.
+                    properties:
+                        side:
+                            type: string
+                            enum: [p1, p2]
+                        points:
+                            type: number
+                        level:
+                            type: string
+                            enum: [notable, large]
                 winner:
                     type: string
                     enum: [p1, p2, draw]

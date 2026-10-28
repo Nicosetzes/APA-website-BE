@@ -210,6 +210,9 @@ test("recap context returns rules, slim standings and the bracket per tournament
     assert.equal(cup.bracket.length, 1)
     assert.equal(cup.bracket[0].playoffId, 31)
     assert.equal(cup.bracket[0].round, "final")
+    assert.equal(cup.bracket[0].nextRound, null)
+    assert.equal(cup.playoffStartRound, "round_of_32")
+    assert.equal(league.playoffStartRound, null)
     assert.equal(cup.bracket[0].series.status, "awaiting_leg2")
     assert.deepEqual(
         cup.bracket[0].matches.map(({ leg, played, valid }) => ({
@@ -258,6 +261,43 @@ test("recap context returns rules, slim standings and the bracket per tournament
     assert.ok(
         league.standings[0].teams.every((row) => !("streak" in row)),
         "streak must be stripped"
+    )
+})
+
+test("recap context tells which round follows each tie and where the knockout starts", async () => {
+    const controller = createGetRecapContext({
+        ...noInsights,
+        retrieveTournamentIdsPlayedOnDate: async () => ["t-world"],
+        retrieveTournamentById: async () => ({
+            name: "Copa del Mundo",
+            format: "world_cup_2026",
+            ongoing: true,
+        }),
+        retrieveStandings: async () => ({ standings: [] }),
+        retrievePlayinMatchesByTournamentId: async () => [],
+        retrievePlayoffMatchesByTournamentId: async () => [
+            playoffMatch({ playoff_id: 17, leg: null, played: true }),
+            playoffMatch({ playoff_id: 25, leg: null }),
+            playoffMatch({ playoff_id: 31, leg: null }),
+            playoffMatch({ playoff_id: 5, leg: null }),
+        ],
+    })
+    const response = createResponse()
+    await controller({ query: { date: "2026-10-27" } }, response)
+    const [world] = response.body.data
+    assert.equal(world.playoffStartRound, "round_of_32")
+    assert.deepEqual(
+        world.bracket.map(({ playoffId, round, nextRound }) => ({
+            playoffId,
+            round,
+            nextRound,
+        })),
+        [
+            { playoffId: 5, round: "round_of_32", nextRound: "round_of_16" },
+            { playoffId: 17, round: "round_of_16", nextRound: "quarterfinal" },
+            { playoffId: 25, round: "quarterfinal", nextRound: "semifinal" },
+            { playoffId: 31, round: "final", nextRound: null },
+        ]
     )
 })
 

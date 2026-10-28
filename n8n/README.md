@@ -164,6 +164,24 @@ Códigos de error del webhook (el FE los traduce a mensajes amables):
 
 Si editás el _System Message_ o un nodo directamente en n8n, pasá el cambio a los archivos de esta carpeta o al generador: si no, la próxima importación lo pisa. El prompt no puede contener llaves dobles (`{{ }}`): n8n las evalúa como expresiones.
 
+## Resumen diario (`daily-recap.json`)
+
+El agente de redacción recibe datos ya calculados y los usa para razonar, no para citarlos. Lo que se calcula antes de llegar al modelo:
+
+| Dato                                                                                                                                     | Dónde se calcula                                                                     | Para qué                                                                          |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `favorite` (con las etiquetas del asistente), `ratingEdge`, `overallGap` por partido                                                     | BE: `GET /api/recaps/context` (`matchInsights`, cortes en `config/recapInsights.js`) | Nombrar al favorito sin repetir ELO ni overall en cada partido                    |
+| `bracket[].nextRound`, `playoffStartRound`                                                                                               | BE: `GET /api/recaps/context`                                                        | Decir a qué fase avanza cada clasificado                                          |
+| `odds`, `advancesTo`, `lead` (serie abierta, cuesta arriba, etc. según la diferencia de la ida), `dayRecord`, `rules.firstKnockoutRound` | Nodo `Cleanup for agent`                                                             | Armar el resumen sin que el modelo infiera ni cite                                |
+| `size` del mayor movimiento de ELO en un partido (`small`, `medium`, `huge`)                                                             | Nodo `Compute Day Stats`                                                             | Describir el golpe sin nombrar escalas                                            |
+| `takesOverFrom` en rachas activas                                                                                                        | Nodo `Compute Streak Events`                                                         | Distinguir "sigue" de "pasó a ser la activa más larga porque se cortó la de otro" |
+
+Limitación conocida: `takesOverFrom` solo detecta el traspaso cuando se cortó ese día una racha **récord** del mismo tipo (`/api/statistics` no admite fecha). Si se corta una racha activa que no es récord, el prompt evita afirmar quién lideraba antes.
+
+Orden de despliegue: primero el BE (los campos nuevos son aditivos y el workflow viejo sigue funcionando), después importar `daily-recap.json` en n8n y revisar que se conserven las credenciales. Sin los campos nuevos del BE, `Cleanup for agent` no falla: omite el favorito y las fases de avance.
+
+Se prueba con `test/dailyRecapWorkflow.test.js`, que ejecuta el código de los nodos con la respuesta real del controlador del BE y un día de ejemplo (27/10/2026).
+
 ## Si algo falla
 
 -   **Error 400 de Anthropic: "thinking block … bound to a different conversation".** Haiku 5.5 razona por defecto y ata cada bloque de razonamiento a todo lo anterior de la charla; cuando la memoria de n8n recorta los mensajes más viejos, Anthropic rechaza lo guardado (pasaba en el 7º mensaje). Por eso _Thinking Mode_ está en _Disabled_ en el nodo **Claude Haiku**. Si vuelve a aparecer, revisá que esa opción siga puesta.

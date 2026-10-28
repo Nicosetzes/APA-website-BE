@@ -13,6 +13,7 @@ const retrieveAssistantPendingMatches = require("../service/retrieveAssistantPen
 const {
     attachFavorites,
     buildFavorite,
+    favoriteLevelForScore,
 } = require("../service/retrieveAssistantPendingMatches/favorite")
 const {
     createRetrieveStoredPredictionIndex,
@@ -131,6 +132,18 @@ test("advance labels change exactly at 53, 65 and 80 percent", () => {
     assert.equal(labelOf(advance(0.794)), "favorito")
     assert.equal(labelOf(advance(0.795)), "gran favorito")
     assert.equal(labelOf(advance(0.95)), "gran favorito")
+})
+test("favoriteLevelForScore labels an expected score with the same levels", () => {
+    assert.equal(favoriteLevelForScore(0.524), null)
+    assert.equal(favoriteLevelForScore(0.525), "levemente favorito")
+    assert.equal(favoriteLevelForScore(0.644), "levemente favorito")
+    assert.equal(favoriteLevelForScore(0.645), "favorito")
+    assert.equal(favoriteLevelForScore(0.794), "favorito")
+    assert.equal(favoriteLevelForScore(0.795), "gran favorito")
+    assert.equal(favoriteLevelForScore(1), "gran favorito")
+    assert.equal(favoriteLevelForScore(0.5), null)
+    assert.equal(favoriteLevelForScore(null), null)
+    assert.equal(favoriteLevelForScore(Number.NaN), null)
 })
 test("outcomes labels use the expected score (win plus half the draw)", () => {
     assert.equal(labelOf(outcomes(0.414)), null)

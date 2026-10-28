@@ -56,6 +56,15 @@ const buildFavorite = (prediction, { p1Name, p2Name } = {}) => {
         provisional: prediction.provisional === true,
     }
 }
+// Etiqueta de favorito para un puntaje esperado del favorito (0 a 1), con los
+// mismos niveles que `buildFavorite`. `null` si no llega al primero (duelo
+// parejo) o si el puntaje no es válido. Lo usa también el contexto del recap.
+const favoriteLevelForScore = (score) => {
+    if (!isProbability(score)) return null
+    const milli = toMilli(score)
+    const level = FAVORITE_LEVELS.find(({ minScore }) => milli >= minScore)
+    return level ? level.label : null
+}
 const groupByTournament = (items) => {
     const groups = new Map()
     for (const item of items) {
@@ -123,4 +132,4 @@ const attachFavorites = async ({
             : item
     )
 }
-module.exports = { attachFavorites, buildFavorite }
+module.exports = { attachFavorites, buildFavorite, favoriteLevelForScore }

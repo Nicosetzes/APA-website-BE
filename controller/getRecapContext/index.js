@@ -6,7 +6,11 @@ const {
     describeTournamentFormat,
 } = require("../../config/tournamentFormatRules")
 const { getArgentinaDayRange } = require("../../utils/argentinaDay")
-const { getPlayoffRoundForId } = require("../../config/playoffFormats")
+const {
+    getNextPlayoffRound,
+    getPlayoffRoundForId,
+    getPlayoffStartRound,
+} = require("../../config/playoffFormats")
 const {
     retrieveMatchesPlayedOnDate,
     retrievePlayinMatchesByTournamentId,
@@ -90,12 +94,18 @@ const buildBracket = (format, playoffMatches) => {
     return [...ties.entries()]
         .filter(([, matches]) => matches.some(hasKnownTeam))
         .sort(([a], [b]) => a - b)
-        .map(([playoffId, matches]) => ({
-            playoffId,
-            round: getPlayoffRoundForId(format, playoffId),
-            series: matches.find((match) => match.series)?.series ?? null,
-            matches: matches.map(slimMatch),
-        }))
+        .map(([playoffId, matches]) => {
+            const round = getPlayoffRoundForId(format, playoffId)
+
+            return {
+                playoffId,
+                round,
+                // Ronda a la que pasa el ganador (null en la final).
+                nextRound: getNextPlayoffRound(format, round),
+                series: matches.find((match) => match.series)?.series ?? null,
+                matches: matches.map(slimMatch),
+            }
+        })
 }
 
 const createGetRecapContext = (dependencies = {}) => {
@@ -177,6 +187,10 @@ const createGetRecapContext = (dependencies = {}) => {
             // cuadro siempre muestran el estado actual.
             asOf: { standings: date, playin: "current", bracket: "current" },
             rules,
+            // Primera ronda de eliminación (null si el formato no tiene playoff).
+            playoffStartRound: rules.stages.includes("playoff")
+                ? getPlayoffStartRound(format)
+                : null,
             standings: (standings?.standings ?? []).map(({ group, teams }) => ({
                 group: group ?? null,
                 teams: teams.map((row, index) =>

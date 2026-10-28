@@ -1,5 +1,12 @@
 const { predictionKind } = require("../../service/playerRatings/prediction")
 const { round, toIso } = require("../../service/playerRatings/presentation")
+const {
+    OVERALL_GAP_LEVELS,
+    RATING_EDGE_LEVELS,
+} = require("../../config/recapInsights")
+const {
+    favoriteLevelForScore,
+} = require("../../service/retrieveAssistantPendingMatches/favorite")
 
 const PREDICTION_KIND_TO_INSIGHT_KIND = {
     outcomes: "expected_points",
@@ -54,6 +61,44 @@ const resolveWinner = (match) => {
     return "draw"
 }
 
+// Favorito del partido con las etiquetas del asistente (`FAVORITE_LEVELS`),
+// aplicadas al puntaje esperado del favorito. `null` si el duelo es parejo,
+// si no hay predicción con sentido (`kind` null) o si no hay favorito.
+const buildFavorite = (expectedP1, kind) => {
+    if (kind === null || expectedP1 === 0.5) return null
+
+    const side = expectedP1 > 0.5 ? "p1" : "p2"
+    const score = side === "p1" ? expectedP1 : round(1 - expectedP1, 3)
+    const label = favoriteLevelForScore(score)
+
+    return label ? { side, label } : null
+}
+
+// Lado con el valor más alto y nivel según la diferencia, o `null` si falta un
+// valor, no hay diferencia o no llega al primer corte. Redondea la diferencia a
+// un decimal para que los bordes no dependan del punto flotante.
+const buildGap = (value1, value2, levels) => {
+    if (![value1, value2].every(Number.isFinite)) return null
+
+    const diff = round(Math.abs(value1 - value2), 1)
+    const found = levels.find(({ minDiff }) => diff >= minDiff)
+    if (!found) return null
+
+    return { side: value1 > value2 ? "p1" : "p2", level: found.level, diff }
+}
+
+const buildRatingEdge = (p1, p2) => {
+    const gap = buildGap(p1.ratingBefore, p2.ratingBefore, RATING_EDGE_LEVELS)
+
+    return gap ? { side: gap.side, level: gap.level } : null
+}
+
+const buildOverallGap = (p1, p2) => {
+    const gap = buildGap(p1.teamOverall, p2.teamOverall, OVERALL_GAP_LEVELS)
+
+    return gap ? { side: gap.side, points: gap.diff, level: gap.level } : null
+}
+
 const buildSide = (match, event, suffix) => {
     const side = event[suffix.toLowerCase()]
     const player = match[`player${suffix}`]
@@ -76,6 +121,9 @@ const buildInsight = (event, match, tournament) => {
     // `winnerExpectedScore` se deriva del valor redondeado para que los campos
     // de la respuesta cuadren exactamente.
     const expectedP1 = round(event.expectedP1, 3)
+    const kind = resolveInsightKind({ match, tournament })
+    const p1 = buildSide(match, event, "P1")
+    const p2 = buildSide(match, event, "P2")
     let winnerExpectedScore = null
     if (winner === "p1") winnerExpectedScore = expectedP1
     if (winner === "p2") winnerExpectedScore = round(1 - expectedP1, 3)
@@ -86,14 +134,19 @@ const buildInsight = (event, match, tournament) => {
         type: match.type ?? event.type,
         playoffId: match.playoff_id ?? null,
         leg: match.leg ?? null,
-        p1: buildSide(match, event, "P1"),
-        p2: buildSide(match, event, "P2"),
+        p1,
+        p2,
         scoreP1: event.scoreP1,
         scoreP2: event.scoreP2,
         expectedP1,
         // `+ 0` evita que salga `-0`.
         teamAdjustment: round(event.teamAdjustment) + 0,
-        kind: resolveInsightKind({ match, tournament }),
+        kind,
+        // Niveles ya calculados (ver `config/recapInsights.js`): quien consume
+        // los usa para razonar y no los cita.
+        favorite: buildFavorite(expectedP1, kind),
+        ratingEdge: buildRatingEdge(p1, p2),
+        overallGap: buildOverallGap(p1, p2),
         winner,
         // Puntaje esperado del ganador antes del partido. Es probabilidad de
         // avanzar solo si `kind` es "advance"; si no, el empate cuenta 0,5.
