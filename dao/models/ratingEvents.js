@@ -59,6 +59,12 @@ ratingEventsSchema.index(
     { ratingVersion: 1, seq: 1 },
     { name: "rating_event_version_seq_v1" }
 )
+// Lo usa `GET /api/ratings/period`: eventos con `time` dentro de un rango (el
+// período) y con `time >= end` (el borde posterior), ordenados por `seq`.
+ratingEventsSchema.index(
+    { ratingVersion: 1, time: 1, seq: 1 },
+    { name: "rating_event_version_time_seq_v1" }
+)
 ratingEventsSchema.index(
     { ratingVersion: 1, "p1.id": 1, seq: 1 },
     { name: "rating_event_version_p1_seq_v1" }

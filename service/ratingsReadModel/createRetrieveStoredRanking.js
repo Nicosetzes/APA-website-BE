@@ -108,4 +108,4 @@ const createRetrieveStoredRanking = ({
     }
 }
 
-module.exports = { createRetrieveStoredRanking }
+module.exports = { createRetrieveStoredRanking, toPlayerState }

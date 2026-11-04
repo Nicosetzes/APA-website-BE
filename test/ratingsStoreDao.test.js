@@ -64,7 +64,15 @@ test("modelos: índices esperados con la unicidad correcta", () => {
     assert.ok(p1 && p2)
     assert.notEqual(p1[1].unique, true)
     assert.notEqual(p2[1].unique, true)
-    assert.equal(ratingEventsModel.schema.indexes().length, 4)
+    const time = indexOf(ratingEventsModel, {
+        ratingVersion: 1,
+        time: 1,
+        seq: 1,
+    })
+    assert.ok(time)
+    assert.equal(time[1].name, "rating_event_version_time_seq_v1")
+    assert.notEqual(time[1].unique, true)
+    assert.equal(ratingEventsModel.schema.indexes().length, 5)
 })
 
 test("modelos: source existe en player-ratings y no es obligatorio", () => {
