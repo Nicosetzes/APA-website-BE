@@ -53,6 +53,61 @@ const history = () => [
     match(8, ZETA, null, LEO, null, "2026-01-08T15:00:00Z"),
 ]
 
+// `history()` con los datos que el motor guarda además del rating: contexto de
+// torneo, precisión de la fecha, pata y tandas de penales de P2 (#6) y de P1
+// (#9, con equipo de id 0 y torneo sin contexto resoluble).
+const ADVANCE_TOURNAMENT = { format: "world_cup", playoffMode: "single" }
+const contextHistory = () => {
+    const matches = history().map((m) => {
+        if (m._id.equals(objectId(1))) {
+            return {
+                ...m,
+                playedAtPrecision: "exact",
+                tournamentContext: { format: "league", playoffMode: null },
+            }
+        }
+        if (m._id.equals(objectId(5))) {
+            return {
+                ...m,
+                tournament: { id: "t2", name: "Copa APA" },
+                playedAtPrecision: "day",
+                tournamentContext: ADVANCE_TOURNAMENT,
+            }
+        }
+        if (m._id.equals(objectId(6))) {
+            return {
+                ...m,
+                tournament: { id: "t2", name: "Copa APA" },
+                leg: 1,
+                playedAtPrecision: "approx",
+                tournamentContext: ADVANCE_TOURNAMENT,
+                outcome: {
+                    penalties: true,
+                    teamThatWon: { id: RIVER.id },
+                    scoreFromTeamThatWon: 5,
+                    scoreFromTeamThatLost: 4,
+                },
+            }
+        }
+        return m
+    })
+    matches.push(
+        match(9, NICO, 1, SANTI, 1, "2026-01-09T15:00:00Z", {
+            type: "playoff",
+            teamP1: { id: 0, name: "Cero" },
+            tournament: { id: "t3", name: "Copa sin torneo" },
+            tournamentContext: null,
+            outcome: {
+                penalties: true,
+                teamThatWon: { id: 0 },
+                scoreFromTeamThatWon: 3,
+                scoreFromTeamThatLost: 1,
+            },
+        })
+    )
+    return matches
+}
+
 const teamStrength = (m) => (m.withTeams ? { t1: 82, t2: 76 } : null)
 
 const buildTimeline = (matches = history()) =>
@@ -73,6 +128,7 @@ module.exports = {
     SOURCE_STATS,
     ZETA,
     buildTimeline,
+    contextHistory,
     history,
     match,
     objectId,

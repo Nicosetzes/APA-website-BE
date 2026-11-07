@@ -13,6 +13,7 @@ const {
 const {
     SOURCE_STATS,
     buildTimeline,
+    contextHistory,
     objectId,
 } = require("./fixtures/ratingsStore")
 
@@ -31,6 +32,79 @@ const computedWithSource = (sourceStats = SOURCE_STATS) =>
     })
 const clone = (docs) => structuredClone(docs)
 const EMPTY = { events: [], players: [] }
+
+const computedContext = () =>
+    buildRatingDocuments(buildTimeline(contextHistory()), {
+        fingerprint: FINGERPRINT,
+        computedAt,
+    })
+const NEW_EVENT_FIELDS = [
+    ["tournamentId", (doc) => (doc.tournamentId = "otro")],
+    ["leg", (doc) => (doc.leg = doc.leg === 2 ? 1 : 2)],
+    ["tournamentFormat", (doc) => (doc.tournamentFormat = "playoff")],
+    ["tournamentPlayoffMode", (doc) => (doc.tournamentPlayoffMode = "x")],
+    ["kind", (doc) => (doc.kind = doc.kind === "win" ? "advance" : "win")],
+    ["playedAtPrecision", (doc) => (doc.playedAtPrecision = "year")],
+    ["shootoutP1", (doc) => (doc.shootoutP1 = 9)],
+    ["shootoutP2", (doc) => (doc.shootoutP2 = 9)],
+    ["shootoutWinner", (doc) => (doc.shootoutWinner = "p1")],
+    ["p1.teamId", (doc) => (doc.p1.teamId = 99)],
+    ["p2.teamId", (doc) => (doc.p2.teamId = 99)],
+]
+
+test("un evento guardado sin los campos nuevos (esquema 1) es update", () => {
+    const fresh = computedContext()
+    const stored = clone(fresh)
+    // El evento del partido #1 tiene kind, torneo, precisión e ids de equipo.
+    const old = stored.events[0]
+    for (const field of [
+        "tournamentId",
+        "leg",
+        "tournamentFormat",
+        "tournamentPlayoffMode",
+        "kind",
+        "playedAtPrecision",
+        "shootoutP1",
+        "shootoutP2",
+        "shootoutWinner",
+    ]) {
+        delete old[field]
+    }
+    delete old.p1.teamId
+    delete old.p2.teamId
+    const diff = diffRatingDocuments(fresh, stored)
+    assert.equal(diff.events.update.length, 1)
+    assert.deepEqual(diff.events.update[0], fresh.events[0])
+    assert.equal(countDiff(diff).insert + countDiff(diff).delete, 0)
+})
+
+test("un campo nuevo distinto en el evento guardado es update; igual no cambia nada", () => {
+    const fresh = computedContext()
+    // El evento #6 (índice 5) trae valores en todos los campos nuevos de P2.
+    const target = 5
+    assert.ok(isEmptyDiff(diffRatingDocuments(fresh, clone(fresh))))
+    for (const [field, mutate] of NEW_EVENT_FIELDS) {
+        const stored = clone(fresh)
+        mutate(stored.events[target])
+        const diff = diffRatingDocuments(fresh, stored)
+        assert.equal(diff.events.update.length, 1, field)
+        assert.equal(countDiff(diff).insert + countDiff(diff).delete, 0, field)
+    }
+})
+
+test("null y ausente son iguales en los campos nuevos", () => {
+    const fresh = computedContext()
+    const stored = clone(fresh)
+    // El evento #1 (índice 0) no tiene penales: null guardado == campo ausente.
+    delete stored.events[0].shootoutP1
+    delete stored.events[0].shootoutWinner
+    assert.equal(fresh.events[0].shootoutP1, null)
+    assert.ok(isEmptyDiff(diffRatingDocuments(fresh, stored)))
+    // Un kind no nulo calculado contra uno ausente sí es diferencia.
+    delete stored.events[0].kind
+    assert.equal(fresh.events[0].kind, "win")
+    assert.equal(diffRatingDocuments(fresh, stored).events.update.length, 1)
+})
 
 test("stored vacío: todo es insert", () => {
     for (const stored of [EMPTY, {}, undefined]) {

@@ -18,6 +18,7 @@ const buildSide = (side, after) => ({
     after,
     games: side.games,
     team: side.team ?? null,
+    teamId: side.teamId ?? null,
     teamOverall: side.teamOverall ?? null,
 })
 
@@ -102,6 +103,15 @@ const buildRatingDocuments = (
             resultP1: event.resultP1,
             delta: event.delta,
             teamAdjustment: event.teamAdjustment,
+            tournamentId: event.tournamentId ?? null,
+            leg: event.leg ?? null,
+            tournamentFormat: event.tournamentFormat ?? null,
+            tournamentPlayoffMode: event.tournamentPlayoffMode ?? null,
+            kind: event.kind ?? null,
+            playedAtPrecision: event.playedAtPrecision ?? null,
+            shootoutP1: event.shootoutP1 ?? null,
+            shootoutP2: event.shootoutP2 ?? null,
+            shootoutWinner: event.shootoutWinner ?? null,
             p1: buildSide(event.p1, event.p1.before + event.delta),
             p2: buildSide(event.p2, event.p2.before - event.delta),
             fingerprint,

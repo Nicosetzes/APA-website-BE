@@ -459,6 +459,7 @@ test("recap context reuses the real standings controller for a league", async (t
     retrieveRatingMatches.invalidate()
     t.mock.method(matchesModel, "distinct", async () => ["t1"])
     t.mock.method(tournamentsModel, "findById", async () => tournament)
+    t.mock.method(tournamentsModel, "find", () => query([]))
     t.mock.method(matchesModel, "find", (filter) =>
         query(filter.played ? [played] : [])
     )
@@ -519,6 +520,7 @@ test("recap context leaves out matches played after the date and reports the pre
         ongoing: true,
         teams: [entry(teamA, 1), entry(teamB, 2), entry(teamC, 3)],
     }))
+    t.mock.method(tournamentsModel, "find", () => query([]))
     t.mock.method(matchesModel, "find", (filter) =>
         query(
             filter.played

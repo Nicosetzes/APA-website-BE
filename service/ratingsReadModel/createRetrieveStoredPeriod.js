@@ -56,6 +56,10 @@ const isNonEmptyString = (value) => typeof value === "string" && value !== ""
 const isValidDate = (value) =>
     value instanceof Date && !Number.isNaN(value.getTime())
 const near = (a, b) => Math.abs(a - b) <= NUMERIC_TOLERANCE
+// Id de equipo del evento: número finito (el 0 es válido) o string no vacío.
+const isValidTeamId = (value) =>
+    isFiniteNumber(value) || isNonEmptyString(value)
+const KINDS = new Set(["win", "advance"])
 
 const parseSide = (side, where) => {
     if (typeof side !== "object" || side === null) fail(`${where} no existe`)
@@ -68,6 +72,10 @@ const parseSide = (side, where) => {
         name: side.name,
         before: side.before,
         games: side.games,
+        // Solo si la consulta lo pidió (`includeHistory`) y el evento lo trae:
+        // un evento viejo, sin equipo o con un dato inválido no suma la clave.
+        ...(isNonEmptyString(side.team) ? { team: side.team } : {}),
+        ...(isValidTeamId(side.teamId) ? { teamId: side.teamId } : {}),
     }
 }
 
@@ -113,6 +121,13 @@ const parsePeriodEvent = (doc) => {
         delta: doc.delta,
         p1: parseSide(doc.p1, `${where}: p1`),
         p2: parseSide(doc.p2, `${where}: p2`),
+        // Campos opcionales del historial: si el documento no los trae (la
+        // proyección de `/api/ratings/period` no los pide) o son inválidos, no
+        // se agregan las claves. Nunca lanzan.
+        ...(KINDS.has(doc.kind) ? { kind: doc.kind } : {}),
+        ...(isCount(doc.shootoutP1) && isCount(doc.shootoutP2)
+            ? { shootoutP1: doc.shootoutP1, shootoutP2: doc.shootoutP2 }
+            : {}),
     }
 }
 
@@ -339,8 +354,11 @@ const createRetrieveStoredPeriod = ({
         }
     }
 
-    // `start` y `end` en milisegundos; el período es `[start, end)`.
-    return async ({ start, end } = {}) => {
+    // `start` y `end` en milisegundos; el período es `[start, end)`. Con
+    // `includeHistory` los eventos del período traen además nombre e id de
+    // equipo por lado, el tipo de cruce y la tanda de penales (lo usa el
+    // historial; `/api/ratings/period` no lo pide).
+    return async ({ start, end, includeHistory = false } = {}) => {
         if (!isFiniteNumber(start) || !isFiniteNumber(end) || start >= end) {
             fail("start y end tienen que ser milisegundos con start < end")
         }
@@ -352,7 +370,8 @@ const createRetrieveStoredPeriod = ({
                 findRatingEventsInRange(
                     config.version,
                     new Date(start),
-                    new Date(end)
+                    new Date(end),
+                    ...(includeHistory ? [{ includeHistory: true }] : [])
                 ),
                 findRatingBoundaryEvents(config.version, new Date(end)),
             ])

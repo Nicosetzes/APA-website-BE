@@ -1,5 +1,6 @@
 const { RATING_CONFIG } = require("../../config/ratings")
 const { defaultTeamStrength } = require("./teamStrength")
+const { buildEventContext, teamIdOf } = require("./eventContext")
 
 const toTime = (value) => {
     if (value === null || value === undefined) return null
@@ -196,12 +197,16 @@ const calculatePlayerRatings = (matches = [], options = {}) => {
             // Puntos Elo a favor de P1 que el equipo sumó al diferencial (0 si no
             // se aplicó el término de equipo).
             teamAdjustment,
+            // Torneo, tipo de cruce, precisión de la fecha y penales: solo se
+            // guardan, no entran en el cálculo.
+            ...buildEventContext(match),
             p1: {
                 id: p1.id,
                 name: p1.name,
                 before: before1,
                 games: games1,
                 team: teamName(match.teamP1),
+                teamId: teamIdOf(match.teamP1),
                 teamOverall: teamOverall1,
             },
             p2: {
@@ -210,6 +215,7 @@ const calculatePlayerRatings = (matches = [], options = {}) => {
                 before: before2,
                 games: games2,
                 team: teamName(match.teamP2),
+                teamId: teamIdOf(match.teamP2),
                 teamOverall: teamOverall2,
             },
         })

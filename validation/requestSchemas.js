@@ -216,12 +216,32 @@ const assistantPlayerIds = Joi.array()
     .max(MAX_ASSISTANT_PLAYERS)
     .unique()
 
+const MAX_RATING_HISTORY_PLAYERS = 50
+
+// Ids de jugador repetibles en query para el historial de ratings. Un id que
+// no existe no es error: simplemente no aparece en la respuesta.
+const ratingHistoryPlayerIds = Joi.array()
+    .items(Joi.string().trim().min(1).max(100))
+    .single()
+    .max(MAX_RATING_HISTORY_PLAYERS)
+    .unique()
 const stageCount = Joi.number().integer().min(0).max(10000)
 
 const calendarDate = Joi.string()
     .pattern(/^\d{4}-\d{2}-\d{2}$/)
     .custom(isValidCalendarDate)
 
+// Query de un período de ratings: `dateFrom` y `dateTo` (más lo que sume cada
+// endpoint) y la regla `dateFrom <= dateTo`. Los dos endpoints comparten mensaje.
+const ratingsPeriodQuery = (keys) =>
+    Joi.object(keys)
+        .unknown(false)
+        .custom((value, helpers) =>
+            value.dateFrom <= value.dateTo ? value : helpers.error("date.range")
+        )
+        .messages({
+            "date.range": "La fecha hasta es anterior a la desde",
+        })
 // El listado histórico acepta "all" y "" como "sin filtro" porque el FE
 // mantiene esos valores en la URL; el DAO ya los interpreta así.
 const optionalIdFilter = Joi.alternatives().try(
@@ -308,19 +328,21 @@ module.exports = {
     },
     getRatingsPeriod: {
         params: emptyObject,
-        query: Joi.object({
+        query: ratingsPeriodQuery({
             dateFrom: calendarDate.required(),
             dateTo: calendarDate.required(),
-        })
-            .unknown(false)
-            .custom((value, helpers) =>
-                value.dateFrom <= value.dateTo
-                    ? value
-                    : helpers.error("date.range")
-            )
-            .messages({
-                "date.range": "La fecha hasta es anterior a la desde",
-            }),
+        }),
+        body: emptyObject,
+    },
+    getRatingsHistory: {
+        params: emptyObject,
+        // `tournamentId` está reservado para la etapa 2 (filtro por torneo) y
+        // hoy llega como parámetro desconocido.
+        query: ratingsPeriodQuery({
+            dateFrom: calendarDate.required(),
+            dateTo: calendarDate.required(),
+            players: ratingHistoryPlayerIds.optional(),
+        }),
         body: emptyObject,
     },
     getAssistantHeadToHead: {

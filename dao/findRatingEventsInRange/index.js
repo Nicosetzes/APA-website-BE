@@ -8,8 +8,15 @@ const ratingEventsModel = require("./../models/ratingEvents.js")
 // `after`, `team`, `teamOverall`, `teamAdjustment`, `computedAt` y
 // `ratingVersion`. Los eventos sin `time` nunca entran (un `null` no cumple
 // `$gte`). `.lean()`: solo lectura.
+//
+// `GET /api/ratings/history` pide además lo que el evento guarda del partido
+// (`includeHistory`): nombre e id del equipo de cada lado, el tipo de cruce
+// (`kind`) y la tanda de penales (`shootoutP1`/`shootoutP2`). Así el historial
+// no lee partidos. Sin esa opción la proyección es la de siempre, así que
+// `/api/ratings/period` no cambia.
 const RATING_EVENTS_RANGE_PROJECTION =
     "seq time matchId tournament type scoreP1 scoreP2 expectedP1 resultP1 delta p1.id p1.name p1.before p1.games p2.id p2.name p2.before p2.games fingerprint -_id"
+const RATING_EVENTS_HISTORY_PROJECTION = `${RATING_EVENTS_RANGE_PROJECTION} p1.team p1.teamId p2.team p2.teamId kind shootoutP1 shootoutP2`
 
 const isValidDate = (value) =>
     value instanceof Date && !Number.isNaN(value.getTime())
@@ -18,7 +25,7 @@ const findRatingEventsInRange = async (
     ratingVersion,
     start,
     end,
-    { model = ratingEventsModel } = {}
+    { model = ratingEventsModel, includeHistory = false } = {}
 ) => {
     if (typeof ratingVersion !== "string" || !ratingVersion.trim()) {
         throw new Error("findRatingEventsInRange: falta ratingVersion")
@@ -35,7 +42,9 @@ const findRatingEventsInRange = async (
     return model
         .find(
             { ratingVersion, time: { $gte: start, $lt: end } },
-            RATING_EVENTS_RANGE_PROJECTION
+            includeHistory
+                ? RATING_EVENTS_HISTORY_PROJECTION
+                : RATING_EVENTS_RANGE_PROJECTION
         )
         .sort({ seq: 1 })
         .lean()
@@ -43,3 +52,5 @@ const findRatingEventsInRange = async (
 
 module.exports = findRatingEventsInRange
 module.exports.RATING_EVENTS_RANGE_PROJECTION = RATING_EVENTS_RANGE_PROJECTION
+module.exports.RATING_EVENTS_HISTORY_PROJECTION =
+    RATING_EVENTS_HISTORY_PROJECTION

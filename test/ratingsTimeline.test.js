@@ -89,18 +89,26 @@ test("findRatingMatches pide solo lo que usa el motor y devuelve objetos planos"
             },
         }
     }
+    // El contexto de torneo sale de una lectura aparte (ver test/findRatingMatches).
+    const tournamentsModel = { find: () => ({ lean: async () => [] }) }
 
-    const result = await findRatingMatches()
+    const result = await findRatingMatches({ tournamentsModel })
 
     assert.equal(leanCalled, true)
-    assert.equal(result, plain)
+    assert.deepEqual(result, [{ ...plain[0], tournamentContext: null }])
     assert.equal(calls.length, 1)
     assert.deepEqual(calls[0][0], {
         played: { $ne: false },
         valid: { $ne: false },
     })
     assert.deepEqual(calls[0][1].split(" ").sort(), [
+        "leg",
+        "outcome.penalties",
+        "outcome.scoreFromTeamThatLost",
+        "outcome.scoreFromTeamThatWon",
+        "outcome.teamThatWon.id",
         "playedAt",
+        "playedAtPrecision",
         "playerP1.id",
         "playerP1.name",
         "playerP2.id",

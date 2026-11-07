@@ -6,6 +6,7 @@ const test = require("node:test")
 
 const { parseTtl } = require("../config/cache")
 const matchesModel = require("../dao/models/matches")
+const tournamentsModel = require("../dao/models/tournaments")
 const retrieveRatingMatches = require("../service/retrieveRatingMatches")
 const {
     invalidateRatingCacheOnWrite,
@@ -141,6 +142,7 @@ test("retrieveRatingMatches lee la base una vez dentro del TTL y de nuevo tras i
         finds += 1
         return { lean: async () => [{ _id: "a" }, { _id: "b" }] }
     })
+    t.mock.method(tournamentsModel, "find", () => ({ lean: async () => [] }))
 
     const first = await retrieveRatingMatches()
     const second = await retrieveRatingMatches()

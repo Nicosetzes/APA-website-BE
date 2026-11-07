@@ -15,9 +15,11 @@ const { canonicalize } = require("../service/ratingsStore/canonicalJson")
 const {
     RATINGS_STORE_SCHEMA_VERSION,
 } = require("../service/ratingsStore/constants")
+const ratingEventsModel = require("../dao/models/ratingEvents")
 const {
     SOURCE_STATS,
     buildTimeline,
+    contextHistory,
     history,
     objectId,
 } = require("./fixtures/ratingsStore")
@@ -302,6 +304,136 @@ test("builder: sourceStats inválidas lanzan", () => {
         )
     }
     assert.throws(withStats("7"), /sourceStats/)
+})
+
+const buildContext = () => build(buildTimeline(contextHistory())).events
+
+test("builder: el evento guarda ids de equipo, torneo, kind, precisión y penales de P1 y P2", () => {
+    const events = buildContext()
+    assert.equal(events.length, 7)
+    const byMatch = (n) =>
+        events.find((doc) => doc.matchId === String(objectId(n)))
+
+    // Liga: kind "win", ids por lado y sin penales.
+    const league = byMatch(1)
+    assert.equal(league.p1.teamId, 1)
+    assert.equal(league.p2.teamId, 2)
+    assert.equal(league.tournamentId, "t1")
+    assert.equal(league.tournamentFormat, "league")
+    assert.equal(league.tournamentPlayoffMode, null)
+    assert.equal(league.kind, "win")
+    assert.equal(league.leg, null)
+    assert.equal(league.playedAtPrecision, "exact")
+    assert.equal(league.shootoutP1, null)
+    assert.equal(league.shootoutP2, null)
+    assert.equal(league.shootoutWinner, null)
+
+    // Playoff de partido único sin penales: kind "advance".
+    const single = byMatch(5)
+    assert.equal(single.kind, "advance")
+    assert.equal(single.tournamentId, "t2")
+    assert.equal(single.tournamentFormat, "world_cup")
+    assert.equal(single.tournamentPlayoffMode, "single")
+    assert.equal(single.playedAtPrecision, "day")
+    assert.equal(single.shootoutWinner, null)
+
+    // Penales ganados por el equipo 2 (River, id 2): tanda 4-5, gana "p2".
+    const p2Shootout = byMatch(6)
+    assert.equal(p2Shootout.resultP1, 0.5)
+    assert.equal(p2Shootout.kind, "advance")
+    assert.equal(p2Shootout.leg, 1)
+    assert.equal(p2Shootout.playedAtPrecision, "approx")
+    assert.equal(p2Shootout.shootoutP1, 4)
+    assert.equal(p2Shootout.shootoutP2, 5)
+    assert.equal(p2Shootout.shootoutWinner, "p2")
+
+    // Penales ganados por el equipo 1 (id 0, válido): tanda 3-1, gana "p1".
+    // Sin torneo resoluble el playoff no tiene kind.
+    const p1Shootout = byMatch(9)
+    assert.equal(p1Shootout.resultP1, 0.5)
+    assert.equal(p1Shootout.p1.teamId, 0)
+    assert.equal(p1Shootout.p2.teamId, 2)
+    assert.equal(p1Shootout.kind, null)
+    assert.equal(p1Shootout.tournamentId, "t3")
+    assert.equal(p1Shootout.tournamentFormat, null)
+    assert.equal(p1Shootout.tournamentPlayoffMode, null)
+    assert.equal(p1Shootout.shootoutP1, 3)
+    assert.equal(p1Shootout.shootoutP2, 1)
+    assert.equal(p1Shootout.shootoutWinner, "p1")
+})
+
+test("builder: sin los datos nuevos todo es null y nunca undefined", () => {
+    const events = build().events
+    for (const doc of events) {
+        for (const field of [
+            "leg",
+            "tournamentFormat",
+            "tournamentPlayoffMode",
+            "playedAtPrecision",
+            "shootoutP1",
+            "shootoutP2",
+            "shootoutWinner",
+        ]) {
+            assert.equal(doc[field], null, field)
+        }
+        assert.equal(doc.tournamentId, "t1")
+        assert.equal(doc.p1.teamId, 1)
+        assert.equal(doc.p2.teamId, 2)
+    }
+    // Un playoff sin contexto de torneo no tiene kind; la liga siempre "win".
+    assert.deepEqual(
+        events.map((doc) => doc.kind),
+        ["win", "win", "win", "win", null, null]
+    )
+})
+
+test("builder: el evento sin equipos ni torneo guarda teamId y tournamentId null", () => {
+    const bare = history().map((m) => ({
+        ...m,
+        teamP1: undefined,
+        teamP2: undefined,
+        tournament: undefined,
+    }))
+    for (const doc of build(buildTimeline(bare)).events) {
+        assert.equal(doc.p1.teamId, null)
+        assert.equal(doc.p2.teamId, null)
+        assert.equal(doc.tournamentId, null)
+        assert.equal(doc.tournament, null)
+    }
+})
+
+test("builder: cada clave que emite existe en el schema de rating-events", () => {
+    const leaves = (value, prefix, found) => {
+        for (const [key, child] of Object.entries(value)) {
+            const where = prefix ? `${prefix}.${key}` : key
+            if (
+                child &&
+                typeof child === "object" &&
+                !(child instanceof Date)
+            ) {
+                leaves(child, where, found)
+            } else {
+                found.push(where)
+            }
+        }
+        return found
+    }
+    // Un campo que el schema no declara lo descarta Mongoose (strict) en el
+    // updateOne y el recompute nunca converge.
+    for (const doc of buildContext()) {
+        for (const leaf of leaves(doc, "", [])) {
+            assert.ok(ratingEventsModel.schema.path(leaf), leaf)
+        }
+        assert.equal(new ratingEventsModel(doc).validateSync(), undefined)
+    }
+})
+
+test("esquema: la versión es 2 y la versión 1 da otro fingerprint", () => {
+    assert.equal(RATINGS_STORE_SCHEMA_VERSION, 2)
+    assert.notEqual(
+        computeFingerprint({ schemaVersion: 1 }),
+        computeFingerprint()
+    )
 })
 
 test("builder: timeline vacío da documentos vacíos", () => {

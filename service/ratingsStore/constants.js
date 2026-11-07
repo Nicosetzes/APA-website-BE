@@ -3,7 +3,10 @@
 // Subir cuando cambie la FORMA de los documentos guardados (campos nuevos,
 // renombrados o con otro significado). Entra al fingerprint, así que todo lo
 // guardado queda marcado como desactualizado y hay que re-correr recompute.
-const RATINGS_STORE_SCHEMA_VERSION = 1
+//
+// Historial: 1 = etapa 1. 2 = ids de equipo, penales y su ganador, tipo de cruce
+// (kind), torneo y precisión de la fecha en cada evento.
+const RATINGS_STORE_SCHEMA_VERSION = 2
 
 // Subir cuando cambie la lógica del motor (service/playerRatings) sin tocar
 // config/ratings.js ni data/teamRatings.json: esos dos ya entran al fingerprint,

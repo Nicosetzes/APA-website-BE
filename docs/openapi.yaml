@@ -1695,6 +1695,129 @@ paths:
                                                         additionalProperties: true
                 "400":
                     $ref: "#/components/responses/BadRequest"
+    /api/ratings/history:
+        get:
+            tags: [Ratings]
+            summary: Cómo se movió el rating de cada jugador partido a partido en un período
+            description: >-
+                Para graficar la evolución del Elo. Devuelve, por jugador, un
+                punto por cada partido que jugó entre `dateFrom` y `dateTo`
+                (días calendario de Argentina, inclusivos), más un resumen del
+                período. El eje horizontal es el partido, no la fecha: `x`
+                cuenta TODOS los partidos del período (1..N), de cualquier
+                jugador, así que las líneas de todos comparten el mismo eje, y
+                avanza con cada partido aunque se hayan cargado el mismo día.
+                `seq` es el orden del motor de rating (`playedAt` y, a igual
+                fecha, `_id`: el orden de carga) sobre todo el historial; el
+                período no arranca en 1. Los partidos sin `playedAt` no entran
+                en ningún período, pero cuentan en `start`. `start` es `null`
+                si el jugador debuta dentro del período (parte del rating
+                inicial, y ese valor es candidato de `summary.min`/`max`). Un
+                jugador que ya había debutado y no jugó en el período aparece
+                con `points` vacío y `start` igual a `end`. El ranking del
+                período se arma ordenando por `summary.ratingChange`. Los
+                empates y los partidos definidos por penales (resultado 0,5)
+                cuentan como punto y como empate, pero no como upset. Los
+                datos salen de lo guardado en `rating-events` si está fresco y,
+                si no, se calculan en vivo, con el mismo resultado. Todo lo
+                del punto (equipos e ids, tanda de penales y tipo de cruce de
+                `probability`) sale del evento: el endpoint no lee partidos. Un
+                evento guardado sin esos datos da `null` para ese dato.
+                `tournamentId` (filtro por torneo) está reservado para la etapa
+                2: hoy no se acepta y da 400.
+            parameters:
+                - in: query
+                  name: dateFrom
+                  required: true
+                  schema:
+                      type: string
+                      pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+                      example: "2026-01-01"
+                - in: query
+                  name: dateTo
+                  required: true
+                  schema:
+                      type: string
+                      pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+                      example: "2026-12-31"
+                - in: query
+                  name: players
+                  required: false
+                  description: >-
+                      IDs de jugadores a incluir, como parámetro repetido
+                      (`?players=a&players=b`). Sin el parámetro salen todos. Un
+                      ID que no existe se ignora. No cambia `x`,
+                      `matchesTimeline` ni `matchesInPeriod`, que son siempre
+                      los de todos los partidos del período.
+                  style: form
+                  explode: true
+                  schema:
+                      type: array
+                      maxItems: 50
+                      uniqueItems: true
+                      items:
+                          type: string
+            responses:
+                "200":
+                    description: Historial de ratings del período
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                properties:
+                                    success:
+                                        type: boolean
+                                    dateFrom:
+                                        type: string
+                                    dateTo:
+                                        type: string
+                                    scope:
+                                        type: object
+                                        description: >-
+                                            Alcance de la respuesta. Hoy siempre
+                                            `period` y sin torneo; la etapa 2
+                                            suma el filtro por torneo.
+                                        properties:
+                                            type:
+                                                type: string
+                                                enum: [period]
+                                            tournament:
+                                                type: object
+                                                nullable: true
+                                                additionalProperties: true
+                                    parameters:
+                                        $ref: "#/components/schemas/RatingParameters"
+                                    data:
+                                        type: object
+                                        properties:
+                                            matchesInPeriod:
+                                                type: integer
+                                                description: Partidos del período, de todos los jugadores
+                                            players:
+                                                type: array
+                                                description: >-
+                                                    En el orden del ranking al cierre del
+                                                    período. Solo jugadores que ya habían
+                                                    debutado al cierre.
+                                                items:
+                                                    $ref: "#/components/schemas/RatingHistoryPlayer"
+                                            matchesTimeline:
+                                                type: array
+                                                description: >-
+                                                    Todos los partidos del período en el
+                                                    orden del motor, para armar el eje X.
+                                                items:
+                                                    $ref: "#/components/schemas/RatingHistoryTimelineItem"
+                                            highlights:
+                                                type: object
+                                                properties:
+                                                    biggestUpset:
+                                                        type: object
+                                                        nullable: true
+                                                        additionalProperties: true
+                                                        description: Igual que en `/api/ratings/period`
+                "400":
+                    $ref: "#/components/responses/BadRequest"
     /api/recaps/context:
         get:
             tags: [Recaps]
@@ -2811,6 +2934,291 @@ components:
                             type: integer
                 provisional:
                     type: boolean
+        RatingHistoryTimelineItem:
+            type: object
+            properties:
+                x:
+                    type: integer
+                    minimum: 1
+                    description: Índice del partido dentro del período (1..N)
+                seq:
+                    type: integer
+                    description: Orden del motor sobre todo el historial
+                t:
+                    type: string
+                    format: date-time
+                    description: Fecha del partido (`playedAt`)
+        RatingHistoryExtreme:
+            type: object
+            description: >-
+                Mínimo o máximo del período. El rating inicial es un candidato
+                más: en ese caso `seq` y `t` son `null`.
+            properties:
+                rating:
+                    type: number
+                seq:
+                    type: integer
+                    nullable: true
+                t:
+                    type: string
+                    format: date-time
+                    nullable: true
+        RatingHistoryProbability:
+            type: object
+            description: >-
+                Probabilidad previa al partido, desde el punto de vista del
+                jugador, calculada con el mismo modelo que las predicciones de
+                playoff, play-in y fixture (`prediction.js`). Con `kind: win`,
+                `for` es la probabilidad de ganar y `against` la de perder; el
+                empate no se incluye, así que `for + against` es menor a 1. Con
+                `kind: advance` (cruce de eliminación de partido único), `for`
+                es la probabilidad de avanzar y `against` la de quedar
+                eliminado (suman 1). 3 decimales.
+            required: [kind, for, against]
+            properties:
+                kind:
+                    type: string
+                    enum: [win, advance]
+                for:
+                    type: number
+                    minimum: 0
+                    maximum: 1
+                against:
+                    type: number
+                    minimum: 0
+                    maximum: 1
+        RatingHistoryTeam:
+            type: object
+            nullable: true
+            description: >-
+                Un equipo del partido: `id` (el mismo que devuelve `/api/matches`,
+                sirve para pedir el escudo en `/logos/:id`) y `name`. Es `null`
+                si el partido no tiene equipo en ese lado. Con solo uno de los
+                dos datos, el otro es `null`: `id` es `null` si el partido no
+                tenía id de equipo o el evento guardado es anterior a este dato
+                (nunca es un error), y `name` es `null` si está en blanco o el
+                evento guardado es anterior a este dato. Ambos salen del
+                evento de rating, no del partido.
+            required: [id, name]
+            properties:
+                id:
+                    oneOf:
+                        - type: integer
+                        - type: string
+                    nullable: true
+                name:
+                    type: string
+                    nullable: true
+        RatingHistoryTeams:
+            type: object
+            description: >-
+                Equipos del partido con la misma orientación que `score`:
+                `for` es el equipo con el que jugó el jugador y `against` el
+                del rival.
+            required: [for, against]
+            properties:
+                for:
+                    $ref: "#/components/schemas/RatingHistoryTeam"
+                against:
+                    $ref: "#/components/schemas/RatingHistoryTeam"
+        RatingHistoryPenalties:
+            type: object
+            description: >-
+                Tanda de penales de un partido empatado en goles, desde el
+                punto de vista del jugador. Solo informativa: el Elo la ignora
+                (el resultado cuenta 0,5). Sale del evento de rating, no se
+                lee del partido. `null` si el partido no se definió por
+                penales o el evento guardado no trae el dato.
+            required: [for, against]
+            properties:
+                for:
+                    type: integer
+                    minimum: 0
+                against:
+                    type: integer
+                    minimum: 0
+        RatingHistoryUpset:
+            type: object
+            description: >-
+                Sorpresa de un jugador. `expectedScore` es el puntaje esperado
+                por el Elo (el empate cuenta 0,5), con el término de equipo
+                cuando hay dato de ambos equipos. NO es una probabilidad: para
+                mostrarle al usuario las chances de ganar o de avanzar se usa
+                `probability`.
+            properties:
+                matchId:
+                    type: string
+                t:
+                    type: string
+                    format: date-time
+                opponent:
+                    $ref: "#/components/schemas/RatingPlayer"
+                expectedScore:
+                    type: number
+                ratingSwing:
+                    type: number
+                    description: Puntos de rating que movió el partido (valor absoluto)
+                score:
+                    type: object
+                    properties:
+                        for:
+                            type: integer
+                        against:
+                            type: integer
+                teams:
+                    $ref: "#/components/schemas/RatingHistoryTeams"
+                ratingChange:
+                    type: number
+                    description: >-
+                        Puntos de rating que movió el partido, CON el signo del
+                        jugador dueño de la sorpresa (positivo en la sorpresa
+                        ganada, negativo en la perdida). 1 decimal.
+                probability:
+                    allOf:
+                        - $ref: "#/components/schemas/RatingHistoryProbability"
+                    nullable: true
+                    description: >-
+                        Probabilidad previa del partido. En la sorpresa ganada
+                        la que importa es `for` (chances de ganar o de avanzar)
+                        y en la perdida `against` (chances de perder o de
+                        quedar eliminado). `null` si el partido no se puede
+                        clasificar.
+        RatingHistoryPoint:
+            type: object
+            description: Un partido del jugador, con su rating DESPUÉS de jugarlo
+            properties:
+                seq:
+                    type: integer
+                x:
+                    type: integer
+                    description: Índice del partido en el período, común a todos los jugadores
+                matchId:
+                    type: string
+                t:
+                    type: string
+                    format: date-time
+                rating:
+                    type: number
+                delta:
+                    type: number
+                    description: Variación del partido, con el signo del jugador
+                games:
+                    type: integer
+                    description: Partidos propios jugados hasta este, incluido
+                tournament:
+                    type: string
+                    nullable: true
+                type:
+                    type: string
+                    nullable: true
+                opponent:
+                    $ref: "#/components/schemas/RatingPlayer"
+                score:
+                    type: object
+                    properties:
+                        for:
+                            type: integer
+                        against:
+                            type: integer
+                penalties:
+                    allOf:
+                        - $ref: "#/components/schemas/RatingHistoryPenalties"
+                    nullable: true
+                teams:
+                    $ref: "#/components/schemas/RatingHistoryTeams"
+                expectedScore:
+                    type: number
+                    description: >-
+                        Puntaje esperado del jugador (3 decimales). No es una
+                        probabilidad: el empate cuenta 0,5.
+                probability:
+                    allOf:
+                        - $ref: "#/components/schemas/RatingHistoryProbability"
+                    nullable: true
+                    description: >-
+                        Probabilidad previa de ganar (`kind: win`, partidos que
+                        pueden empatarse) o de avanzar (`kind: advance`, cruces
+                        de eliminación de partido único). `null` cuando no hay
+                        clasificación posible: playoff o play-in cuyo torneo no
+                        se puede resolver, play-in de Champions o tercera pata
+                        de un cruce a dos piernas.
+        RatingHistoryPlayer:
+            type: object
+            properties:
+                player:
+                    $ref: "#/components/schemas/RatingPlayer"
+                start:
+                    type: object
+                    nullable: true
+                    description: >-
+                        Rating y partidos al inicio del período. `null` si el
+                        jugador debuta dentro del período.
+                    properties:
+                        rating:
+                            type: number
+                        matches:
+                            type: integer
+                end:
+                    type: object
+                    description: Rating y partidos al cierre del período
+                    properties:
+                        rating:
+                            type: number
+                        matches:
+                            type: integer
+                summary:
+                    type: object
+                    properties:
+                        ratingChange:
+                            type: number
+                            description: Cierre menos inicio (o menos el rating inicial si debuta)
+                        min:
+                            $ref: "#/components/schemas/RatingHistoryExtreme"
+                        max:
+                            $ref: "#/components/schemas/RatingHistoryExtreme"
+                        matchesInPeriod:
+                            type: integer
+                        record:
+                            type: object
+                            properties:
+                                wins:
+                                    type: integer
+                                draws:
+                                    type: integer
+                                losses:
+                                    type: integer
+                        position:
+                            type: integer
+                        previousPosition:
+                            type: integer
+                            nullable: true
+                        positionChange:
+                            type: integer
+                            nullable: true
+                            description: Lugares que subió (positivo) o bajó (negativo)
+                        biggestUpsetWon:
+                            allOf:
+                                - $ref: "#/components/schemas/RatingHistoryUpset"
+                            nullable: true
+                            description: >-
+                                Entre los partidos que ganó, el de menor puntaje
+                                esperado propio (menor a 0,5). Los empates y
+                                penales no cuentan.
+                        worstUpsetLost:
+                            allOf:
+                                - $ref: "#/components/schemas/RatingHistoryUpset"
+                            nullable: true
+                            description: >-
+                                Entre los partidos que perdió, el de mayor
+                                puntaje esperado propio (mayor a 0,5). Los
+                                empates y penales no cuentan.
+                        provisional:
+                            type: boolean
+                points:
+                    type: array
+                    description: Un punto por partido del jugador en el período, en orden
+                    items:
+                        $ref: "#/components/schemas/RatingHistoryPoint"
         RecapTournamentContext:
             type: object
             properties:

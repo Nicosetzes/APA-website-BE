@@ -6,6 +6,7 @@ const test = require("node:test")
 
 const { createApp } = require("../app")
 const matchesModel = require("../dao/models/matches")
+const tournamentsModel = require("../dao/models/tournaments")
 const usersModel = require("../dao/models/users")
 const { createGetRatings } = require("../controller/getRatings")
 const { createGetRatingsPeriod } = require("../controller/getRatingsPeriod")
@@ -231,6 +232,7 @@ const withApp = async (t, callback) => {
     })
     // Los ratings leen el historial con `find(...).lean()`.
     t.mock.method(matchesModel, "find", () => ({ lean: async () => MATCHES }))
+    t.mock.method(tournamentsModel, "find", () => ({ lean: async () => [] }))
     t.mock.method(usersModel, "find", async () => USERS)
 
     const app = createApp({

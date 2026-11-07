@@ -3,6 +3,7 @@ const { isReadModelEnabled } = require("../../config/ratingReadModel")
 const { buildRatingsTimeline } = require("./timeline")
 const { expectedForMatch, isRateable } = require("./index")
 const { outcomeProbabilities } = require("./outcomes")
+const { predictionKind } = require("./matchKind")
 
 // Predicciones de un partido según el APA Rating 2.0. Hay dos formas, y
 // `predictionKind` decide cuál corresponde:
@@ -153,30 +154,6 @@ const predictOutcomes = (match, index, drawModel = DRAW_MODEL) => {
         ratingVersion: resolved.ratingVersion,
         drawModelVersion: drawModel.version,
     }
-}
-
-// Qué tipo de predicción corresponde a un partido: "outcomes" (se puede
-// empatar), "advance" (partido único, hay ganador sí o sí) o `null` (sin
-// predicción: ej. el desempate de un cruce a dos piernas o un play-in de
-// Champions).
-const predictionKind = ({ match, tournament }) => {
-    if (match?.type === "regular") return "outcomes"
-
-    if (tournament?.format === "champions_league") {
-        return match?.type === "playoff" ? "outcomes" : null
-    }
-
-    if (
-        tournament?.format === "playoff" &&
-        tournament?.playoffMode === "two_legged"
-    ) {
-        return match?.type === "playoff" &&
-            (match?.leg === 1 || match?.leg === 2)
-            ? "outcomes"
-            : null
-    }
-
-    return "advance"
 }
 
 const toPlain = (match) =>
@@ -336,4 +313,5 @@ module.exports = {
     predictionKind,
     predictMatch,
     predictOutcomes,
+    toProbabilities,
 }
