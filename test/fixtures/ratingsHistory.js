@@ -45,12 +45,17 @@ const bothHistoryResponses = async ({
     dateFrom,
     dateTo,
     players,
+    tournamentId,
     docs = storedDocsFrom(matches),
     overrides = {},
     retrieveOptions = {},
     dependencies = {},
 }) => {
-    const query = { dateFrom, dateTo, ...(players && { players }) }
+    // Con `tournamentId` el pedido no lleva fechas (son excluyentes).
+    const query = {
+        ...(tournamentId ? { tournamentId } : { dateFrom, dateTo }),
+        ...(players && { players }),
+    }
 
     const live = createResponse()
     await createGetRatingsHistory({

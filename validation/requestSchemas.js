@@ -231,13 +231,25 @@ const calendarDate = Joi.string()
     .pattern(/^\d{4}-\d{2}-\d{2}$/)
     .custom(isValidCalendarDate)
 
+// Con `tournamentId` las fechas no se aceptan: si vienen, error con mensaje
+// propio (ver `RATINGS_RULE_MESSAGES`).
+const tournamentExcludesDates = Joi.any().custom((value, helpers) =>
+    helpers.error("ratings.tournamentExcludesDates")
+)
+
 // Query de un período de ratings: `dateFrom` y `dateTo` (más lo que sume cada
 // endpoint) y la regla `dateFrom <= dateTo`. Los dos endpoints comparten mensaje.
 const ratingsPeriodQuery = (keys) =>
     Joi.object(keys)
         .unknown(false)
         .custom((value, helpers) =>
-            value.dateFrom <= value.dateTo ? value : helpers.error("date.range")
+            // El historial por torneo no lleva fechas: se compara solo si
+            // vinieron las dos.
+            typeof value.dateFrom !== "string" ||
+            typeof value.dateTo !== "string" ||
+            value.dateFrom <= value.dateTo
+                ? value
+                : helpers.error("date.range")
         )
         .messages({
             "date.range": "La fecha hasta es anterior a la desde",
@@ -336,11 +348,21 @@ module.exports = {
     },
     getRatingsHistory: {
         params: emptyObject,
-        // `tournamentId` está reservado para la etapa 2 (filtro por torneo) y
-        // hoy llega como parámetro desconocido.
+        // Dos modos excluyentes: período (`dateFrom` y `dateTo` obligatorios) o
+        // torneo (`tournamentId`, sin fechas). Un id válido que no existe no
+        // es error.
         query: ratingsPeriodQuery({
-            dateFrom: calendarDate.required(),
-            dateTo: calendarDate.required(),
+            tournamentId: mongoId.lowercase().optional(),
+            dateFrom: Joi.when("tournamentId", {
+                is: Joi.exist(),
+                then: tournamentExcludesDates,
+                otherwise: calendarDate.required(),
+            }),
+            dateTo: Joi.when("tournamentId", {
+                is: Joi.exist(),
+                then: tournamentExcludesDates,
+                otherwise: calendarDate.required(),
+            }),
             players: ratingHistoryPlayerIds.optional(),
         }),
         body: emptyObject,

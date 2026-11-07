@@ -1723,23 +1723,59 @@ paths:
                 del punto (equipos e ids, tanda de penales y tipo de cruce de
                 `probability`) sale del evento: el endpoint no lee partidos. Un
                 evento guardado sin esos datos da `null` para ese dato.
-                `tournamentId` (filtro por torneo) está reservado para la etapa
-                2: hoy no se acepta y da 400.
+                `data.tournaments` lista los torneos con partidos en el período
+                (marcas de inicio y fin sobre el eje X). Dos modos
+                excluyentes: período (`dateFrom` y `dateTo` obligatorios) o
+                torneo (`tournamentId`, sin fechas; combinarlos da 400). En
+                modo torneo la respuesta trae solo los partidos de ese torneo
+                (`scope.type` `tournament`), con `x` 1..N sobre ellos, y solo
+                los jugadores con algún partido en el torneo, ordenados por
+                rating al cierre (desc), más partidos y nombre. `start` es el
+                estado antes del primer partido del torneo (`null` si ahí
+                debuta) y `end` el rating global tras el último;
+                `summary.ratingChange` es la suma de los cambios de los
+                partidos del torneo (puede diferir de `end - start` si el
+                jugador jugó otros torneos en el medio); `position`,
+                `previousPosition` y `positionChange` son `null` porque no hay
+                un instante común para rankear. `dateFrom` y `dateTo` de la
+                respuesta son los días argentinos del primer y último partido
+                (`null` si no hay). Un `tournamentId` válido que no existe o
+                sin partidos responde 200 vacío con `scope.tournament.name`
+                `null`. El modo torneo lee todo el historial (sin índice
+                propio) y filtra en memoria; los eventos sin `playedAt` no
+                entran.
             parameters:
                 - in: query
                   name: dateFrom
-                  required: true
+                  required: false
+                  description: >-
+                      Obligatoria sin `tournamentId`; con `tournamentId` no
+                      se acepta (400).
                   schema:
                       type: string
                       pattern: "^\\d{4}-\\d{2}-\\d{2}$"
                       example: "2026-01-01"
                 - in: query
                   name: dateTo
-                  required: true
+                  required: false
+                  description: >-
+                      Obligatoria sin `tournamentId`; con `tournamentId` no
+                      se acepta (400).
                   schema:
                       type: string
                       pattern: "^\\d{4}-\\d{2}-\\d{2}$"
                       example: "2026-12-31"
+                - in: query
+                  name: tournamentId
+                  required: false
+                  description: >-
+                      Id del torneo (el `_id` de `/api/tournaments`). Excluyente
+                      con `dateFrom` y `dateTo`. Se acepta en mayúsculas y
+                      minúsculas; la respuesta lo devuelve en minúsculas.
+                  schema:
+                      type: string
+                      pattern: "^[a-f\\d]{24}$"
+                      example: "64b0f0f0f0f0f0f0f0f0f0f0"
                 - in: query
                   name: players
                   required: false
@@ -1769,22 +1805,38 @@ paths:
                                         type: boolean
                                     dateFrom:
                                         type: string
+                                        nullable: true
+                                        description: >-
+                                            Modo período: el pedido. Modo torneo: día
+                                            argentino del primer partido (`null` sin
+                                            partidos).
                                     dateTo:
                                         type: string
+                                        nullable: true
+                                        description: >-
+                                            Modo período: el pedido. Modo torneo: día
+                                            argentino del último partido (`null` sin
+                                            partidos).
                                     scope:
                                         type: object
-                                        description: >-
-                                            Alcance de la respuesta. Hoy siempre
-                                            `period` y sin torneo; la etapa 2
-                                            suma el filtro por torneo.
+                                        description: Alcance de la respuesta
                                         properties:
                                             type:
                                                 type: string
-                                                enum: [period]
+                                                enum: [period, tournament]
                                             tournament:
                                                 type: object
                                                 nullable: true
-                                                additionalProperties: true
+                                                description: >-
+                                                    `null` en modo período. En modo
+                                                    torneo, el id pedido y el nombre del
+                                                    torneo (`null` si no tiene partidos).
+                                                properties:
+                                                    id:
+                                                        type: string
+                                                    name:
+                                                        type: string
+                                                        nullable: true
                                     parameters:
                                         $ref: "#/components/schemas/RatingParameters"
                                     data:
@@ -1792,13 +1844,18 @@ paths:
                                         properties:
                                             matchesInPeriod:
                                                 type: integer
-                                                description: Partidos del período, de todos los jugadores
+                                                description: >-
+                                                    Partidos del período (o del torneo), de
+                                                    todos los jugadores
                                             players:
                                                 type: array
                                                 description: >-
-                                                    En el orden del ranking al cierre del
-                                                    período. Solo jugadores que ya habían
-                                                    debutado al cierre.
+                                                    Modo período: en el orden del ranking al
+                                                    cierre del período, solo jugadores que ya
+                                                    habían debutado al cierre. Modo torneo:
+                                                    solo jugadores con partidos en el torneo,
+                                                    por rating al cierre (desc), partidos
+                                                    (desc) y nombre.
                                                 items:
                                                     $ref: "#/components/schemas/RatingHistoryPlayer"
                                             matchesTimeline:
@@ -1816,6 +1873,15 @@ paths:
                                                         nullable: true
                                                         additionalProperties: true
                                                         description: Igual que en `/api/ratings/period`
+                                            tournaments:
+                                                type: array
+                                                description: >-
+                                                    Torneos con partidos en el período (o el
+                                                    torneo pedido, o vacío), ordenados por
+                                                    `fromX`, `toX` e `id`. Los partidos sin
+                                                    torneo no suman.
+                                                items:
+                                                    $ref: "#/components/schemas/RatingHistoryTournamentMark"
                 "400":
                     $ref: "#/components/responses/BadRequest"
     /api/recaps/context:
@@ -2948,6 +3014,39 @@ components:
                     type: string
                     format: date-time
                     description: Fecha del partido (`playedAt`)
+        RatingHistoryTournamentMark:
+            type: object
+            description: >-
+                Marca de un torneo sobre el eje X: de su primer a su último
+                partido dentro de la respuesta.
+            properties:
+                id:
+                    type: string
+                    example: "64b0f0f0f0f0f0f0f0f0f0f0"
+                name:
+                    type: string
+                    nullable: true
+                    description: Primer nombre no nulo de los partidos del torneo
+                fromX:
+                    type: integer
+                    minimum: 1
+                    description: "`x` del primer partido del torneo"
+                toX:
+                    type: integer
+                    minimum: 1
+                    description: "`x` del último partido del torneo"
+                matches:
+                    type: integer
+                    minimum: 1
+                    description: Partidos del torneo (pueden estar intercalados con otros)
+                fromT:
+                    type: string
+                    format: date-time
+                    description: Fecha del primer partido
+                toT:
+                    type: string
+                    format: date-time
+                    description: Fecha del último partido
         RatingHistoryExtreme:
             type: object
             description: >-
@@ -3189,13 +3288,20 @@ components:
                                     type: integer
                         position:
                             type: integer
+                            nullable: true
+                            description: Posición al cierre. `null` en modo torneo.
                         previousPosition:
                             type: integer
                             nullable: true
+                            description: >-
+                                Posición al inicio. `null` si debuta en el período
+                                y siempre en modo torneo.
                         positionChange:
                             type: integer
                             nullable: true
-                            description: Lugares que subió (positivo) o bajó (negativo)
+                            description: >-
+                                Lugares que subió (positivo) o bajó (negativo).
+                                `null` en modo torneo.
                         biggestUpsetWon:
                             allOf:
                                 - $ref: "#/components/schemas/RatingHistoryUpset"

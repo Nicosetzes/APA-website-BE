@@ -124,6 +124,9 @@ const parsePeriodEvent = (doc) => {
         // Campos opcionales del historial: si el documento no los trae (la
         // proyección de `/api/ratings/period` no los pide) o son inválidos, no
         // se agregan las claves. Nunca lanzan.
+        ...(isNonEmptyString(doc.tournamentId)
+            ? { tournamentId: doc.tournamentId }
+            : {}),
         ...(KINDS.has(doc.kind) ? { kind: doc.kind } : {}),
         ...(isCount(doc.shootoutP1) && isCount(doc.shootoutP2)
             ? { shootoutP1: doc.shootoutP1, shootoutP2: doc.shootoutP2 }

@@ -28,6 +28,11 @@ const {
 // evento guarda del partido (equipo e id por lado, tipo de cruce y penales); el
 // camino en vivo ya lo trae en los eventos del motor. Sin esa opción el pedido
 // al lector es el de siempre (`{ start, end }`).
+//
+// `allTime` (solo el historial por torneo) lee todo el historial: la ventana es
+// `[0, 9999-12-31)`. El filtro por torneo lo hace quien llama, en memoria.
+const ALL_TIME_END = Date.UTC(9999, 11, 31)
+
 const createPeriodSource = (dependencies = {}) => {
     const retrieveMatches =
         dependencies.retrieveAllMatches || retrieveRatingMatches
@@ -80,11 +85,22 @@ const createPeriodSource = (dependencies = {}) => {
         }
     }
 
-    return async ({ dateFrom, dateTo, endpoint, includeHistory = false }) => {
+    return async ({
+        dateFrom,
+        dateTo,
+        endpoint,
+        includeHistory = false,
+        allTime = false,
+    }) => {
         const startedAt = clock()
         // Período [start, end): del inicio del primer día al fin del último.
-        const start = getArgentinaDayRange(dateFrom).start.getTime()
-        const end = getArgentinaDayRange(dateTo).end.getTime()
+        // Con `allTime` es todo el historial y no se usan las fechas.
+        const start = allTime
+            ? 0
+            : getArgentinaDayRange(dateFrom).start.getTime()
+        const end = allTime
+            ? ALL_TIME_END
+            : getArgentinaDayRange(dateTo).end.getTime()
 
         // Los usuarios se leen en paralelo con el período guardado y se
         // reutilizan si hay que calcular en vivo.

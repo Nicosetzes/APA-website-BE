@@ -5,6 +5,9 @@ const test = require("node:test")
 
 const { createGetRatingsHistory } = require("../controller/getRatingsHistory")
 const {
+    parsePeriodEvent,
+} = require("../service/ratingsReadModel/createRetrieveStoredPeriod")
+const {
     COMBO_WINDOW,
     RANDOM_DAYS,
     RANDOM_FIRST_DAY,
@@ -328,6 +331,7 @@ test("dorado: el payload tiene el orden de claves del contrato y los apodos de u
         "players",
         "matchesTimeline",
         "highlights",
+        "tournaments",
     ])
     assert.deepEqual(stored.scope, { type: "period", tournament: null })
     assert.deepEqual(stored.parameters, live.parameters)
@@ -613,4 +617,168 @@ test("controller: el lector guardado recibe start y end en milisegundos del día
             includeHistory: true,
         },
     ])
+})
+
+// ---------------------------------------------------------------------------
+// Marcas de torneo e historial por torneo: guardado == vivo
+// ---------------------------------------------------------------------------
+
+// `syntheticHistory` repartido entre tres torneos (más un partido sin torneo);
+// los que ya traen un torneo real se dejan como están.
+const tournamentsHistory = () =>
+    syntheticHistory().map((item, index) => {
+        if (item.tournament?.id !== "t1") return item
+        if (index % 7 === 3) return { ...item, tournament: null }
+        const n = (index % 3) + 1
+        return { ...item, tournament: { id: `t${n}`, name: `Torneo ${n}` } }
+    })
+
+test("dorado: data.tournaments coincide entre caminos en todas las ventanas", async () => {
+    const matches = tournamentsHistory()
+    const docs = storedDocsFrom(matches)
+    let withMarks = 0
+    for (const window of allWindows(daysFrom("2025-12-30", 20))) {
+        const { live, stored } = await bothHistoryResponses({
+            matches,
+            docs,
+            ...window,
+        })
+        assert.equal(
+            JSON.stringify(stored.data.tournaments),
+            JSON.stringify(live.data.tournaments),
+            `${window.dateFrom}..${window.dateTo}`
+        )
+        if (live.data.tournaments.length > 1) withMarks += 1
+    }
+    assert.ok(withMarks > 0)
+})
+
+test("dorado: el historial de un torneo es idéntico en el camino guardado y en vivo", async () => {
+    const matches = tournamentsHistory()
+    const docs = storedDocsFrom(matches)
+    const ids = [
+        ...new Set(matches.map((item) => item.tournament?.id).filter(Boolean)),
+    ]
+    assert.ok(ids.length >= 3)
+
+    for (const tournamentId of [...ids, "ffffffffffffffffffffffff"]) {
+        const { live, stored, liveReads, logger } = await bothHistoryResponses({
+            matches,
+            docs,
+            tournamentId,
+        })
+        assert.equal(JSON.stringify(stored), JSON.stringify(live), tournamentId)
+        assert.equal(liveReads, 0, tournamentId)
+        assert.equal(stored.scope.type, "tournament")
+        assert.equal(stored.scope.tournament.id, tournamentId)
+        assert.equal(logger.logs.at(-1).source, "stored", tournamentId)
+        assert.equal(logger.logs.at(-1).endpoint, "ratings_history")
+        if (tournamentId !== "ffffffffffffffffffffffff") {
+            assert.ok(stored.data.matchesInPeriod > 0, tournamentId)
+            assert.equal(stored.data.tournaments.length, 1)
+            assert.equal(
+                stored.data.matchesInPeriod,
+                stored.data.tournaments[0].matches
+            )
+        }
+    }
+})
+
+test("dorado: el torneo con filtro de jugadores y los datos propios del torneo coinciden entre caminos", async () => {
+    const matches = tournamentsHistory()
+    const docs = storedDocsFrom(matches)
+    const { live, stored } = await bothHistoryResponses({
+        matches,
+        docs,
+        tournamentId: "t2",
+        players: ["a"],
+    })
+
+    assert.equal(JSON.stringify(stored), JSON.stringify(live))
+    assert.ok(stored.data.players.every((row) => row.player.id === "a"))
+    assert.ok(stored.data.matchesTimeline.length > 1)
+    for (const player of stored.data.players) {
+        for (const point of player.points) {
+            assert.equal(point.tournament, "Torneo 2")
+        }
+    }
+})
+
+test("dorado: el modo torneo lee todo el historial de una vez, sin consultas nuevas", async () => {
+    const { stored, calls } = await bothHistoryResponses({
+        matches: tournamentsHistory(),
+        tournamentId: "t1",
+    })
+
+    assert.equal(stored.scope.type, "tournament")
+    const reads = calls.filter((call) => call.dao === "findRatingEventsInRange")
+    assert.equal(reads.length, 1)
+    const [version, start, end] = reads[0].args
+    assert.equal(typeof version, "string")
+    assert.equal(start.getTime(), 0)
+    assert.equal(end.getTime(), Date.UTC(9999, 11, 31))
+    assert.deepEqual(reads[0].extra, { includeHistory: true })
+    assert.ok(
+        calls.every((call) =>
+            [
+                "findRatingEventsInRange",
+                "findRatingBoundaryEvents",
+                "findRatingSourceStats",
+                "findRankingPlayerRatings",
+                "getCurrentFingerprint",
+            ].includes(call.dao)
+        )
+    )
+})
+
+test("dorado: un evento guardado sin tournamentId no entra en ningún torneo ni en las marcas", async () => {
+    const matches = tournamentsHistory()
+    const docs = storedDocsFrom(matches)
+    const stripped = {
+        ...docs,
+        events: docs.events.map(({ tournamentId: _id, ...event }) => event),
+    }
+    const marks = await bothHistoryResponses({
+        matches,
+        docs: stripped,
+        dateFrom: "2025-12-30",
+        dateTo: "2026-02-28",
+    })
+    assert.deepEqual(marks.stored.data.tournaments, [])
+    assert.equal(marks.liveReads, 0)
+
+    const tournament = await bothHistoryResponses({
+        matches,
+        docs: stripped,
+        tournamentId: "t1",
+    })
+    assert.equal(tournament.stored.data.matchesInPeriod, 0)
+    assert.deepEqual(tournament.stored.data.players, [])
+    assert.equal(tournament.stored.scope.tournament.name, null)
+})
+
+test("parsePeriodEvent: conserva tournamentId solo si es un string no vacío", () => {
+    const side = (id) => ({ id, name: id, before: 1500, games: 0 })
+    const doc = {
+        seq: 1,
+        matchId: "0123456789abcdef01234567",
+        time: new Date("2026-01-01T15:00:00Z"),
+        scoreP1: 1,
+        scoreP2: 0,
+        expectedP1: 0.5,
+        resultP1: 1,
+        delta: 10,
+        p1: side("a"),
+        p2: side("b"),
+    }
+    const tournamentId = "0123456789abcdef01234567"
+
+    assert.equal(
+        parsePeriodEvent({ ...doc, tournamentId }).tournamentId,
+        tournamentId
+    )
+    for (const value of [null, "", undefined, 7]) {
+        const event = parsePeriodEvent({ ...doc, tournamentId: value })
+        assert.equal("tournamentId" in event, false, String(value))
+    }
 })

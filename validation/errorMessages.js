@@ -16,6 +16,12 @@ const MATCH_RULE_MESSAGES = {
     "match.penaltiesTied": "Los penales no pueden terminar empatados",
 }
 
+// Reglas de negocio de las consultas de ratings.
+const RATINGS_RULE_MESSAGES = {
+    "ratings.tournamentExcludesDates":
+        "No se puede combinar tournamentId con dateFrom ni dateTo",
+}
+
 // Etiqueta de cada campo, con artículo, y su género/número (m, f, mp, fp) para
 // concordar los mensajes. Los índices de arrays se ignoran: `teams.0.group` se
 // busca como `teams.group`.
@@ -161,6 +167,9 @@ const describeValidationError = (detail) => {
     if (MATCH_RULE_MESSAGES[detail.type])
         return MATCH_RULE_MESSAGES[detail.type]
 
+    if (RATINGS_RULE_MESSAGES[detail.type])
+        return RATINGS_RULE_MESSAGES[detail.type]
+
     if (detail.type === "date.range")
         return "La fecha hasta no puede ser anterior a la fecha desde"
 
@@ -259,6 +268,7 @@ const summarizeValidationErrors = (messages) => {
 module.exports = {
     FIELD_LABELS,
     MATCH_RULE_MESSAGES,
+    RATINGS_RULE_MESSAGES,
     describeValidationError,
     summarizeValidationErrors,
 }

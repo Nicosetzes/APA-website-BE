@@ -8,6 +8,8 @@ const { rankPlayers } = require("../service/playerRatings")
 const { outcomeProbabilities } = require("../service/playerRatings/outcomes")
 const {
     buildHistoryPayload,
+    buildTournamentHistoryPayload,
+    buildTournamentMarks,
     findPlayerUpsets,
 } = require("../service/playerRatings/history")
 const { buildRatingsTimeline } = require("../service/playerRatings/timeline")
@@ -97,6 +99,7 @@ test("historial: forma de la respuesta y orden de las claves", () => {
         "players",
         "matchesTimeline",
         "highlights",
+        "tournaments",
     ])
     assert.equal(payload.data.matchesInPeriod, 3)
     assert.deepEqual(Object.keys(row(payload, "a")), [
@@ -734,4 +737,311 @@ test("historial: findPlayerUpsets agrega teams, ratingChange (delta con signo) y
     assert.equal(worstUpsetLost.ratingChange, -7.5)
     assert.equal(worstUpsetLost.ratingSwing, 7.5)
     assert.equal(worstUpsetLost.probability, probability)
+})
+
+// ---------------------------------------------------------------------------
+// Marcas de torneo (data.tournaments) e historial por torneo
+// ---------------------------------------------------------------------------
+
+const T1 = "a".repeat(24)
+const T2 = "b".repeat(24)
+const T3 = "c".repeat(24)
+const inTournament = (id, name) => ({ tournament: { id, name } })
+
+// Dos torneos intercalados (T1 y T2), un torneo de un solo partido (T3) y un
+// partido sin torneo. C juega T2 entre sus dos partidos de T1; el último
+// partido de T1 es a las 02:00Z (todavía el día anterior en Argentina).
+const TOURNAMENTS_SCENARIO = [
+    match(1, A, 1, B, 0, "2026-03-01T12:00:00Z", inTournament(T1, "Copa A")),
+    match(2, C, 2, D, 0, "2026-03-02T15:00:00Z", inTournament(T2, "Copa B")),
+    match(3, A, 0, C, 2, "2026-03-03T15:00:00Z", inTournament(T1, "Copa A")),
+    match(4, C, 1, D, 1, "2026-03-04T15:00:00Z", inTournament(T2, "Copa B")),
+    match(5, C, 3, B, 0, "2026-03-05T15:00:00Z", inTournament(T1, "Copa A")),
+    match(6, B, 3, C, 0, "2026-03-07T02:00:00Z", inTournament(T1, "Copa A")),
+    match(7, D, 1, E, 0, "2026-03-08T15:00:00Z", inTournament(T3, "Copa C")),
+    match(8, E, 2, A, 1, "2026-03-09T15:00:00Z", { tournament: null }),
+]
+const ALL = { dateFrom: "2026-03-01", dateTo: "2026-03-31" }
+
+// Eventos del motor con `seq`, como los lee `periodSource` en vivo.
+const eventsOf = (matches) =>
+    buildRatingsTimeline(matches, { teamStrength: null }).events.map(
+        (event, index) => ({ ...event, seq: index + 1 })
+    )
+
+const tournamentFor = (
+    tournamentId,
+    extra = {},
+    matches = TOURNAMENTS_SCENARIO
+) =>
+    buildTournamentHistoryPayload({
+        config: buildRatingsTimeline(matches, { teamStrength: null }).config,
+        names: new Map(),
+        tournamentId,
+        tournamentEvents: eventsOf(matches).filter(
+            (event) => event.tournamentId === tournamentId
+        ),
+        ...extra,
+    })
+
+test("marcas: agrupa por torneo con fromX/toX/matches/fromT/toT, intercaladas y ordenadas", () => {
+    const payload = historyFor(TOURNAMENTS_SCENARIO, ALL)
+
+    assert.equal(Object.keys(payload.data).at(-1), "tournaments")
+    assert.deepEqual(payload.data.tournaments, [
+        {
+            id: T1,
+            name: "Copa A",
+            fromX: 1,
+            toX: 6,
+            matches: 4,
+            fromT: "2026-03-01T12:00:00.000Z",
+            toT: "2026-03-07T02:00:00.000Z",
+        },
+        {
+            id: T2,
+            name: "Copa B",
+            fromX: 2,
+            toX: 4,
+            matches: 2,
+            fromT: "2026-03-02T15:00:00.000Z",
+            toT: "2026-03-04T15:00:00.000Z",
+        },
+        // Torneo de un solo partido.
+        {
+            id: T3,
+            name: "Copa C",
+            fromX: 7,
+            toX: 7,
+            matches: 1,
+            fromT: "2026-03-08T15:00:00.000Z",
+            toT: "2026-03-08T15:00:00.000Z",
+        },
+    ])
+})
+
+test("marcas: usan el x del período, omiten eventos sin torneo y no cambian el resto de la respuesta", () => {
+    const window = { dateFrom: "2026-03-03", dateTo: "2026-03-31" }
+    const inputs = inputsFor(TOURNAMENTS_SCENARIO, window)
+    const payload = buildHistoryPayload(inputs)
+
+    // Empieza en el partido 3: x = 1 para él.
+    assert.deepEqual(
+        payload.data.tournaments.map(({ id, fromX, toX, matches }) => [
+            id,
+            fromX,
+            toX,
+            matches,
+        ]),
+        [
+            [T1, 1, 4, 3],
+            [T2, 2, 2, 1],
+            [T3, 5, 5, 1],
+        ]
+    )
+    assert.equal(payload.data.matchesInPeriod, 6)
+
+    // Sacar el torneo de los eventos solo vacía `tournaments`.
+    const stripped = buildHistoryPayload({
+        ...inputs,
+        periodEvents: inputs.periodEvents.map(
+            ({ tournamentId: _id, ...event }) => event
+        ),
+    })
+    assert.deepEqual(stripped.data.tournaments, [])
+    const { tournaments: _marks, ...rest } = payload.data
+    const { tournaments: _none, ...strippedRest } = stripped.data
+    assert.deepEqual(rest, strippedRest)
+    assert.deepEqual(
+        { ...payload, data: undefined },
+        { ...stripped, data: undefined }
+    )
+})
+
+test("marcas: sin eventos o sin torneos da una lista vacía y el nombre es el primero no nulo", () => {
+    assert.deepEqual(buildTournamentMarks([]), [])
+    assert.deepEqual(
+        buildTournamentMarks([
+            { seq: 1, time: 0, tournamentId: null, tournament: "X" },
+        ]),
+        []
+    )
+    const [mark] = buildTournamentMarks([
+        { seq: 1, time: 0, tournamentId: T1, tournament: null },
+        { seq: 2, time: 1000, tournamentId: T1, tournament: "Copa" },
+        { seq: 3, time: 2000, tournamentId: T1, tournament: "Otro" },
+    ])
+    assert.equal(mark.name, "Copa")
+    assert.equal(mark.fromT, "1970-01-01T00:00:00.000Z")
+    assert.equal(mark.toT, "1970-01-01T00:00:02.000Z")
+})
+
+test("torneo: forma de la respuesta, x del torneo y fechas argentinas", () => {
+    const payload = tournamentFor(T1)
+
+    assert.deepEqual(Object.keys(payload), [
+        "success",
+        "dateFrom",
+        "dateTo",
+        "scope",
+        "parameters",
+        "data",
+    ])
+    assert.deepEqual(Object.keys(payload.data), [
+        "matchesInPeriod",
+        "players",
+        "matchesTimeline",
+        "highlights",
+        "tournaments",
+    ])
+    assert.deepEqual(payload.scope, {
+        type: "tournament",
+        tournament: { id: T1, name: "Copa A" },
+    })
+    // El último partido es el 07/03 a las 02:00Z: el 06/03 en Argentina.
+    assert.equal(payload.dateFrom, "2026-03-01")
+    assert.equal(payload.dateTo, "2026-03-06")
+    assert.equal(payload.data.matchesInPeriod, 4)
+    assert.deepEqual(
+        payload.data.matchesTimeline.map((item) => item.x),
+        [1, 2, 3, 4]
+    )
+    assert.deepEqual(payload.data.tournaments, [
+        {
+            id: T1,
+            name: "Copa A",
+            fromX: 1,
+            toX: 4,
+            matches: 4,
+            fromT: "2026-03-01T12:00:00.000Z",
+            toT: "2026-03-07T02:00:00.000Z",
+        },
+    ])
+    for (const player of payload.data.players) {
+        assert.ok(player.points.every((point) => point.x >= 1 && point.x <= 4))
+        assert.equal(player.summary.matchesInPeriod, player.points.length)
+    }
+})
+
+test("torneo: solo jugadores con partidos del torneo, ordenados por rating final", () => {
+    const payload = tournamentFor(T1)
+    const ids = payload.data.players.map((item) => item.player.id)
+
+    // D y E no juegan T1.
+    assert.deepEqual([...ids].sort(), ["a", "b", "c"])
+    const ratings = payload.data.players.map((item) => item.end.rating)
+    assert.deepEqual(
+        ratings,
+        [...ratings].sort((x, y) => y - x)
+    )
+})
+
+test("torneo: start null para el debutante y estado previo del primer partido del torneo", () => {
+    const inputs = tournamentFor(T1)
+    const a = row(inputs, "a")
+    const c = row(inputs, "c")
+
+    // A y B debutan en el primer partido de T1.
+    assert.equal(a.start, null)
+    assert.equal(row(inputs, "b").start, null)
+    // C ya había jugado un partido (T2): llega a T1 con 1 partido.
+    assert.equal(c.start.matches, 1)
+    near(c.start.rating, c.points[0].rating - c.points[0].delta)
+    assert.equal(c.end.matches, 5)
+    assert.equal(c.end.rating, c.points[c.points.length - 1].rating)
+    assert.equal(c.points[0].games, 2)
+})
+
+test("torneo: ratingChange es la suma de los deltas del torneo, no end - start", () => {
+    const payload = tournamentFor(T1)
+
+    for (const player of payload.data.players) {
+        const sum = player.points.reduce((acc, point) => acc + point.delta, 0)
+        near(player.summary.ratingChange, sum, player.player.id)
+    }
+    const c = row(payload, "c")
+    // C jugó T2 en el medio: la diferencia entre el final y el inicio incluye
+    // ese partido.
+    assert.ok(
+        Math.abs(c.summary.ratingChange - (c.end.rating - c.start.rating)) > 0.2
+    )
+    // A debuta: parte del rating inicial.
+    const a = row(payload, "a")
+    near(a.summary.ratingChange, a.end.rating - 1500)
+})
+
+test("torneo: posiciones nulas, récord, extremos, provisional y upsets solo del torneo", () => {
+    const payload = tournamentFor(T1)
+
+    for (const player of payload.data.players) {
+        assert.equal(player.summary.position, null)
+        assert.equal(player.summary.previousPosition, null)
+        assert.equal(player.summary.positionChange, null)
+    }
+    const a = row(payload, "a")
+    // A en T1: gana a B (partido 1) y pierde con C (partido 3); el partido
+    // contra E (sin torneo) no cuenta.
+    assert.deepEqual(a.summary.record, { wins: 1, draws: 0, losses: 1 })
+    assert.equal(a.summary.matchesInPeriod, 2)
+    assert.equal(a.summary.provisional, true)
+    assert.ok(a.summary.min.rating <= a.summary.max.rating)
+    assert.ok(
+        a.points.every((point) => point.tournament === "Copa A"),
+        "todos los puntos son de Copa A"
+    )
+
+    const upset = payload.data.highlights.biggestUpset
+    assert.ok(upset)
+    // B (el más flojo) le gana a C en el partido 6.
+    assert.equal(upset.matchId, objectId(6).toHexString())
+    assert.equal(upset.winner.id, "b")
+    assert.equal(upset.tournament, "Copa A")
+    assert.equal(
+        row(payload, "b").summary.biggestUpsetWon.matchId,
+        upset.matchId
+    )
+    assert.equal(row(payload, "a").summary.biggestUpsetWon, null)
+})
+
+test("torneo: el filtro players recorta la lista pero no el eje", () => {
+    const payload = tournamentFor(T1, { playerIds: ["a"] })
+
+    assert.deepEqual(
+        payload.data.players.map((item) => item.player.id),
+        ["a"]
+    )
+    assert.equal(payload.data.matchesInPeriod, 4)
+    assert.equal(payload.data.matchesTimeline.length, 4)
+
+    const none = tournamentFor(T1, { playerIds: ["nadie"] })
+    assert.deepEqual(none.data.players, [])
+    assert.equal(none.data.matchesTimeline.length, 4)
+})
+
+test("torneo: un torneo sin partidos da una respuesta vacía con name null", () => {
+    const empty = tournamentFor("f".repeat(24))
+
+    assert.equal(empty.success, true)
+    assert.equal(empty.dateFrom, null)
+    assert.equal(empty.dateTo, null)
+    assert.deepEqual(empty.scope, {
+        type: "tournament",
+        tournament: { id: "f".repeat(24), name: null },
+    })
+    assert.equal(empty.data.matchesInPeriod, 0)
+    assert.deepEqual(empty.data.players, [])
+    assert.deepEqual(empty.data.matchesTimeline, [])
+    assert.deepEqual(empty.data.highlights, { biggestUpset: null })
+    assert.deepEqual(empty.data.tournaments, [])
+})
+
+test("torneo: un torneo de un solo partido tiene una marca con fromX == toX", () => {
+    const payload = tournamentFor(T3)
+
+    assert.equal(payload.data.matchesInPeriod, 1)
+    assert.equal(payload.dateFrom, "2026-03-08")
+    assert.equal(payload.dateTo, "2026-03-08")
+    assert.equal(payload.data.tournaments[0].fromX, 1)
+    assert.equal(payload.data.tournaments[0].toX, 1)
+    assert.equal(payload.data.players.length, 2)
 })

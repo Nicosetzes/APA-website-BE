@@ -24,15 +24,26 @@ const USERS = [
     { id: "l", nickname: "Leo" },
 ]
 
+// Ids de torneo como los de Mongo (hex de 24).
+const MONGO_ID = "0123456789abcdef01234567"
+const OTHER_ID = "76543210fedcba9876543210"
+
 let sequence = 0
-const match = (playerP1, scoreP1, playerP2, scoreP2, playedAt) => ({
+const match = (
+    playerP1,
+    scoreP1,
+    playerP2,
+    scoreP2,
+    playedAt,
+    tournament = { id: MONGO_ID, name: "Liga APA" }
+) => ({
     _id: `h${String((sequence += 1)).padStart(4, "0")}`,
     playerP1,
     scoreP1,
     playerP2,
     scoreP2,
     playedAt: new Date(playedAt),
-    tournament: { id: "t1", name: "Liga APA" },
+    tournament,
     type: "regular",
 })
 
@@ -41,10 +52,12 @@ const MATCHES = [
     match(LEO, 1, NICO, 0, "2026-10-06T15:00:00Z"),
     match(NICO, 1, SANTI, 1, "2026-10-08T15:00:00Z"),
     match(LEO, 1, SANTI, 0, "2026-10-12T02:00:00Z"),
-    match(NICO, 5, LEO, 0, "2026-10-12T04:00:00Z"),
+    match(NICO, 5, LEO, 0, "2026-10-12T04:00:00Z", {
+        id: OTHER_ID,
+        name: "Copa APA",
+    }),
 ]
 
-const MONGO_ID = "0123456789abcdef01234567"
 const RANGE = "dateFrom=2026-10-05&dateTo=2026-10-11"
 
 const withApp = async (t, callback) => {
@@ -111,8 +124,6 @@ test("GET /api/ratings/history valida los parámetros", async (t) => {
             `${RANGE}&extra=1`,
             // Eliminado del contrato: el endpoint siempre da un punto por partido.
             `${RANGE}&granularity=day`,
-            // Reservado para la etapa 2: hoy es un parámetro desconocido.
-            `${RANGE}&tournamentId=${MONGO_ID}`,
             `${RANGE}&players=n&players=n`,
             `${RANGE}&players=`,
             `${RANGE}${Array.from(
@@ -139,6 +150,132 @@ test("GET /api/ratings/history valida los parámetros", async (t) => {
         const { requestId: _period, ...periodError } = (await period.json())
             .error
         assert.deepEqual(historyError, periodError)
+    })
+})
+
+test("GET /api/ratings/history con tournamentId rechaza fechas, ids inválidos y pedidos sin período ni torneo", async (t) => {
+    await withApp(t, async (baseUrl) => {
+        const rejected = [
+            `tournamentId=${MONGO_ID}&dateFrom=2026-10-05`,
+            `tournamentId=${MONGO_ID}&dateTo=2026-10-11`,
+            `tournamentId=${MONGO_ID}&${RANGE}`,
+            "tournamentId=abc",
+            "tournamentId=all",
+            "tournamentId=",
+            `tournamentId=${MONGO_ID}0`,
+            `tournamentId=${MONGO_ID}&tournamentId=${OTHER_ID}`,
+            `tournamentId=${MONGO_ID}&extra=1`,
+            "players=n",
+        ]
+        for (const query of rejected) {
+            const response = await globalThis.fetch(
+                `${baseUrl}/api/ratings/history?${query}`
+            )
+            assert.equal(response.status, 400, query)
+        }
+
+        const combined = await globalThis.fetch(
+            `${baseUrl}/api/ratings/history?tournamentId=${MONGO_ID}&${RANGE}`
+        )
+        const { error } = await combined.json()
+        assert.equal(error.code, "VALIDATION_ERROR")
+        assert.equal(
+            error.message,
+            "No se puede combinar tournamentId con dateFrom ni dateTo"
+        )
+
+        // Sin tournamentId siguen siendo obligatorias.
+        const missing = await globalThis.fetch(
+            `${baseUrl}/api/ratings/history?players=n`
+        )
+        assert.match((await missing.json()).error.message, /fecha desde/)
+
+        // /api/ratings/period no conoce el parámetro.
+        const period = await globalThis.fetch(
+            `${baseUrl}/api/ratings/period?${RANGE}&tournamentId=${MONGO_ID}`
+        )
+        assert.equal(period.status, 400)
+    })
+})
+
+test("GET /api/ratings/history con tournamentId responde el historial del torneo", async (t) => {
+    await withApp(t, async (baseUrl) => {
+        const fetchTournament = async (query) => {
+            const response = await globalThis.fetch(
+                `${baseUrl}/api/ratings/history?${query}`
+            )
+            assert.equal(response.status, 200, query)
+            return response.json()
+        }
+
+        const body = await fetchTournament(`tournamentId=${MONGO_ID}`)
+        assert.equal(body.success, true)
+        assert.deepEqual(body.scope, {
+            type: "tournament",
+            tournament: { id: MONGO_ID, name: "Liga APA" },
+        })
+        assert.equal(body.dateFrom, "2026-10-01")
+        assert.equal(body.dateTo, "2026-10-11")
+        assert.equal(body.data.matchesInPeriod, 4)
+        assert.deepEqual(
+            body.data.matchesTimeline.map((item) => item.x),
+            [1, 2, 3, 4]
+        )
+        assert.deepEqual(
+            body.data.tournaments.map(({ id, fromX, toX, matches }) => [
+                id,
+                fromX,
+                toX,
+                matches,
+            ]),
+            [[MONGO_ID, 1, 4, 4]]
+        )
+        const nico = body.data.players.find((row) => row.player.id === "n")
+        assert.equal(nico.player.name, "Nico")
+        assert.equal(nico.points.length, 3)
+        assert.equal(nico.summary.position, null)
+
+        // El id se acepta en mayúsculas y la respuesta lo devuelve en minúsculas.
+        const upper = await fetchTournament(
+            `tournamentId=${MONGO_ID.toUpperCase()}`
+        )
+        assert.equal(upper.scope.tournament.id, MONGO_ID)
+        assert.equal(upper.data.matchesInPeriod, 4)
+
+        // El otro torneo tiene un solo partido (y dos jugadores).
+        const other = await fetchTournament(`tournamentId=${OTHER_ID}`)
+        assert.equal(other.scope.tournament.name, "Copa APA")
+        assert.equal(other.data.matchesInPeriod, 1)
+        assert.equal(other.data.players.length, 2)
+
+        const filtered = await fetchTournament(
+            `tournamentId=${MONGO_ID}&players=s&players=nadie`
+        )
+        assert.deepEqual(
+            filtered.data.players.map((row) => row.player.id),
+            ["s"]
+        )
+        assert.equal(filtered.data.matchesInPeriod, 4)
+    })
+})
+
+test("GET /api/ratings/history con un tournamentId inexistente responde 200 vacío", async (t) => {
+    await withApp(t, async (baseUrl) => {
+        const response = await globalThis.fetch(
+            `${baseUrl}/api/ratings/history?tournamentId=ffffffffffffffffffffffff`
+        )
+        assert.equal(response.status, 200)
+        const body = await response.json()
+        assert.equal(body.dateFrom, null)
+        assert.equal(body.dateTo, null)
+        assert.deepEqual(body.scope, {
+            type: "tournament",
+            tournament: { id: "ffffffffffffffffffffffff", name: null },
+        })
+        assert.equal(body.data.matchesInPeriod, 0)
+        assert.deepEqual(body.data.players, [])
+        assert.deepEqual(body.data.matchesTimeline, [])
+        assert.deepEqual(body.data.tournaments, [])
     })
 })
 

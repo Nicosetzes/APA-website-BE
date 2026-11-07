@@ -11,12 +11,13 @@ const ratingEventsModel = require("./../models/ratingEvents.js")
 //
 // `GET /api/ratings/history` pide además lo que el evento guarda del partido
 // (`includeHistory`): nombre e id del equipo de cada lado, el tipo de cruce
-// (`kind`) y la tanda de penales (`shootoutP1`/`shootoutP2`). Así el historial
+// (`kind`), la tanda de penales (`shootoutP1`/`shootoutP2`) y el id del torneo
+// (`tournamentId`, para las marcas y el filtro por torneo). Así el historial
 // no lee partidos. Sin esa opción la proyección es la de siempre, así que
 // `/api/ratings/period` no cambia.
 const RATING_EVENTS_RANGE_PROJECTION =
     "seq time matchId tournament type scoreP1 scoreP2 expectedP1 resultP1 delta p1.id p1.name p1.before p1.games p2.id p2.name p2.before p2.games fingerprint -_id"
-const RATING_EVENTS_HISTORY_PROJECTION = `${RATING_EVENTS_RANGE_PROJECTION} p1.team p1.teamId p2.team p2.teamId kind shootoutP1 shootoutP2`
+const RATING_EVENTS_HISTORY_PROJECTION = `${RATING_EVENTS_RANGE_PROJECTION} p1.team p1.teamId p2.team p2.teamId kind shootoutP1 shootoutP2 tournamentId`
 
 const isValidDate = (value) =>
     value instanceof Date && !Number.isNaN(value.getTime())

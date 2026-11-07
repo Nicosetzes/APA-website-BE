@@ -10,6 +10,7 @@ const {
     round,
     toIso,
 } = require("./presentation")
+const { getArgentinaToday } = require("../../utils/argentinaDay")
 const { eventProbability } = require("./eventProbability")
 const { findBiggestUpset } = require("./upsets")
 
@@ -163,6 +164,79 @@ const findExtremes = (startRating, entries) => {
     return { min: rounded(min), max: rounded(max) }
 }
 
+// Eje de los partidos y puntos de cada jugador. `x` cuenta TODOS los eventos
+// recibidos (ya ordenados), no solo los de cada jugador, para que las líneas de
+// todos compartan el eje. Cada entrada trae además el lado del evento (`side`)
+// para leer el estado del jugador antes del partido.
+const buildTimeline = (events, names) => {
+    const entriesById = new Map()
+    const matchesTimeline = []
+    events.forEach((event, index) => {
+        const x = index + 1
+        matchesTimeline.push({ x, seq: event.seq, t: toIso(event.time) })
+
+        for (const [side, opponent, isP1] of [
+            [event.p1, event.p2, true],
+            [event.p2, event.p1, false],
+        ]) {
+            if (!entriesById.has(side.id)) entriesById.set(side.id, [])
+            entriesById.get(side.id).push({
+                ...toPoint({
+                    event,
+                    x,
+                    side,
+                    opponent,
+                    isP1,
+                    names,
+                }),
+                side,
+            })
+        }
+    })
+
+    return { matchesTimeline, entriesById }
+}
+
+const hasTournamentId = (event) =>
+    typeof event.tournamentId === "string" && event.tournamentId !== ""
+
+// Marcas de torneo: una por torneo con partidos en los eventos recibidos (ya
+// ordenados por `seq`). `fromX`/`toX` son el `x` del primer y último partido del
+// torneo, `matches` su cantidad y `fromT`/`toT` el instante de esos dos
+// partidos. Los eventos sin `tournamentId` no suman. Orden: `fromX`, `toX` e
+// `id`. El nombre es el primero no nulo del torneo.
+const buildTournamentMarks = (sortedEvents) => {
+    const marks = new Map()
+    sortedEvents.forEach((event, index) => {
+        if (!hasTournamentId(event)) return
+        const x = index + 1
+        const mark = marks.get(event.tournamentId)
+        if (!mark) {
+            marks.set(event.tournamentId, {
+                id: event.tournamentId,
+                name: event.tournament ?? null,
+                fromX: x,
+                toX: x,
+                matches: 1,
+                fromT: toIso(event.time),
+                toT: toIso(event.time),
+            })
+            return
+        }
+        if (mark.name === null) mark.name = event.tournament ?? null
+        mark.toX = x
+        mark.matches += 1
+        mark.toT = toIso(event.time)
+    })
+
+    return [...marks.values()].sort(
+        (a, b) =>
+            a.fromX - b.fromX ||
+            a.toX - b.toX ||
+            (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+    )
+}
+
 const buildHistoryPayload = ({
     previousRanking,
     currentRanking,
@@ -178,33 +252,10 @@ const buildHistoryPayload = ({
         previousRanking.map((player) => [player.id, player])
     )
 
-    // Orden del motor. `x` cuenta TODOS los partidos del período, no solo los
-    // de cada jugador, para que las líneas de todos compartan el eje.
+    // Orden del motor.
     const events = [...periodEvents].sort((a, b) => a.seq - b.seq)
 
-    const entriesById = new Map()
-    const matchesTimeline = []
-    events.forEach((event, index) => {
-        const x = index + 1
-        matchesTimeline.push({ x, seq: event.seq, t: toIso(event.time) })
-
-        for (const [side, opponent, isP1] of [
-            [event.p1, event.p2, true],
-            [event.p2, event.p1, false],
-        ]) {
-            if (!entriesById.has(side.id)) entriesById.set(side.id, [])
-            entriesById.get(side.id).push(
-                toPoint({
-                    event,
-                    x,
-                    side,
-                    opponent,
-                    isP1,
-                    names,
-                })
-            )
-        }
-    })
+    const { matchesTimeline, entriesById } = buildTimeline(events, names)
 
     const selected = playerIds?.length ? new Set(playerIds) : null
 
@@ -259,8 +310,112 @@ const buildHistoryPayload = ({
             highlights: {
                 biggestUpset: findBiggestUpset(events, names),
             },
+            tournaments: buildTournamentMarks(events),
         },
     }
 }
 
-module.exports = { buildHistoryPayload, findPlayerUpsets }
+// Historial de un torneo: mismos puntos que el del período, pero solo con los
+// partidos del torneo (`tournamentEvents`, ya filtrados por quien llama) y con
+// `x` = 1..N sobre esos partidos. Solo aparecen los jugadores con algún
+// partido en el torneo.
+
+const buildTournamentHistoryPayload = ({
+    config,
+    names,
+    tournamentId,
+    tournamentEvents,
+    playerIds = null,
+}) => {
+    const events = [...tournamentEvents].sort((a, b) => a.seq - b.seq)
+    const { matchesTimeline, entriesById } = buildTimeline(events, names)
+    const selected = playerIds?.length ? new Set(playerIds) : null
+
+    const rows = []
+    for (const [id, entries] of entriesById) {
+        if (selected && !selected.has(id)) continue
+
+        const first = entries[0]
+        const last = entries[entries.length - 1]
+        const record = emptyRecord()
+        let ratingChange = 0
+        for (const { raw } of entries) {
+            addToRecord(record, raw.result)
+            ratingChange += raw.delta
+        }
+        const endMatches = last.point.games
+
+        rows.push({
+            rating: last.raw.rating,
+            row: {
+                player: { id, name: displayName(names, last.side) },
+                start:
+                    first.side.games === 0
+                        ? null
+                        : {
+                              rating: round(first.side.before),
+                              matches: first.side.games,
+                          },
+                end: { rating: round(last.raw.rating), matches: endMatches },
+                summary: {
+                    ratingChange: round(ratingChange),
+                    ...findExtremes(first.side.before, entries),
+                    matchesInPeriod: entries.length,
+                    record,
+                    position: null,
+                    previousPosition: null,
+                    positionChange: null,
+                    ...findPlayerUpsets(entries),
+                    provisional: endMatches < config.provisionalMatches,
+                },
+                points: entries.map((entry) => entry.point),
+            },
+        })
+    }
+
+    const players = rows
+        .sort(
+            (a, b) =>
+                b.rating - a.rating ||
+                b.row.end.matches - a.row.end.matches ||
+                String(a.row.player.name).localeCompare(
+                    String(b.row.player.name)
+                ) ||
+                (a.row.player.id < b.row.player.id ? -1 : 1)
+        )
+        .map(({ row }) => row)
+
+    const tournaments = buildTournamentMarks(events)
+    const firstEvent = events[0] ?? null
+    const lastEvent = events[events.length - 1] ?? null
+    const name = events.find((event) => event.tournament != null)?.tournament
+
+    return {
+        success: true,
+        dateFrom: firstEvent
+            ? getArgentinaToday(new Date(firstEvent.time))
+            : null,
+        dateTo: lastEvent ? getArgentinaToday(new Date(lastEvent.time)) : null,
+        scope: {
+            type: "tournament",
+            tournament: { id: tournamentId, name: name ?? null },
+        },
+        parameters: describeParameters(config),
+        data: {
+            matchesInPeriod: events.length,
+            players,
+            matchesTimeline,
+            highlights: {
+                biggestUpset: findBiggestUpset(events, names),
+            },
+            tournaments,
+        },
+    }
+}
+
+module.exports = {
+    buildHistoryPayload,
+    buildTournamentHistoryPayload,
+    buildTournamentMarks,
+    findPlayerUpsets,
+}
