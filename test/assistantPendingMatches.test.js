@@ -309,7 +309,7 @@ test("matches of tournaments that are not in the list are ignored", () => {
 })
 
 test("more pending matches than the limit are counted but only `limit` are detailed", () => {
-    const matches = Array.from({ length: 25 }, () =>
+    const matches = Array.from({ length: 45 }, () =>
         mkMatch({ p1: NICO, p2: MAX, group: "A" })
     )
 
@@ -319,12 +319,12 @@ test("more pending matches than the limit are counted but only `limit` are detai
         limit: DEFAULT_PENDING_LIMIT,
     })
 
-    assert.equal(response.totalPending, 25)
-    assert.equal(response.returned, 10)
-    assert.equal(response.matches.length, 10)
+    assert.equal(response.totalPending, 45)
+    assert.equal(response.returned, 30)
+    assert.equal(response.matches.length, 30)
     assert.equal(response.remaining, 15)
     assert.equal(response.truncated, true)
-    assert.equal(response.byTournament[0].pending, 25)
+    assert.equal(response.byTournament[0].pending, 45)
 })
 
 test("summaryOnly keeps the real totals and breakdown but details no match", () => {
@@ -653,27 +653,29 @@ test("an active tournament filter reads only that tournament", async () => {
     assert.equal(result.filters.stage, "playoff")
 })
 
-test("the limit defaults to 10 and is capped at 20", async () => {
+test("the limit defaults to the maximum of 30 and is capped there", async () => {
+    assert.equal(DEFAULT_PENDING_LIMIT, 30)
+    assert.equal(MAX_PENDING_LIMIT, 30)
     assert.equal(clampLimit(undefined), DEFAULT_PENDING_LIMIT)
     assert.equal(clampLimit("abc"), DEFAULT_PENDING_LIMIT)
     assert.equal(clampLimit(5), 5)
     assert.equal(clampLimit(500), MAX_PENDING_LIMIT)
     assert.equal(clampLimit(0), 1)
 
-    const matches = Array.from({ length: 30 }, () =>
+    const matches = Array.from({ length: 40 }, () =>
         mkMatch({ p1: NICO, p2: MAX })
     )
     const { result } = await runService({ limit: 500 }, { matches })
 
     assert.equal(result.filters.limit, MAX_PENDING_LIMIT)
     assert.equal(result.returned, MAX_PENDING_LIMIT)
-    assert.equal(result.totalPending, 30)
+    assert.equal(result.totalPending, 40)
     assert.equal(result.truncated, true)
     assert.ok(result.notes.some((note) => note.includes("10 partidos más")))
 })
 
 test("the service with summaryOnly answers the summary note instead of the truncation one", async () => {
-    const matches = Array.from({ length: 25 }, () =>
+    const matches = Array.from({ length: 45 }, () =>
         mkMatch({ p1: NICO, p2: MAX })
     )
     const { result } = await runService(
@@ -686,16 +688,16 @@ test("the service with summaryOnly answers the summary note instead of the trunc
     )
 
     assert.equal(result.filters.limit, DEFAULT_PENDING_LIMIT)
-    assert.equal(result.totalPending, 25)
+    assert.equal(result.totalPending, 45)
     assert.deepEqual(result.matches, [])
     assert.equal(result.returned, 0)
-    assert.equal(result.remaining, 25)
+    assert.equal(result.remaining, 45)
     assert.equal(result.truncated, true)
     assert.deepEqual(Object.keys(result), Object.keys(detailed))
     assert.ok(result.notes.some((note) => note.includes("u-fantasma")))
     assert.ok(
         result.notes.includes(
-            "Respuesta resumida (summaryOnly): no se detallan los 25 partidos pendientes. Para listarlos, volvé a consultar sin summaryOnly."
+            "Respuesta resumida (summaryOnly): no se detallan los 45 partidos pendientes. Para listarlos, volvé a consultar sin summaryOnly."
         )
     )
     assert.ok(!result.notes.some((note) => note.includes("partidos más")))

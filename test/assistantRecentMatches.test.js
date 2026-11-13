@@ -374,8 +374,8 @@ test("the round of a playoff, the group and the leg come with the match", async 
 // Límite
 // ---------------------------------------------------------------------------
 
-test("the limit defaults to 10, caps at 20 and totalMatches counts every match", async () => {
-    const matches = Array.from({ length: 30 }, (_, index) =>
+test("the limit defaults to 10, caps at 30 and totalMatches counts every match", async () => {
+    const matches = Array.from({ length: 40 }, (_, index) =>
         mkMatch({ nicoGoals: 1, rivalGoals: 0, playedAt: day(index) })
     )
 
@@ -384,20 +384,20 @@ test("the limit defaults to 10, caps at 20 and totalMatches counts every match",
     const few = await run(matches, { limit: 3 })
 
     assert.equal(DEFAULT_RECENT_MATCHES_LIMIT, 10)
-    assert.equal(MAX_RECENT_MATCHES_LIMIT, 20)
-    assert.equal(byDefault.totalMatches, 30)
+    assert.equal(MAX_RECENT_MATCHES_LIMIT, 30)
+    assert.equal(byDefault.totalMatches, 40)
     assert.equal(byDefault.returned, 10)
     assert.equal(byDefault.matches.length, 10)
-    assert.equal(capped.returned, 20)
+    assert.equal(capped.returned, 30)
     assert.equal(few.returned, 3)
     // El recorte son los más nuevos.
-    assert.equal(few.matches[0].playedOn, "2026-01-30")
+    assert.equal(few.matches[0].playedOn, "2026-02-09")
     assert.equal(clampLimit(undefined), 10)
     assert.equal(clampLimit("x"), 10)
     assert.equal(clampLimit(0), 1)
     assert.equal(clampLimit(-4), 1)
     assert.equal(clampLimit(3), 3)
-    assert.equal(clampLimit(99), 20)
+    assert.equal(clampLimit(99), 30)
 })
 
 test("the record is computed over the returned matches, not over every match", async () => {
@@ -1181,13 +1181,16 @@ test("the recent-matches route never returns more than the maximum", async (t) =
                 await get(baseUrl, `?player=${NICO.id}&limit=500`)
             ).json()
 
-            assert.equal(body.data.totalMatches, 25)
+            assert.equal(body.data.totalMatches, 35)
             assert.equal(body.data.returned, MAX_RECENT_MATCHES_LIMIT)
             assert.equal(body.data.matches.length, MAX_RECENT_MATCHES_LIMIT)
-            assert.equal(body.data.withoutRatingChange, 20)
+            assert.equal(
+                body.data.withoutRatingChange,
+                MAX_RECENT_MATCHES_LIMIT
+            )
         },
         {
-            matches: Array.from({ length: 25 }, (_, index) =>
+            matches: Array.from({ length: 35 }, (_, index) =>
                 mkMatch({ nicoGoals: 1, rivalGoals: 0, playedAt: day(index) })
             ),
         }

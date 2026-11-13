@@ -12,6 +12,11 @@
 
 const fs = require("node:fs")
 const path = require("node:path")
+const {
+    DEFAULT_HEAD_TO_HEAD_LIMIT,
+    DEFAULT_RECENT_MATCHES_LIMIT,
+    MAX_ASSISTANT_MATCHES,
+} = require("../config/assistant")
 
 const ROOT = path.join(__dirname, "..")
 const N8N_DIR = path.join(ROOT, "n8n")
@@ -459,7 +464,7 @@ const buildWorkflow = () => {
                     "playerB: $fromAI('playerB', 'Id del segundo jugador, distinto del primero', 'string')",
                     "stage: $fromAI('stage', 'Etapa si el usuario pidió una: regular, playin o playoff. Vacío si no.', 'string', '')",
                     "tournamentId: $fromAI('tournamentId', 'Id del torneo si el usuario pidió uno puntual. Vacío si no.', 'string', '')",
-                    "limit: $fromAI('limit', 'Cantidad de últimos partidos a mostrar, entre 1 y 10', 'number', 5)",
+                    `limit: $fromAI('limit', 'Cantidad de últimos partidos a mostrar, entre 1 y ${MAX_ASSISTANT_MATCHES}', 'number', ${DEFAULT_HEAD_TO_HEAD_LIMIT})`,
                 ].join(", ")
             ),
             secret: true,
@@ -542,7 +547,7 @@ const buildWorkflow = () => {
                     "player: $fromAI('player', 'Id del jugador. Para la persona que escribe, el id del contexto.', 'string')",
                     "stage: $fromAI('stage', 'Etapa si el usuario pidió una: regular, playin o playoff. Vacío si no.', 'string', '')",
                     "tournamentId: $fromAI('tournamentId', 'Id del torneo si el usuario pidió uno puntual. Vacío si no.', 'string', '')",
-                    "limit: $fromAI('limit', 'Cantidad de últimos partidos a considerar, entre 1 y 20', 'number', 10)",
+                    `limit: $fromAI('limit', 'Cantidad de últimos partidos a considerar, entre 1 y ${MAX_ASSISTANT_MATCHES}', 'number', ${DEFAULT_RECENT_MATCHES_LIMIT})`,
                 ].join(", ")
             ),
             secret: true,

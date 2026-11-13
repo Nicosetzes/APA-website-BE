@@ -287,17 +287,17 @@ const runService = (filters, { matches = [], tournaments, ...dependencies }) =>
         now: () => NOW,
         ...dependencies,
     })
-test("only the returned matches are decorated, at most 20", async () => {
-    const matches = Array.from({ length: 25 }, () =>
+test("only the returned matches are decorated, at most 30", async () => {
+    const matches = Array.from({ length: 35 }, () =>
         mkMatch({ p1: NICO, p2: MAX, group: "A" })
     )
     const { addPredictions, calls } = stubPredictions()
     const result = await runService(
-        { players: [NICO.id], scope: "involving", limit: 25 },
+        { players: [NICO.id], scope: "involving", limit: 35 },
         { matches, addPredictions }
     )
     const decorated = calls.reduce((sum, call) => sum + call.matches.length, 0)
-    assert.equal(result.totalPending, 25)
+    assert.equal(result.totalPending, 35)
     assert.equal(result.returned, MAX_PENDING_LIMIT)
     assert.equal(decorated, MAX_PENDING_LIMIT)
     assert.equal(result.remaining, 5)
@@ -312,7 +312,8 @@ test("only the returned matches are decorated, at most 20", async () => {
     )
     assert.equal(
         byDefault.calls.reduce((sum, call) => sum + call.matches.length, 0),
-        10
+        // Sin `limit` el servicio detalla el máximo.
+        MAX_PENDING_LIMIT
     )
 })
 test("empty sides and same-owner ties never reach the decoration", async () => {

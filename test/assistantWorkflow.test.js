@@ -3,7 +3,11 @@ const fs = require("node:fs")
 const path = require("node:path")
 const test = require("node:test")
 
-const { DEFAULT_PENDING_LIMIT, buildViewPath } = require("../config/assistant")
+const {
+    DEFAULT_PENDING_LIMIT,
+    MAX_ASSISTANT_MATCHES,
+    buildViewPath,
+} = require("../config/assistant")
 const { getPlayoffStartSize } = require("../config/playoffFormats")
 const { RATING_CONFIG } = require("../config/ratings")
 const GROUP_FORMATS = require("../service/calculateGroupStagePlayoff/formats")
@@ -229,6 +233,13 @@ test("the prompt keeps the pending-matches policy: the list is capped and links 
         prompt,
         new RegExp(`listá los ${DEFAULT_PENDING_LIMIT} y dá el enlace`)
     )
+    // Cuando hay más de lo que se detalla, el agente explica el tope.
+    assert.match(prompt, /podés leer hasta `filters\.limit` partidos/)
+    // El tope que el prompt le explica al usuario es el del servidor.
+    for (const match of prompt.matchAll(/máximo (\d+); sin cantidad/g))
+        assert.equal(Number(match[1]), MAX_ASSISTANT_MATCHES)
+    for (const match of prompt.matchAll(/podés leer hasta (\d+) partidos/g))
+        assert.equal(Number(match[1]), MAX_ASSISTANT_MATCHES)
     assert.doesNotMatch(prompt, /primeros 5/)
     assert.match(prompt, /nunca inventes una/i)
     assert.match(prompt, /no podés cargar/i)

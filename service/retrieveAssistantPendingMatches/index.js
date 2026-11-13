@@ -355,7 +355,7 @@ const retrieveAssistantPendingMatches = async (filters, dependencies = {}) => {
         now,
     })
 
-    // Adorno: agrega `favorite` solo a los partidos que se devuelven (máx. 20).
+    // Adorno: agrega `favorite` solo a los partidos que se devuelven (máx. 30).
     // Nunca rechaza la respuesta: si falla, los partidos salen sin `favorite`.
     if (
         typeof dependencies.addPredictions === "function" &&

@@ -824,6 +824,42 @@ test("without a record cut that day, a record cut of another type or a cut on an
     }
 })
 
+test("a streak event of a player who did not play that day is dropped", () => {
+    // Las rachas por torneo fechan su fin con el cierre del torneo, así que un
+    // jugador eliminado antes puede traer `endDate` del día sin haber jugado.
+    const SANTI = { id: 3, name: "Santi" }
+    const semifinals = {
+        count: 5,
+        players: [
+            {
+                id: SANTI.id,
+                name: SANTI.name,
+                isActive: true,
+                startDate: "2026-06-01T12:00:00.000Z",
+                endDate: at("20"),
+            },
+        ],
+    }
+    const statistics = {
+        ...STATISTICS,
+        records: {
+            ...STATISTICS.records,
+            most_consecutive_semifinals: semifinals,
+        },
+        activeStreaks: {
+            ...STATISTICS.activeStreaks,
+            most_consecutive_finals: { ...semifinals, count: 2 },
+        },
+    }
+
+    const events = streakEventsOf(statistics)
+
+    assert.ok(!events.some((event) => event.player === "Santi"))
+    // Los de quienes sí jugaron se mantienen.
+    assert.ok(activeEvent(events, "Max", ONE_PLUS))
+    assert.ok(events.some((event) => event.event === "RECORD_STREAK_BROKEN"))
+})
+
 // --- Cleanup for agent ----------------------------------------------------------
 const oddsList = (recap) =>
     recap.tournaments.flatMap(({ matches }) =>

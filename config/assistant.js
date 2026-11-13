@@ -2,9 +2,15 @@
 // (n8n). Los límites viven acá, en el servidor, para que el tamaño de la
 // respuesta esté acotado aunque el modelo pida más de lo razonable.
 
-// Partidos detallados por respuesta. El total siempre se informa completo.
-const DEFAULT_PENDING_LIMIT = 10
-const MAX_PENDING_LIMIT = 20
+// Tope de partidos que el agente lee por consulta en cualquier herramienta
+// (pendientes, cara a cara, últimos partidos). El prompt se lo explica al
+// usuario cuando hay más.
+const MAX_ASSISTANT_MATCHES = 30
+
+// Partidos detallados por respuesta. El total siempre se informa completo. El
+// agente no manda `limit`: siempre recibe el máximo.
+const DEFAULT_PENDING_LIMIT = MAX_ASSISTANT_MATCHES
+const MAX_PENDING_LIMIT = MAX_ASSISTANT_MATCHES
 
 // Hay 5 o 6 jugadores en el sitio: más de 6 ids nunca es una consulta real.
 const MAX_ASSISTANT_PLAYERS = 6
@@ -15,13 +21,13 @@ const MAX_AWAITING_OPPONENT_ITEMS = 5
 // Últimos enfrentamientos detallados del cara a cara. El balance histórico
 // siempre cuenta todos los partidos del par.
 const DEFAULT_HEAD_TO_HEAD_LIMIT = 5
-const MAX_HEAD_TO_HEAD_LIMIT = 10
+const MAX_HEAD_TO_HEAD_LIMIT = MAX_ASSISTANT_MATCHES
 
 // Últimos partidos de un jugador. El `limit` se recorta a este máximo en el
 // servidor, y el resumen (récord, rating) se calcula sobre los partidos que
 // se devuelven.
 const DEFAULT_RECENT_MATCHES_LIMIT = 10
-const MAX_RECENT_MATCHES_LIMIT = 20
+const MAX_RECENT_MATCHES_LIMIT = MAX_ASSISTANT_MATCHES
 
 // Etiquetas del favorito de un partido pendiente, de mayor a menor. `minScore`
 // es el puntaje esperado mínimo del favorito en milésimas (el primer nivel que
@@ -99,6 +105,7 @@ module.exports = {
     DEFAULT_RECENT_MATCHES_LIMIT,
     FAVORITE_LEVELS,
     HALL_OF_FAME_VIEW_PATH,
+    MAX_ASSISTANT_MATCHES,
     MAX_ASSISTANT_PLAYERS,
     MAX_AWAITING_OPPONENT_ITEMS,
     MAX_HEAD_TO_HEAD_LIMIT,

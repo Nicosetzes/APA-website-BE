@@ -237,7 +237,7 @@ test("the last matches go from the newest to the oldest, undated ones last", asy
 })
 
 test("the detail is capped by the limit but the record counts every match", async () => {
-    const matches = Array.from({ length: 30 }, (_, index) =>
+    const matches = Array.from({ length: 40 }, (_, index) =>
         mkMatch({
             nicoGoals: 1,
             maxGoals: 0,
@@ -248,9 +248,10 @@ test("the detail is capped by the limit but the record counts every match", asyn
     const byDefault = await run(matches)
     const capped = await run(matches, { limit: 500 })
 
-    assert.equal(byDefault.record.matches, 30)
+    assert.equal(byDefault.record.matches, 40)
     assert.equal(byDefault.returned, DEFAULT_HEAD_TO_HEAD_LIMIT)
     assert.equal(byDefault.lastMatches.length, 5)
+    assert.equal(MAX_HEAD_TO_HEAD_LIMIT, 30)
     assert.equal(capped.returned, MAX_HEAD_TO_HEAD_LIMIT)
     assert.equal(clampLimit(undefined), DEFAULT_HEAD_TO_HEAD_LIMIT)
     assert.equal(clampLimit(0), 1)
