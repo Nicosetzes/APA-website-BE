@@ -1,7 +1,8 @@
 /*
  * Rollback genérico (puro): a partir de un before-file arma las ops que
  * restauran `before` sólo donde el documento sigue con los valores de
- * `after`, para no pisar ediciones posteriores al apply.
+ * `after`, para no pisar ediciones posteriores al apply. Un documento que la
+ * migración insertó se borra sólo si conserva su `updatedAt` original.
  */
 
 const { ToolError } = require("./errors")
@@ -9,12 +10,14 @@ const { canonicalKey } = require("./ejson")
 const {
     ABSENT,
     DELETE_KIND,
+    INSERT_KIND,
     SNAPSHOT_KEYS,
     getPath,
     isPlainObject,
 } = require("./memory")
 
-const INSERT_KIND = "insert"
+const hasValidDate = (value) =>
+    value instanceof Date && !Number.isNaN(value.getTime())
 
 const assertBeforeDocument = (document) => {
     const fail = (reason) => {
@@ -34,6 +37,19 @@ const assertBeforeDocument = (document) => {
     if (!Array.isArray(document.entries)) fail("falta entries")
 
     document.entries.forEach((entry, index) => {
+        if (isPlainObject(entry) && entry.kind === INSERT_KIND) {
+            // Alta: guarda el documento insertado para poder borrarlo.
+            if (
+                entry._id === undefined ||
+                !SNAPSHOT_KEYS[entry.collection] ||
+                !isPlainObject(entry.document) ||
+                canonicalKey(entry.document._id) !== canonicalKey(entry._id) ||
+                !hasValidDate(entry.document.updatedAt)
+            ) {
+                fail(`entry ${index} (insert) mal formada`)
+            }
+            return
+        }
         if (isPlainObject(entry) && entry.kind !== undefined) {
             // Borrado: guarda el documento completo para re-insertarlo.
             if (
@@ -65,6 +81,19 @@ const assertBeforeDocument = (document) => {
 }
 
 const buildRollbackOp = (entry) => {
+    if (entry.kind === INSERT_KIND) {
+        // Borra el documento insertado sólo si nadie lo editó después (mismo
+        // `updatedAt`); si no, se saltea.
+        return {
+            kind: DELETE_KIND,
+            collection: entry.collection,
+            _id: entry._id,
+            filter: { _id: entry._id, updatedAt: entry.document.updatedAt },
+            group: "rollback-delete",
+            before: entry.document,
+            after: null,
+        }
+    }
     if (entry.kind === DELETE_KIND) {
         // Re-inserta el documento original con su _id; si el _id ya existe
         // se saltea (nunca se pisa).
@@ -140,6 +169,15 @@ const evaluateRollback = (snapshot, beforeDocument) => {
 
     ops.forEach((op) => {
         const document = indexes[op.collection].get(canonicalKey(op._id))
+        if (op.kind === DELETE_KIND) {
+            const unchanged =
+                Boolean(document) &&
+                canonicalKey(document.updatedAt) ===
+                    canonicalKey(op.filter.updatedAt)
+            if (unchanged) restorable.push(op)
+            else skipped.push(op)
+            return
+        }
         if (op.kind === INSERT_KIND) {
             if (document) skipped.push(op)
             else restorable.push(op)

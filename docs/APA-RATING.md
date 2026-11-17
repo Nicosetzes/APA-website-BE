@@ -70,6 +70,7 @@ El término de equipo solo entra al puntaje esperado. El intercambio sigue siend
 -   **Excepciones conocidas:**
     -   Lokomotiv Moscow, FIFA 22: `capturedAt` 2022-03-31. El equipo salió del juego por el conflicto Rusia-Ucrania, así que se usó la última sub-versión que lo incluía.
     -   Selecciones nacionales de FIFA 23: salen del parche del Mundial (Sofifa lo llama "World Cup 2022"), publicado el 2022-11-09, que es la fecha que figura en `capturedAt`.
+    -   FIFA 21: solo se jugó el Torneo Argentino 2021 (cancelado, `valid: false`, cargado con la migración `006-torneo-argentino-2021`). Son los 20 equipos de ese torneo, de la última sub-versión de Sofifa (210064, `capturedAt` 2021-09-25).
     -   FC 24: solo se jugó un torneo (Chempions 2024). Los equipos que figuraban únicamente en el modo torneo no aparecen en Sofifa como sub-versión (el FK Crvena Zvezda se completó con otra fuente); si llegara a faltar alguno, el partido se calcula como en la 1.0.
 
 ### Agregar un torneo o una edición nueva

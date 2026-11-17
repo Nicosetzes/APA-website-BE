@@ -12,4 +12,6 @@ module.exports = [
     require("./004-m4-types"),
     // Destructiva e independiente de las anteriores: va última.
     require("./005-m8-delete-cancelled-unplayed"),
+    // Sólo inserta documentos nuevos (no lee nada que cambien las anteriores).
+    require("./006-torneo-argentino-2021"),
 ]

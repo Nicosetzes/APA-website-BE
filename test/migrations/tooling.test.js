@@ -994,9 +994,11 @@ test("main: dry-run de all con las migraciones reales sobre un snapshot fake", a
             "003-m3-tournament-dates",
             "004-m4-types",
             "005-m8-delete-cancelled-unplayed",
+            "006-torneo-argentino-2021",
         ]
     )
-    // M8 (allowlist fija, no configurable) se prueba en m8DeleteCancelled.
+    // M8 (allowlist fija, no configurable) se prueba en m8DeleteCancelled y
+    // 006 (datos fijos) en m006TorneoArgentino2021.
     const [m2, m7, m3, m4] = registry
     const configured = [
         m2.createMigration({

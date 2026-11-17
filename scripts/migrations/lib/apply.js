@@ -9,8 +9,14 @@ const path = require("node:path")
 
 const { ToolError } = require("./errors")
 const { canonicalKey, serialize } = require("./ejson")
-const { DELETE_KIND, assertValidOps, isDeleteOp } = require("./memory")
-const { INSERT_KIND, buildRollbackOps } = require("./rollback")
+const {
+    DELETE_KIND,
+    INSERT_KIND,
+    assertValidOps,
+    isDeleteOp,
+    isInsertOp,
+} = require("./memory")
+const { buildRollbackOps } = require("./rollback")
 const { REGISTRY_COLLECTION } = require("./snapshot")
 
 const DUPLICATE_KEY = 11000
@@ -20,7 +26,8 @@ const beforeFileName = (runId, migrationId) =>
 
 // Se escribe ANTES de cualquier escritura en la base; `wx` evita pisar uno
 // existente. Para los deletes guarda el documento COMPLETO (EJSON canónico:
-// conserva ObjectId, Date e int/double) leído de la base justo antes.
+// conserva ObjectId, Date e int/double) leído de la base justo antes. Para
+// los inserts guarda el documento que se va a insertar (el rollback lo borra).
 const writeBeforeFile = ({
     outDir,
     runId,
@@ -36,6 +43,14 @@ const writeBeforeFile = ({
         runId,
         database,
         entries: ops.map((op) => {
+            if (isInsertOp(op)) {
+                return {
+                    _id: op._id,
+                    collection: op.collection,
+                    kind: INSERT_KIND,
+                    document: op.document,
+                }
+            }
             if (!isDeleteOp(op)) {
                 return {
                     _id: op._id,
@@ -110,10 +125,12 @@ const loadDeletedDocuments = async (db, ops) => {
     return documents
 }
 
-const toWriteModel = (op) =>
-    isDeleteOp(op)
+const toWriteModel = (op) => {
+    if (isInsertOp(op)) return { insertOne: { document: op.document } }
+    return isDeleteOp(op)
         ? { deleteOne: { filter: op.filter } }
         : { updateOne: { filter: op.filter, update: op.update } }
+}
 
 // Tramos consecutivos por colección, para respetar el orden de las ops.
 const batchByCollection = (ops) =>
@@ -136,6 +153,7 @@ const applyMigration = async ({
     assertValidOps(ops)
 
     const hasDeletes = ops.some(isDeleteOp)
+    const hasInserts = ops.some(isInsertOp)
     const deletedDocuments = hasDeletes
         ? await loadDeletedDocuments(db, ops)
         : new Map()
@@ -150,6 +168,7 @@ const applyMigration = async ({
     let matched = 0
     let modified = 0
     let deleted = 0
+    let inserted = 0
 
     for (const batch of batchByCollection(ops)) {
         const result = await db
@@ -158,6 +177,7 @@ const applyMigration = async ({
         matched += result.matchedCount || 0
         modified += result.modifiedCount || 0
         deleted += result.deletedCount || 0
+        inserted += result.insertedCount || 0
     }
 
     await db.collection(REGISTRY_COLLECTION).insertOne({
@@ -170,16 +190,24 @@ const applyMigration = async ({
             matched,
             modified,
             ...(hasDeletes ? { deleted } : {}),
+            ...(hasInserts ? { inserted } : {}),
         },
         beforeFile: path.basename(beforeFile),
     })
 
-    return { beforeFile, matched, modified, ...(hasDeletes ? { deleted } : {}) }
+    return {
+        beforeFile,
+        matched,
+        modified,
+        ...(hasDeletes ? { deleted } : {}),
+        ...(hasInserts ? { inserted } : {}),
+    }
 }
 
 /*
- * Restaura cada entry sólo si el documento sigue con los valores de `after`.
- * Va de a una op para saber exactamente cuáles quedaron `skipped`.
+ * Restaura cada entry sólo si el documento sigue con los valores de `after`
+ * (o, si la migración lo insertó, con su `updatedAt` original). Va de a una
+ * op para saber exactamente cuáles quedaron `skipped`.
  */
 const applyRollback = async ({
     db,
@@ -193,6 +221,19 @@ const applyRollback = async ({
     let restored = 0
 
     for (const op of ops) {
+        if (op.kind === DELETE_KIND) {
+            // Borra un documento que insertó la migración; el filtro incluye
+            // su `updatedAt` original, así que uno editado después se saltea.
+            const result = await db
+                .collection(op.collection)
+                .deleteOne(op.filter)
+            if (result.deletedCount === 0) {
+                skipped.push({ collection: op.collection, _id: op._id })
+            } else {
+                restored += 1
+            }
+            continue
+        }
         if (op.kind === INSERT_KIND) {
             // Re-inserta el documento borrado con su _id original; si ese _id
             // ya existe (o aparece en el medio: 11000) se saltea.

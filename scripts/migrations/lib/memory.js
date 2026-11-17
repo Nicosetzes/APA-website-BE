@@ -15,6 +15,10 @@ const ABSENT = "$$absent"
 // Op de borrado: { kind: "delete", collection, _id, filter, group, rule?,
 //                  before: documento del snapshot, after: null }.
 const DELETE_KIND = "delete"
+// Op de alta: { kind: "insert", collection, _id, filter: { _id }, document,
+//               group, rule?, before: null, after: document }. El documento
+// tiene que traer `updatedAt` (Date): el rollback lo borra sólo si sigue igual.
+const INSERT_KIND = "insert"
 const SNAPSHOT_KEYS = Object.freeze({
     [COLLECTIONS.matches]: "matches",
     [COLLECTIONS.tournaments]: "tournaments",
@@ -96,6 +100,7 @@ const sameKeys = (left, right) =>
 const opLabel = (op) => `${op?.collection}/${String(op?._id)}`
 
 const isDeleteOp = (op) => op?.kind === DELETE_KIND
+const isInsertOp = (op) => op?.kind === INSERT_KIND
 
 const assertValidOp = (op, { allowedCollections } = {}) => {
     const fail = (reason) => {
@@ -113,7 +118,32 @@ const assertValidOp = (op, { allowedCollections } = {}) => {
         fail("filter._id debe ser el _id de la op")
     }
 
-    if (op.kind !== undefined && !isDeleteOp(op)) fail("kind desconocido")
+    if (op.kind !== undefined && !isDeleteOp(op) && !isInsertOp(op)) {
+        fail("kind desconocido")
+    }
+    if (isInsertOp(op)) {
+        // Alta de UN documento con _id fijo, sin update.
+        if (op.update !== undefined) fail("un insert no lleva update")
+        if (Object.keys(op.filter).length !== 1) {
+            fail("el filtro de un insert es sólo { _id }")
+        }
+        if (!isPlainObject(op.document)) fail("falta document")
+        if (canonicalKey(op.document._id) !== canonicalKey(op._id)) {
+            fail("document._id debe ser el _id de la op")
+        }
+        if (
+            !(op.document.updatedAt instanceof Date) ||
+            Number.isNaN(op.document.updatedAt.getTime())
+        ) {
+            fail("document.updatedAt debe ser una fecha")
+        }
+        if (op.before !== null) fail("before de un insert debe ser null")
+        if (canonicalKey(op.after) !== canonicalKey(op.document)) {
+            fail("after de un insert debe ser el document")
+        }
+        if (typeof op.group !== "string" || !op.group) fail("falta group")
+        return
+    }
     if (isDeleteOp(op)) {
         // Borrado de UN documento por _id; el filtro tiene que re-afirmar al
         // menos una condición más (nunca un borrado sólo por _id).
@@ -231,9 +261,10 @@ const applyUpdate = (document, update) => {
 }
 
 /*
- * Devuelve un snapshot nuevo con las ops aplicadas ($set/$unset o delete); el
- * original no se toca. No evalúa `filter`: los planes calculan sus ops sobre
- * este mismo snapshot, así que el filtro idempotente matchea por construcción.
+ * Devuelve un snapshot nuevo con las ops aplicadas ($set/$unset, delete o
+ * insert); el original no se toca. No evalúa `filter`: los planes calculan
+ * sus ops sobre este mismo snapshot, así que el filtro idempotente matchea
+ * por construcción.
  */
 const applyOpsInMemory = (snapshot, ops) => {
     assertValidOps(ops)
@@ -254,6 +285,20 @@ const applyOpsInMemory = (snapshot, ops) => {
     ops.forEach((op) => {
         const key = SNAPSHOT_KEYS[op.collection]
         const document = indexes[key]?.get(canonicalKey(op._id))
+        if (isInsertOp(op)) {
+            if (document) {
+                throw new ToolError(
+                    `op inválida ${opLabel(
+                        op
+                    )}: el documento ya está en el snapshot`,
+                    "OpError"
+                )
+            }
+            const inserted = cloneValue(op.document)
+            indexes[key].set(canonicalKey(op._id), inserted)
+            next[key].push(inserted)
+            return
+        }
         if (!document) {
             throw new ToolError(
                 `op inválida ${opLabel(
@@ -276,8 +321,10 @@ const applyOpsInMemory = (snapshot, ops) => {
 module.exports = {
     ABSENT,
     DELETE_KIND,
+    INSERT_KIND,
     SNAPSHOT_KEYS,
     isDeleteOp,
+    isInsertOp,
     applyOpsInMemory,
     assertValidOp,
     assertValidOps,

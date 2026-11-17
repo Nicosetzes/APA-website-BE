@@ -357,6 +357,7 @@ const main = async ({
                 sample: args.sample,
                 database: databaseName,
                 isTestDatabase: target.isTestDatabase,
+                now: startedAt,
             },
         })
 
@@ -410,6 +411,10 @@ const main = async ({
             } modificados${
                 result.deleted !== undefined
                     ? `, ${result.deleted} borrados de ${targetResult.ops.length}`
+                    : ""
+            }${
+                result.inserted !== undefined
+                    ? `, ${result.inserted} insertados de ${targetResult.ops.length}`
                     : ""
             }`
         )

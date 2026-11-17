@@ -1,5 +1,6 @@
 ﻿tournamentId,tournamentName,format,startedAt,firstMatchAt,lastMatchAt,matches,inexactDates,edition
 64697ac9d542ff4ada3038d3,Chempions 2019/20,champions_league,2019-07-09,2019-07-09,2019-07-09,119,119,FIFA 19
+6afc6d92ef16789aa5c2369b,Torneo Argentino 2021,league,2021-02-23,2021-02-23,2021-03-31,30,30,FIFA 21
 625e0f191b3f1ce6b5ee4756,Torneo Argentino 2021/22,league,2021-11-30,2021-11-30,2022-03-31,209,209,FIFA 22
 625f32c9cfe012fb71aae3af,Superliga Europea 2022,league_playin_playoff,2022-04-23,2022-04-23,2022-07-05,193,0,FIFA 22
 6457ae8d96efc21b03ba4cfe,Superliga Inglesa 2022,league_playin_playoff,2022-07-11,2022-07-11,2022-11-12,194,18,FIFA 22
