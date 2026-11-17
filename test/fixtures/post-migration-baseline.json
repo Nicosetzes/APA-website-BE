@@ -6594,7 +6594,8 @@
             "startedAt": "2019-01-01T00:00:00.000Z",
             "startedAtPrecision": "year",
             "closedAt": "2019-01-01T00:00:00.000Z",
-            "closedAtPrecision": "year"
+            "closedAtPrecision": "year",
+            "format": "league"
         },
         {
             "_id": "640000000000000000000001",
@@ -6627,7 +6628,8 @@
             "startedAt": "2024-03-02T20:00:00.000Z",
             "startedAtPrecision": "exact",
             "closedAt": "2024-03-10T21:00:00.000Z",
-            "closedAtPrecision": "exact"
+            "closedAtPrecision": "exact",
+            "format": "league"
         },
         {
             "_id": "640000000000000000000003",
@@ -6660,7 +6662,8 @@
             "startedAt": "2024-11-01T00:00:00.000Z",
             "startedAtPrecision": "day",
             "closedAt": "2024-11-15T00:00:00.000Z",
-            "closedAtPrecision": "day"
+            "closedAtPrecision": "day",
+            "format": "playoff"
         }
     ],
     "tournamentsActive": [

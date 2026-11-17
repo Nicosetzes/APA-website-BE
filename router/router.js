@@ -41,8 +41,13 @@ const {
     getPlayoffsTableByTournamentId,
     getPlayoffsPreviewByTournamentId,
     getStatistics,
+    getPlayerStatistics,
+    getStatisticsLeaderboards,
+    getStatisticsRecords,
     getAllTimeFaceToFace,
     getAllTimeTeams,
+    getHeadToHeadDetail,
+    getHeadToHeadSummary,
     getAssistantChampions,
     getAssistantHeadToHead,
     getAssistantPendingMatches,
@@ -328,7 +333,29 @@ tournaments.get(
 
 // STATISTICS
 
+statistics.get("/players", validate("getStatistics"), getPlayerStatistics)
+statistics.get(
+    "/leaderboards",
+    validate("getStatistics"),
+    getStatisticsLeaderboards
+)
+statistics.get("/records", validate("getStatistics"), getStatisticsRecords)
+
 statistics.get("/", validate("getStatistics"), getStatistics)
+
+statistics.get(
+    "/head-to-head",
+    validate("getHeadToHeadSummary"),
+    getHeadToHeadSummary
+)
+
+statistics.get(
+    "/head-to-head/:playerA/:playerB",
+    validate("getHeadToHeadDetail"),
+    getHeadToHeadDetail
+)
+
+statistics.get("/teams", validate("getAllTimeStatistics"), getAllTimeTeams)
 
 statistics.get(
     "/all-time/face-to-face",

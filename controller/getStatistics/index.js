@@ -27,7 +27,16 @@ const isPlayedAndValid = (match) =>
 // GET /api/statistics[?tournament=<id>]
 // - Global: aggregates across all tournaments for all users
 // - Tournament-scoped: aggregates only matches from that tournament and only players registered in it
-const createGetStatistics = (dependencies = {}) => {
+const createGetStatistics = (dependencies = {}, options = {}) => {
+    const sections = new Set(
+        options.sections || ["players", "leaderboards", "records"]
+    )
+    const includesPlayers = sections.has("players")
+    const includesLeaderboards = sections.has("leaderboards")
+    const includesRecords = sections.has("records")
+    const needsPlayerAggregation =
+        includesPlayers || includesLeaderboards || includesRecords
+
     const retrieveUsers = dependencies.retrieveAllUsers || retrieveAllUsers
     const retrieveMatches =
         dependencies.retrieveAllMatches || retrieveAllMatches
@@ -99,8 +108,10 @@ const createGetStatistics = (dependencies = {}) => {
             const [allUsers, allMatches, loadedTournaments] = await Promise.all(
                 [
                     retrieveUsers(),
-                    retrieveMatches({ includeAllPlayoffs: true }),
-                    loadTournaments(req),
+                    retrieveMatches({
+                        includeAllPlayoffs: includesRecords,
+                    }),
+                    includesRecords ? loadTournaments(req) : null,
                 ]
             )
             players = (allUsers || []).map((p) => ({
@@ -120,20 +131,16 @@ const createGetStatistics = (dependencies = {}) => {
         const playerIndex = new Map(players.map((p) => [p.id, p.name]))
         const playerIdsSet = new Set(players.map((p) => p.id))
 
-        const matchRecords = selectMatchRecords(matches)
-        const vals = aggregatePlayers({
-            matches,
-            registeredPlayers: players,
-            playerNames: playerIndex,
-            allowedPlayerIds: tournamentId ? playerIdsSet : null,
-        })
-        const decisiveMatchesStats = buildDecisiveMatchesStats({
-            matches,
-            playerNames: playerIndex,
-            allowedPlayerIds: tournamentId ? playerIdsSet : null,
-        })
+        const vals = needsPlayerAggregation
+            ? aggregatePlayers({
+                  matches,
+                  registeredPlayers: players,
+                  playerNames: playerIndex,
+                  allowedPlayerIds: tournamentId ? playerIdsSet : null,
+              })
+            : new Map()
 
-        if (tournaments) {
+        if (includesRecords && tournaments) {
             applyTournamentStreaks({
                 accumulators: vals,
                 facts: buildTournamentFacts({
@@ -144,44 +151,57 @@ const createGetStatistics = (dependencies = {}) => {
             })
         }
 
-        const playersOut = buildPlayersOutput({
-            accumulators: vals,
-            includeLongestStreak: Boolean(tournamentId),
-        })
-        const leaderboards = buildLeaderboards({
-            players: playersOut,
-            accumulators: vals,
-        })
+        const payload = { scope }
+        let playersOut
 
-        // Scoped (sólo partidos regulares): las rachas nuevas van en null.
-        // Global sin torneos: las de torneo se omiten.
-        const streakModes = {
-            knockout: tournamentId ? "null" : "compute",
-            tournament: tournamentId
-                ? "null"
-                : tournaments
-                ? "compute"
-                : "omit",
+        if (includesPlayers || includesLeaderboards) {
+            playersOut = buildPlayersOutput({
+                accumulators: vals,
+                includeLongestStreak: Boolean(tournamentId),
+            })
         }
-        const records = buildRecords({
-            matchRecords,
-            accumulators: vals,
-            ...streakModes,
-        })
-        // Fuera de `records` para que el FE no lo itere como un récord más.
-        const activeStreaks = buildActiveStreaks({
-            accumulators: vals,
-            ...streakModes,
-        })
 
-        return res.status(200).json({
-            scope,
-            players: playersOut,
-            decisiveMatchesStats,
-            leaderboards,
-            records,
-            activeStreaks,
-        })
+        if (includesPlayers) {
+            payload.players = playersOut
+            payload.decisiveMatchesStats = buildDecisiveMatchesStats({
+                matches,
+                playerNames: playerIndex,
+                allowedPlayerIds: tournamentId ? playerIdsSet : null,
+            })
+        }
+
+        if (includesLeaderboards) {
+            payload.leaderboards = buildLeaderboards({
+                players: playersOut,
+                accumulators: vals,
+            })
+        }
+
+        if (includesRecords) {
+            // Scoped (sólo partidos regulares): las rachas nuevas van en null.
+            // Global sin torneos: las de torneo se omiten.
+            const streakModes = {
+                knockout: tournamentId ? "null" : "compute",
+                tournament: tournamentId
+                    ? "null"
+                    : tournaments
+                    ? "compute"
+                    : "omit",
+            }
+            const matchRecords = selectMatchRecords(matches)
+            payload.records = buildRecords({
+                matchRecords,
+                accumulators: vals,
+                ...streakModes,
+            })
+            // Fuera de `records` para que el FE no lo itere como un récord más.
+            payload.activeStreaks = buildActiveStreaks({
+                accumulators: vals,
+                ...streakModes,
+            })
+        }
+
+        return res.status(200).json(payload)
     }
 }
 

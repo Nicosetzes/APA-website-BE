@@ -5,6 +5,8 @@ const getAssistantPendingMatches = require("./getAssistantPendingMatches")
 const getAssistantRecentMatches = require("./getAssistantRecentMatches")
 const getAssistantStandings = require("./getAssistantStandings")
 const getAllTimeTeams = require("./getAllTimeTeams")
+const getHeadToHeadDetail = require("./getHeadToHeadDetail")
+const getHeadToHeadSummary = require("./getHeadToHeadSummary")
 const getCalculatorByTournamentId = require("./getCalculatorByTournamentId")
 const getFixtureByTournamentId = require("./getFixtureByTournamentId")
 const getMatches = require("./getMatches")
@@ -17,6 +19,9 @@ const getPlayoffsPreviewByTournamentId = require("./getPlayoffsPreviewByTourname
 const getPlayoffsTableByTournamentId = require("./getPlayoffsTableByTournamentId")
 const getStandingsTableByTournamentId = require("./getStandingsTableByTournamentId")
 const getStatistics = require("./getStatistics")
+const getPlayerStatistics = require("./getPlayerStatistics")
+const getStatisticsLeaderboards = require("./getStatisticsLeaderboards")
+const getStatisticsRecords = require("./getStatisticsRecords")
 const getTournamentById = require("./getTournamentById")
 const getTournamentRecap = require("./getTournamentRecap")
 const getTournamentRecapContext = require("./getTournamentRecapContext")
@@ -53,6 +58,8 @@ module.exports = {
     getAssistantRecentMatches,
     getAssistantStandings,
     getAllTimeTeams,
+    getHeadToHeadDetail,
+    getHeadToHeadSummary,
     getCalculatorByTournamentId,
     getFixtureByTournamentId,
     getMatches,
@@ -64,6 +71,9 @@ module.exports = {
     getPlayoffsTableByTournamentId,
     getStandingsTableByTournamentId,
     getStatistics,
+    getPlayerStatistics,
+    getStatisticsLeaderboards,
+    getStatisticsRecords,
     getTournamentById,
     getTournamentRecap,
     getTournamentRecapContext,

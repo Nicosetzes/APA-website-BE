@@ -387,8 +387,118 @@ paths:
                         application/json:
                             schema:
                                 $ref: "#/components/schemas/ErrorResponse"
+    /api/statistics/head-to-head:
+        get:
+            tags: [Statistics]
+            summary: Resume el historial de cada par de jugadores
+            description: >-
+                Devuelve los jugadores y una entrada por cada par, ordenadas por
+                cantidad de partidos. Los empates por marcador se mantienen como
+                empates aunque el partido se haya definido por penales.
+            responses:
+                "200":
+                    description: Resumen de todos los cruces
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                required: [players, pairs]
+                                properties:
+                                    players:
+                                        type: array
+                                        items:
+                                            $ref: "#/components/schemas/EntityReference"
+                                    pairs:
+                                        type: array
+                                        items:
+                                            type: object
+                                            additionalProperties: true
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/statistics/head-to-head/{playerA}/{playerB}:
+        get:
+            tags: [Statistics]
+            summary: Detalla el historial entre dos jugadores
+            parameters:
+                - in: path
+                  name: playerA
+                  required: true
+                  schema:
+                      type: string
+                - in: path
+                  name: playerB
+                  required: true
+                  schema:
+                      type: string
+                - in: query
+                  name: stage
+                  schema:
+                      type: string
+                      enum: [regular, playin, playoff]
+                - in: query
+                  name: tournamentId
+                  schema:
+                      $ref: "#/components/schemas/MongoId"
+                - in: query
+                  name: dateFrom
+                  description: Primer día incluido, en calendario argentino
+                  schema:
+                      type: string
+                      format: date
+                - in: query
+                  name: dateTo
+                  description: Último día incluido, en calendario argentino
+                  schema:
+                      type: string
+                      format: date
+                - in: query
+                  name: limit
+                  schema:
+                      type: integer
+                      minimum: 1
+                      default: 5
+            responses:
+                "200":
+                    description: Balance, rachas, mejores victorias y partidos recientes
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                additionalProperties: true
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
+    /api/statistics/teams:
+        get:
+            tags: [Statistics]
+            summary: Top 10 de equipos por puntos y por efectividad
+            description: Alias público de `/api/statistics/all-time/teams`.
+            responses:
+                "200":
+                    description: Leaderboards históricos de equipos
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                additionalProperties: true
+                "500":
+                    description: Error interno de persistencia
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorResponse"
     /api/statistics/all-time/teams:
         get:
+            deprecated: true
             tags: [Statistics]
             summary: Top 10 de equipos por puntos y por efectividad
             description: |
@@ -427,6 +537,7 @@ paths:
                                 $ref: "#/components/schemas/ErrorResponse"
     /api/statistics/all-time/face-to-face:
         get:
+            deprecated: true
             tags: [Statistics]
             summary: Historial de cruces entre cada par de jugadores
             description: |
@@ -458,6 +569,57 @@ paths:
                         application/json:
                             schema:
                                 $ref: "#/components/schemas/ErrorResponse"
+    /api/statistics/players:
+        get:
+            tags: [Statistics]
+            summary: Estadísticas generales y de eliminación por jugador
+            parameters:
+                - in: query
+                  name: tournament
+                  schema:
+                      $ref: "#/components/schemas/MongoId"
+            responses:
+                "200":
+                    description: Jugadores y rendimiento en partidos de eliminación
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                additionalProperties: true
+    /api/statistics/leaderboards:
+        get:
+            tags: [Statistics]
+            summary: Clasificaciones estadísticas de jugadores
+            parameters:
+                - in: query
+                  name: tournament
+                  schema:
+                      $ref: "#/components/schemas/MongoId"
+            responses:
+                "200":
+                    description: Leaderboards de jugadores
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                additionalProperties: true
+    /api/statistics/records:
+        get:
+            tags: [Statistics]
+            summary: Récords y rachas activas
+            parameters:
+                - in: query
+                  name: tournament
+                  schema:
+                      $ref: "#/components/schemas/MongoId"
+            responses:
+                "200":
+                    description: Récords históricos y rachas activas
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                additionalProperties: true
     /api/statistics:
         get:
             tags: [Statistics]

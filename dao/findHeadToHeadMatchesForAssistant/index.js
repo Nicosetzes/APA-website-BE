@@ -1,4 +1,5 @@
 const matchesModel = require("./../models/matches.js")
+const { getArgentinaDayRange } = require("../../utils/argentinaDay")
 
 const PROJECTION =
     "tournament type group playoff_id leg playerP1 teamP1 scoreP1 playerP2 teamP2 scoreP2 outcome valid playedAt playedAtPrecision"
@@ -8,7 +9,14 @@ const PROJECTION =
 // dejaron afuera. `played: {$ne: false}` es el mismo criterio de "jugado" que
 // `GET /api/matches` (los partidos históricos pueden no tener el campo).
 // `stage` y `tournamentId` acotan el cruce a una etapa o a un torneo.
-const buildHeadToHeadFilter = ({ playerA, playerB, stage, tournamentId }) => {
+const buildHeadToHeadFilter = ({
+    playerA,
+    playerB,
+    stage,
+    tournamentId,
+    dateFrom,
+    dateTo,
+}) => {
     const conditions = [
         { played: { $ne: false } },
         {
@@ -21,6 +29,12 @@ const buildHeadToHeadFilter = ({ playerA, playerB, stage, tournamentId }) => {
 
     if (stage) conditions.push({ type: stage })
     if (tournamentId) conditions.push({ "tournament.id": tournamentId })
+    if (dateFrom || dateTo) {
+        const playedAt = {}
+        if (dateFrom) playedAt.$gte = getArgentinaDayRange(dateFrom).start
+        if (dateTo) playedAt.$lt = getArgentinaDayRange(dateTo).end
+        conditions.push({ playedAt })
+    }
 
     return { $and: conditions }
 }

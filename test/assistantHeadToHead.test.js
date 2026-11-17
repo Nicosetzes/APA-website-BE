@@ -279,8 +279,8 @@ test("each last match is compact, with names, teams and the round of a playoff",
         stage: "playoff",
         round: "round_of_16",
         leg: 1,
-        playerA: { team: "Nico FC", goals: 2 },
-        playerB: { team: "Max FC", goals: 1 },
+        playerA: { team: "Nico FC", teamId: 1, goals: 2 },
+        playerB: { team: "Max FC", teamId: 2, goals: 1 },
         winner: "Nico",
     })
 })

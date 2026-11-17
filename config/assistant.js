@@ -72,7 +72,7 @@ const buildStandingsViewPath = (tournamentId) =>
 const buildHeadToHeadViewPath = (
     playerAId,
     playerBId,
-    { stage, tournamentId } = {}
+    { stage, tournamentId, dateFrom, dateTo } = {}
 ) => {
     const params = [
         `player1=${encodeURIComponent(playerAId)}`,
@@ -82,6 +82,8 @@ const buildHeadToHeadViewPath = (
     if (stage) params.push(`type=${encodeURIComponent(stage)}`)
     if (tournamentId)
         params.push(`tournamentId=${encodeURIComponent(tournamentId)}`)
+    if (dateFrom) params.push(`dateFrom=${encodeURIComponent(dateFrom)}`)
+    if (dateTo) params.push(`dateTo=${encodeURIComponent(dateTo)}`)
 
     return `/matches?${params.join("&")}`
 }

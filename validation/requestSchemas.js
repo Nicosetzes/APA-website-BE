@@ -567,6 +567,30 @@ module.exports = {
         query: emptyObject,
         body: emptyObject,
     },
+    getHeadToHeadSummary: {
+        params: emptyObject,
+        query: emptyObject,
+        body: emptyObject,
+    },
+    getHeadToHeadDetail: {
+        params: Joi.object({
+            playerA: assistantPlayerId.required(),
+            playerB: assistantPlayerId.invalid(Joi.ref("playerA")).required(),
+        }).unknown(false),
+        query: ratingsPeriodQuery({
+            stage: Joi.string()
+                .valid(...PENDING_STAGES)
+                .optional(),
+            tournamentId: mongoId.optional(),
+            dateFrom: calendarDate.optional(),
+            dateTo: calendarDate.optional(),
+            limit: Joi.number()
+                .integer()
+                .min(1)
+                .default(DEFAULT_ASSISTANT_HEAD_TO_HEAD_LIMIT),
+        }),
+        body: emptyObject,
+    },
     getUsers: {
         params: emptyObject,
         query: emptyObject,
