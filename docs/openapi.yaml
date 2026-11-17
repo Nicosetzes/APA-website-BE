@@ -646,7 +646,9 @@ paths:
                 `status=finalized` va del más viejo al más nuevo, con los no
                 empezados al final. Desempate siempre por `_id` desc. Cada
                 torneo trae `startedAt`, `closedAt` y sus precisiones (sin
-                `createdAt` ni `updatedAt`).
+                `createdAt` ni `updatedAt`). Las respuestas para
+                `status=finalized` también incluyen `format` para que los
+                clientes puedan identificar el formato del torneo.
             parameters:
                 - in: query
                   name: status

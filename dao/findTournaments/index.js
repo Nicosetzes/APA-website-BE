@@ -39,7 +39,7 @@ const findTournaments = async (legacy, status) => {
         projection = "cloudinary_id name ongoing outcome format playoffMode"
     } else if (status === "finalized") {
         filter = { ongoing: false, valid: { $ne: false } }
-        projection = "name cloudinary_id outcome"
+        projection = "name cloudinary_id outcome format"
         direction = "asc"
     } else if (status === "active") {
         filter = { ongoing: true, valid: { $ne: false } }

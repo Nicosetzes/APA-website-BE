@@ -155,6 +155,6 @@ test("finalized lists go by startedAt asc, ties by _id desc, not-started last", 
     ])
     assert.equal(
         projections[0],
-        "name cloudinary_id outcome startedAt startedAtPrecision closedAt closedAtPrecision"
+        "name cloudinary_id outcome format startedAt startedAtPrecision closedAt closedAtPrecision"
     )
 })
