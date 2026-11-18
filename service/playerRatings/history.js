@@ -344,6 +344,7 @@ const buildTournamentHistoryPayload = ({
             ratingChange += raw.delta
         }
         const endMatches = last.point.games
+        const outsideChange = last.raw.rating - first.side.before - ratingChange
 
         rows.push({
             rating: last.raw.rating,
@@ -359,6 +360,7 @@ const buildTournamentHistoryPayload = ({
                 end: { rating: round(last.raw.rating), matches: endMatches },
                 summary: {
                     ratingChange: round(ratingChange),
+                    outsideChange: round(outsideChange) || 0,
                     ...findExtremes(first.side.before, entries),
                     matchesInPeriod: entries.length,
                     record,

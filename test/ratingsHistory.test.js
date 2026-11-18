@@ -969,6 +969,31 @@ test("torneo: ratingChange es la suma de los deltas del torneo, no end - start",
     const a = row(payload, "a")
     near(a.summary.ratingChange, a.end.rating - 1500)
 })
+test("torneo: outsideChange es lo que movieron los partidos ajenos al torneo en el medio", () => {
+    const payload = tournamentFor(T1)
+    for (const player of payload.data.players) {
+        const start = player.start ? player.start.rating : 1500
+        near(
+            player.summary.ratingChange + player.summary.outsideChange,
+            player.end.rating - start,
+            player.player.id
+        )
+    }
+    // C jugó T2 entre sus partidos de T1 (empate con D en el partido 4).
+    const c = row(payload, "c")
+    assert.ok(Math.abs(c.summary.outsideChange) > 0.2)
+    // A y B solo jugaron T1 entre su primer y su último partido de T1 (el
+    // partido de A contra E es posterior).
+    assert.equal(row(payload, "a").summary.outsideChange, 0)
+    assert.equal(row(payload, "b").summary.outsideChange, 0)
+    assert.equal(Object.keys(c.summary)[1], "outsideChange")
+})
+test("período: no trae outsideChange", () => {
+    const payload = historyFor(TOURNAMENTS_SCENARIO, ALL)
+    for (const player of payload.data.players) {
+        assert.equal("outsideChange" in player.summary, false)
+    }
+})
 
 test("torneo: posiciones nulas, récord, extremos, provisional y upsets solo del torneo", () => {
     const payload = tournamentFor(T1)

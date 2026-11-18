@@ -1899,7 +1899,11 @@ paths:
                 debuta) y `end` el rating global tras el último;
                 `summary.ratingChange` es la suma de los cambios de los
                 partidos del torneo (puede diferir de `end - start` si el
-                jugador jugó otros torneos en el medio); `position`,
+                jugador jugó otros torneos en el medio) y
+                `summary.outsideChange` es esa diferencia, `end - start -
+                ratingChange` (lo que movieron los partidos ajenos al torneo
+                jugados entre el primero y el último del jugador; solo en
+                modo torneo); `position`,
                 `previousPosition` y `positionChange` son `null` porque no hay
                 un instante común para rankear. `dateFrom` y `dateTo` de la
                 respuesta son los días argentinos del primer y último partido
@@ -3434,7 +3438,18 @@ components:
                     properties:
                         ratingChange:
                             type: number
-                            description: Cierre menos inicio (o menos el rating inicial si debuta)
+                            description: >-
+                                Período: cierre menos inicio (o menos el rating
+                                inicial si debuta). Torneo: suma de los cambios
+                                de los partidos del torneo.
+                        outsideChange:
+                            type: number
+                            description: >-
+                                Solo en modo torneo. Cambio de rating por
+                                partidos ajenos al torneo jugados entre el primer
+                                y el último partido del jugador en el torneo:
+                                `end - start - ratingChange` (`start` es el
+                                rating inicial si debuta). 1 decimal.
                         min:
                             $ref: "#/components/schemas/RatingHistoryExtreme"
                         max:
