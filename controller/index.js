@@ -49,6 +49,7 @@ const getRecapContext = require("./getRecapContext")
 const getRatings = require("./getRatings")
 const getRatingsPeriod = require("./getRatingsPeriod")
 const getRatingsHistory = require("./getRatingsHistory")
+const getRatingsReigns = require("./getRatingsReigns")
 
 module.exports = {
     getAllTimeFaceToFace,
@@ -102,5 +103,6 @@ module.exports = {
     getRatings,
     getRatingsPeriod,
     getRatingsHistory,
+    getRatingsReigns,
     putCompleteTournamentById,
 }

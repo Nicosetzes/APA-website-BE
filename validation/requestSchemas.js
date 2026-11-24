@@ -374,6 +374,11 @@ module.exports = {
         }),
         body: emptyObject,
     },
+    getRatingsReigns: {
+        params: emptyObject,
+        query: emptyObject,
+        body: emptyObject,
+    },
     getAssistantHeadToHead: {
         params: emptyObject,
         query: Joi.object({

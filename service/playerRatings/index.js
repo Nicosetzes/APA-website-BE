@@ -268,20 +268,23 @@ const snapshotBefore = (events, cutoffMs, initialRating) => {
 
 // Ranking de un snapshot: rating descendente y, a igual rating, más partidos y
 // luego nombre. Sólo entran los jugadores con algún partido.
+// Orden del ranking: rating, después partidos jugados y después nombre. Lo
+// comparten `rankPlayers` y las posiciones partido a partido (`leadership.js`).
+const compareRanking = (a, b) =>
+    b.rating - a.rating ||
+    b.matches - a.matches ||
+    String(a.name).localeCompare(String(b.name))
+
 const rankPlayers = (snapshot) =>
     [...snapshot.values()]
         .filter((player) => player.matches > 0)
-        .sort(
-            (a, b) =>
-                b.rating - a.rating ||
-                b.matches - a.matches ||
-                String(a.name).localeCompare(String(b.name))
-        )
+        .sort(compareRanking)
         .map((player, index) => ({ ...player, position: index + 1 }))
 
 module.exports = {
     calculatePlayerRatings,
     compareChronologically,
+    compareRanking,
     expectedForMatch,
     expectedScore,
     isRateable,

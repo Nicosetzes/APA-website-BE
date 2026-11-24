@@ -13,6 +13,7 @@ const {
 const { getArgentinaToday } = require("../../utils/argentinaDay")
 const { eventProbability } = require("./eventProbability")
 const { findBiggestUpset } = require("./upsets")
+const { trackPeriodPositions } = require("./leadership")
 
 const emptyRecord = () => ({ wins: 0, draws: 0, losses: 0 })
 
@@ -257,6 +258,15 @@ const buildHistoryPayload = ({
 
     const { matchesTimeline, entriesById } = buildTimeline(events, names)
 
+    // Posiciones partido a partido y partidos en el #1: siempre sobre todos
+    // los jugadores, aunque se pida un subconjunto (`players`).
+    const { positionsById, leaderMatchesById } = trackPeriodPositions({
+        seed: previousRanking,
+        events,
+        provisionalMatches: config.provisionalMatches,
+        ids: currentRanking.map((player) => player.id),
+    })
+
     const selected = playerIds?.length ? new Set(playerIds) : null
 
     const players = currentRanking
@@ -292,8 +302,14 @@ const buildHistoryPayload = ({
                         : null,
                     ...findPlayerUpsets(entries),
                     provisional: player.matches < config.provisionalMatches,
+                    // Partidos del período después de los cuales fue #1 (ver
+                    // `leadership.js`).
+                    leaderMatches: leaderMatchesById.get(player.id) ?? 0,
                 },
                 points: entries.map((entry) => entry.point),
+                // Cambios de posición en el ranking `[{ x, position }]`, desde
+                // `x = 0` (`null` antes de debutar).
+                positions: positionsById.get(player.id) ?? [],
             }
         })
 
@@ -369,8 +385,11 @@ const buildTournamentHistoryPayload = ({
                     positionChange: null,
                     ...findPlayerUpsets(entries),
                     provisional: endMatches < config.provisionalMatches,
+                    // Sin instante común para rankear, no hay #1 por torneo.
+                    leaderMatches: null,
                 },
                 points: entries.map((entry) => entry.point),
+                positions: null,
             },
         })
     }

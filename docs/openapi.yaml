@@ -2052,6 +2052,59 @@ paths:
                                                     $ref: "#/components/schemas/RatingHistoryTournamentMark"
                 "400":
                     $ref: "#/components/responses/BadRequest"
+    /api/ratings/reigns:
+        get:
+            tags: [Ratings]
+            summary: Reinados en el #1 del Rating APA en toda la historia
+            description: >-
+                Un reinado es una racha de partidos APA (de cualquier jugador)
+                con el mismo jugador como #1. Reglas: un provisorio (menos de
+                `parameters.provisionalMatches` partidos) no puede ser #1;
+                mientras no hay #1, lo es quien queda solo arriba entre los no
+                provisorios (un empate en la cima no corona a nadie, así que el
+                inicio con todos en 1500 no cuenta); con #1, empatarlo no lo
+                destrona y hay que superarlo estrictamente. Lee todo el
+                historial de lo guardado en `rating-events` si está fresco y, si
+                no, en vivo, con el mismo resultado. Los partidos sin
+                `playedAt` no entran en la lista (cuentan en el estado inicial).
+                Sin parámetros.
+            responses:
+                "200":
+                    description: Reinados
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                properties:
+                                    success:
+                                        type: boolean
+                                    parameters:
+                                        type: object
+                                        description: Igual que en `/api/ratings/history`
+                                        additionalProperties: true
+                                    data:
+                                        type: object
+                                        properties:
+                                            current:
+                                                allOf:
+                                                    - $ref: "#/components/schemas/RatingReign"
+                                                nullable: true
+                                                description: El reinado vigente. `null` si nadie es #1.
+                                            longest:
+                                                type: array
+                                                description: >-
+                                                    Los reinados con más partidos (más de uno si
+                                                    empatan), en orden cronológico. Vacío si no
+                                                    hubo reinados.
+                                                items:
+                                                    $ref: "#/components/schemas/RatingReign"
+                                            reigns:
+                                                type: array
+                                                description: Todos los reinados, en orden cronológico.
+                                                items:
+                                                    $ref: "#/components/schemas/RatingReign"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
     /api/recaps/context:
         get:
             tags: [Recaps]
@@ -3499,11 +3552,141 @@ components:
                                 empates y penales no cuentan.
                         provisional:
                             type: boolean
+                        leaderMatches:
+                            type: integer
+                            nullable: true
+                            description: >-
+                                Partidos del período (de cualquier jugador)
+                                después de los cuales fue #1 del Rating APA.
+                                Un provisorio no puede ser #1 y empatar al #1
+                                no lo destrona: hay que superarlo. Quién es #1
+                                al inicio del período sale de `start`: el no
+                                provisorio de mayor rating (ante empate exacto,
+                                el orden del ranking). `null` en modo torneo.
                 points:
                     type: array
                     description: Un punto por partido del jugador en el período, en orden
                     items:
                         $ref: "#/components/schemas/RatingHistoryPoint"
+                positions:
+                    type: array
+                    nullable: true
+                    description: >-
+                        Cambios de posición en el ranking (el mismo orden que
+                        `/api/ratings`, con provisorios) para el gráfico de
+                        posiciones. Empieza siempre con `x = 0` (`position`
+                        `null` si todavía no debutó) y solo agrega una entrada
+                        cuando la posición cambia; entre dos entradas se
+                        mantiene. Se calcula sobre todos los jugadores aunque se
+                        filtre con `players`. `null` en modo torneo.
+                    items:
+                        type: object
+                        properties:
+                            x:
+                                type: integer
+                            position:
+                                type: integer
+                                nullable: true
+        RatingReign:
+            type: object
+            properties:
+                player:
+                    $ref: "#/components/schemas/RatingPlayer"
+                matches:
+                    type: integer
+                    description: >-
+                        Partidos APA (de cualquier jugador) después de los
+                        cuales fue #1. Cuenta el partido en que llegó al #1 y no
+                        el partido en que lo superaron.
+                startDate:
+                    type: string
+                    format: date-time
+                    nullable: true
+                    description: >-
+                        Fecha del partido en que llegó al #1. Las fechas de
+                        partidos viejos pueden ser aproximadas, pero el año es
+                        confiable.
+                endDate:
+                    type: string
+                    format: date-time
+                    nullable: true
+                    description: >-
+                        Fecha del partido en que lo superaron o, si sigue
+                        siendo #1, la del último partido.
+                isActive:
+                    type: boolean
+                dethronedBy:
+                    allOf:
+                        - $ref: "#/components/schemas/RatingPlayer"
+                    nullable: true
+                    description: Quién lo superó. `null` si sigue siendo #1.
+                startMatch:
+                    allOf:
+                        - $ref: "#/components/schemas/RatingReignMatch"
+                    nullable: true
+                    description: >-
+                        El partido en que llegó al #1. `null` si ya lo era en el
+                        estado inicial (partidos sin `playedAt`).
+                lastMatch:
+                    allOf:
+                        - $ref: "#/components/schemas/RatingReignMatch"
+                    nullable: true
+                    description: El último partido después del cual seguía siendo #1.
+                breakMatch:
+                    allOf:
+                        - $ref: "#/components/schemas/RatingReignMatch"
+                    nullable: true
+                    description: >-
+                        El partido en que lo superaron, aunque no lo haya
+                        jugado. `null` si sigue siendo #1.
+        RatingReignMatch:
+            type: object
+            description: >-
+                Partido de un reinado, sin perspectiva: puede no involucrar al
+                #1. Sale del evento de rating, no de los partidos.
+            properties:
+                matchId:
+                    type: string
+                date:
+                    type: string
+                    format: date-time
+                    nullable: true
+                datePrecision:
+                    type: string
+                    nullable: true
+                    enum: [exact, day, month, year, approx, null]
+                tournament:
+                    type: string
+                    nullable: true
+                type:
+                    type: string
+                    nullable: true
+                p1:
+                    $ref: "#/components/schemas/RatingReignMatchSide"
+                p2:
+                    $ref: "#/components/schemas/RatingReignMatchSide"
+                penalties:
+                    type: object
+                    nullable: true
+                    description: Tanda de penales si el empate se definió así.
+                    properties:
+                        p1:
+                            type: integer
+                        p2:
+                            type: integer
+        RatingReignMatchSide:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                team:
+                    allOf:
+                        - $ref: "#/components/schemas/RatingHistoryTeam"
+                    nullable: true
+                score:
+                    type: integer
         RecapTournamentContext:
             type: object
             properties:

@@ -17,7 +17,7 @@ const ratingEventsModel = require("./../models/ratingEvents.js")
 // `/api/ratings/period` no cambia.
 const RATING_EVENTS_RANGE_PROJECTION =
     "seq time matchId tournament type scoreP1 scoreP2 expectedP1 resultP1 delta p1.id p1.name p1.before p1.games p2.id p2.name p2.before p2.games fingerprint -_id"
-const RATING_EVENTS_HISTORY_PROJECTION = `${RATING_EVENTS_RANGE_PROJECTION} p1.team p1.teamId p2.team p2.teamId kind shootoutP1 shootoutP2 tournamentId`
+const RATING_EVENTS_HISTORY_PROJECTION = `${RATING_EVENTS_RANGE_PROJECTION} p1.team p1.teamId p2.team p2.teamId kind shootoutP1 shootoutP2 tournamentId playedAtPrecision`
 
 const isValidDate = (value) =>
     value instanceof Date && !Number.isNaN(value.getTime())

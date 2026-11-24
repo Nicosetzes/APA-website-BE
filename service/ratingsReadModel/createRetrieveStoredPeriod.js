@@ -60,6 +60,7 @@ const near = (a, b) => Math.abs(a - b) <= NUMERIC_TOLERANCE
 const isValidTeamId = (value) =>
     isFiniteNumber(value) || isNonEmptyString(value)
 const KINDS = new Set(["win", "advance"])
+const PRECISIONS = new Set(["exact", "day", "month", "year", "approx"])
 
 const parseSide = (side, where) => {
     if (typeof side !== "object" || side === null) fail(`${where} no existe`)
@@ -130,6 +131,9 @@ const parsePeriodEvent = (doc) => {
         ...(KINDS.has(doc.kind) ? { kind: doc.kind } : {}),
         ...(isCount(doc.shootoutP1) && isCount(doc.shootoutP2)
             ? { shootoutP1: doc.shootoutP1, shootoutP2: doc.shootoutP2 }
+            : {}),
+        ...(PRECISIONS.has(doc.playedAtPrecision)
+            ? { playedAtPrecision: doc.playedAtPrecision }
             : {}),
     }
 }

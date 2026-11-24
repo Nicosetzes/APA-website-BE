@@ -466,10 +466,10 @@ test("period: la consulta A sin includeHistory usa la proyección de siempre y l
     const { RATING_EVENTS_RANGE_PROJECTION: base } = findRatingEventsInRange
     const history = findRatingEventsInRange.RATING_EVENTS_HISTORY_PROJECTION
 
-    // La del historial es la de siempre más exactamente ocho paths.
+    // La del historial es la de siempre más exactamente nueve paths.
     assert.equal(
         history,
-        `${base} p1.team p1.teamId p2.team p2.teamId kind shootoutP1 shootoutP2 tournamentId`
+        `${base} p1.team p1.teamId p2.team p2.teamId kind shootoutP1 shootoutP2 tournamentId playedAtPrecision`
     )
     assert.deepEqual(
         history.split(" ").filter((field) => !base.split(" ").includes(field)),
@@ -482,6 +482,7 @@ test("period: la consulta A sin includeHistory usa la proyección de siempre y l
             "shootoutP1",
             "shootoutP2",
             "tournamentId",
+            "playedAtPrecision",
         ]
     )
     for (const field of base.split(" ")) {

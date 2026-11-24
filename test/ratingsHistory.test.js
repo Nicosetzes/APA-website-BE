@@ -108,6 +108,7 @@ test("historial: forma de la respuesta y orden de las claves", () => {
         "end",
         "summary",
         "points",
+        "positions",
     ])
     assert.deepEqual(Object.keys(row(payload, "a").summary), [
         "ratingChange",
@@ -121,6 +122,7 @@ test("historial: forma de la respuesta y orden de las claves", () => {
         "biggestUpsetWon",
         "worstUpsetLost",
         "provisional",
+        "leaderMatches",
     ])
     assert.deepEqual(Object.keys(row(payload, "a").points[0]), [
         "seq",
@@ -1002,6 +1004,8 @@ test("torneo: posiciones nulas, récord, extremos, provisional y upsets solo del
         assert.equal(player.summary.position, null)
         assert.equal(player.summary.previousPosition, null)
         assert.equal(player.summary.positionChange, null)
+        assert.equal(player.summary.leaderMatches, null)
+        assert.equal(player.positions, null)
     }
     const a = row(payload, "a")
     // A en T1: gana a B (partido 1) y pierde con C (partido 3); el partido
