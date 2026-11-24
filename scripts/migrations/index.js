@@ -9,8 +9,11 @@
  * repo; quedan en el historial de git y en la colección `migrations`:
  *   001-m2-played-at, 002-m7-point-fixes, 003-m3-tournament-dates,
  *   004-m4-types y 005-m8-delete-cancelled-unplayed (commit 7444953);
- *   006-torneo-argentino-2021 (commit 3b57c93).
+ *   006-torneo-argentino-2021 (commit 3b57c93);
+ *   007-tournament-game-version (commit 4e668c5);
+ *   008-rename-liga-italo-espanola (nunca commiteada: solo queda en la
+ *   colección `migrations` y en su before-file).
  * Para deshacer una, alcanza con su before-file: `run.js --rollback <archivo>`.
- * La próxima migración nueva es la 008 (no reutilizar ids ya registrados).
+ * La próxima migración nueva es la 009 (no reutilizar ids ya registrados).
  */
-module.exports = [require("./007-tournament-game-version")]
+module.exports = []
