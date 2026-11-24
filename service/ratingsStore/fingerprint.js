@@ -8,8 +8,9 @@ const {
 } = require("./constants")
 
 // Huella de todo lo que, además de los partidos, determina lo que calcula el
-// motor: los parámetros de rating (incluida `version`), los overalls y
-// ediciones de equipos, la versión del motor y la del esquema guardado.
+// motor: los parámetros de rating (incluida `version`), los overall por equipo
+// y edición del juego, la versión del motor y la del esquema guardado. La
+// edición de cada torneo viaja en los partidos (`tournament.gameVersion`).
 //
 // NO depende de `computedAt` ni de los partidos. Tampoco del modelo de empate
 // (config/drawModel.js): es de predicción y no alimenta al motor, por eso no se

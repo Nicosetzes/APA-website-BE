@@ -59,12 +59,12 @@ const buildCandidates = (matches, players) => {
         {
             teamP1: real.teamA,
             teamP2: real.teamB,
-            tournament: { id: real.tournamentId, name: "Torneo real" },
+            tournament: { ...real.tournament },
         },
         {
             teamP1: real.teamA,
             teamP2: real.teamWithoutOverall,
-            tournament: { id: real.tournamentId, name: "Torneo real" },
+            tournament: { ...real.tournament },
         },
         {
             teamP1: real.teamA,

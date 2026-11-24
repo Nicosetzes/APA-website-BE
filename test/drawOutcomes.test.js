@@ -155,7 +155,7 @@ const SANTI = { id: "s", name: "Santi" }
 const LEO = { id: "l", name: "Leo" }
 const TEAM_A = { id: 1, name: "Equipo A" }
 const TEAM_B = { id: 2, name: "Equipo B" }
-const TOURNAMENT = { id: "x", name: "Torneo" }
+const TOURNAMENT = { id: "x", name: "Torneo", gameVersion: "FC26" }
 
 const OPTIONS = {
     initialRating: 1500,
@@ -165,7 +165,6 @@ const OPTIONS = {
     provisionalMatches: 3,
 }
 const teamStrength = createTeamStrengthLookup({
-    editionByTournament: { x: "FC26" },
     overallByTeamEdition: { "1|FC26": 85, "2|FC26": 75 },
 })
 const WITH_TEAMS = { ...OPTIONS, teamStrength }

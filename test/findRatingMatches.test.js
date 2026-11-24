@@ -25,6 +25,7 @@ test("la proyección incluye los campos que el motor guarda además del cálculo
         "teamP1.id",
         "teamP2.id",
         "tournament.id",
+        "tournament.gameVersion",
         "leg",
         "playedAtPrecision",
         "outcome.penalties",

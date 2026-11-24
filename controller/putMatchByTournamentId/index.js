@@ -2,6 +2,7 @@ const { HttpError } = require("../../middleware/httpErrors")
 const { classifySeriesMatch } = require("../../service/playoffSeries")
 const ratingSync = require("../../service/syncRatingsAfterWrite")
 const logger = require("../../utils/logger")
+const { toTournamentReference } = require("../../utils/tournamentReference")
 const withTransaction = require("../../utils/withTransaction")
 const {
     getPlayoffStartSize,
@@ -311,10 +312,7 @@ const createPutMatchByTournamentId = (dependencies = {}) => {
                     )
 
                     await updatePlayoff(
-                        {
-                            id: tournamentData.id,
-                            name: tournamentData.name,
-                        },
+                        toTournamentReference(tournamentData),
                         playoffMatches,
                         startSize,
                         options
@@ -328,11 +326,9 @@ const createPutMatchByTournamentId = (dependencies = {}) => {
                     options
                 )
 
+                // La referencia del partido ya trae la edición del juego.
                 await updatePlayin(
-                    {
-                        id: updatedMatch.tournament.id,
-                        name: updatedMatch.tournament.name,
-                    },
+                    toTournamentReference(updatedMatch.tournament),
                     playinMatches,
                     options
                 )

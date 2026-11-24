@@ -83,7 +83,7 @@ const pendingMatch = (n, playerP1, playerP2, extra = {}) =>
         played: false,
         teamP1: REAL.teamA,
         teamP2: REAL.teamB,
-        tournament: { id: REAL.tournamentId, name: "Torneo real" },
+        tournament: { ...REAL.tournament },
         ...extra,
     })
 

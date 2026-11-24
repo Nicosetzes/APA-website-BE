@@ -460,7 +460,6 @@ test("fingerprint: hex de 64, estable e independiente del orden de claves", () =
                 overallByTeamEdition: reversed(
                     teamRatings.overallByTeamEdition
                 ),
-                editionByTournament: reversed(teamRatings.editionByTournament),
             },
         }),
         fingerprint
@@ -488,9 +487,8 @@ test("fingerprint: cambia con cualquier parámetro, overall, edición o versión
     const withOverall = structuredClone(teamRatings)
     withOverall.overallByTeamEdition[overallKey] += 1
     assert.notEqual(computeFingerprint({ teamRatings: withOverall }), base)
-    const editionKey = Object.keys(teamRatings.editionByTournament)[0]
     const withEdition = structuredClone(teamRatings)
-    withEdition.editionByTournament[editionKey] = "FIFA 99"
+    withEdition.overallByTeamEdition["1|FIFA 99"] = 80
     assert.notEqual(computeFingerprint({ teamRatings: withEdition }), base)
     assert.notEqual(computeFingerprint({ engineVersion: "engine-2" }), base)
     assert.notEqual(

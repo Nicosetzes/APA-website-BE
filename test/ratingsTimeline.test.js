@@ -119,6 +119,7 @@ test("findRatingMatches pide solo lo que usa el motor y devuelve objetos planos"
         "teamP1.name",
         "teamP2.id",
         "teamP2.name",
+        "tournament.gameVersion",
         "tournament.id",
         "tournament.name",
         "type",

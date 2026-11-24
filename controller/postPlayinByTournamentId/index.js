@@ -1,4 +1,5 @@
 const { HttpError } = require("../../middleware/httpErrors")
+const { toTournamentReference } = require("../../utils/tournamentReference")
 const {
     orderMatchesFromTournamentById,
     originatePlayinByTournamentId,
@@ -183,7 +184,7 @@ const createPostPlayinByTournamentId = (dependencies = {}) => {
         const standings = calculateStandings(teams, regularMatches)
         const playinMatches = buildFirstRound(
             standings,
-            { id: tournamentData.id, name: tournamentData.name },
+            toTournamentReference(tournamentData),
             group
         )
         const playin = await originatePlayin(playinMatches)

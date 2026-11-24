@@ -1,10 +1,10 @@
 /*
  * Genera `data/teamRatings.json` (lo que carga el APA Rating 2.0 en runtime) a
- * partir de los CSV fuente de `data/`. No toca los CSV ni la base de datos.
+ * partir de `data/team-ratings.csv`. No toca el CSV ni la base de datos.
  *
  *   npm run build:team-ratings
  *
- * Si los CSV tienen errores no escribe nada y termina con código 1.
+ * Si el CSV tiene errores no escribe nada y termina con código 1.
  */
 
 const fs = require("fs")
@@ -25,7 +25,7 @@ const run = () => {
     if (errors.length) {
         for (const error of errors) console.error(`error: ${error}`)
         console.error(
-            `\n${errors.length} error(es) en los CSV: no se generó ${ARTIFACT_PATH}`
+            `\n${errors.length} error(es) en el CSV: no se generó ${ARTIFACT_PATH}`
         )
         process.exitCode = 1
         return
@@ -35,11 +35,6 @@ const run = () => {
     fs.writeFileSync(ARTIFACT_PATH, formatArtifact(artifact))
 
     console.log(`generado ${ARTIFACT_PATH}`)
-    console.log(
-        `  torneos con edición: ${
-            Object.keys(artifact.editionByTournament).length
-        }`
-    )
     console.log(
         `  pares equipo|edición con overall: ${
             Object.keys(artifact.overallByTeamEdition).length

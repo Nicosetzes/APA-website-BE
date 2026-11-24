@@ -30,13 +30,14 @@ const createPostTournaments = (dependencies = {}) => {
     const runInTransaction = dependencies.withTransaction || withTransaction
 
     return async (req, res) => {
-        const { cloudinary_id, format, name, players } = req.body
+        const { cloudinary_id, format, gameVersion, name, players } = req.body
         const playoffMode =
             format === "playoff" ? req.body.playoffMode || "single" : undefined
         const teams = withoutEmptyGroups(req.body.teams)
         const tournament = {
             cloudinary_id: cloudinary_id ?? null,
             format,
+            gameVersion,
             name,
             players,
             teams,

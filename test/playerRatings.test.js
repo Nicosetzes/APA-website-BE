@@ -32,7 +32,7 @@ const match = (playerP1, scoreP1, playerP2, scoreP2, playedAt, extra = {}) => ({
 })
 
 const SINGLE_SIDED = {
-    tournament: { id: "x", name: "Torneo" },
+    tournament: { id: "x", name: "Torneo", gameVersion: "FIFA 19" },
     teamP1: { id: 1, name: "Con rating" },
     teamP2: { id: 2, name: "Sin rating" },
 }
@@ -383,7 +383,6 @@ test("missing team data behaves exactly like 1.0", () => {
         "partido sin torneo ni equipos": { teamStrength: strengthOf },
         "overall de un solo equipo": {
             teamStrength: createTeamStrengthLookup({
-                editionByTournament: { x: "FIFA 19" },
                 overallByTeamEdition: { "1|FIFA 19": 90 },
             }),
         },
@@ -540,11 +539,8 @@ test("the default lookup reads real overalls from data/teamRatings.json", () => 
     const data = require("../data/teamRatings.json")
     const [key] = Object.keys(data.overallByTeamEdition)
     const [teamId, edition] = key.split("|")
-    const tournamentId = Object.keys(data.editionByTournament).find(
-        (id) => data.editionByTournament[id] === edition
-    )
     const overall = data.overallByTeamEdition[key]
-    const tournament = { id: tournamentId, name: "Real" }
+    const tournament = { id: "t-real", name: "Real", gameVersion: edition }
 
     for (const [id1, id2] of [
         [Number(teamId), Number(teamId)],

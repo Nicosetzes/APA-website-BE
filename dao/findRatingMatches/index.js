@@ -3,7 +3,8 @@ const tournamentsModel = require("./../models/tournaments.js")
 
 // Solo lo que lee el motor de ratings (service/playerRatings): quién jugó, con
 // qué equipo, el marcador, cuándo y en qué torneo. Se piden los subcampos que se
-// usan (id y name) y no los objetos enteros de jugador, equipo y torneo. Además
+// usan (id y name, y la edición del juego del torneo para el overall de cada
+// equipo) y no los objetos enteros de jugador, equipo y torneo. Además
 // del cálculo, el motor guarda en cada evento el tipo de cruce (`leg`), la
 // precisión de la fecha y la tanda de penales (`outcome.*`).
 const RATING_PROJECTION = [
@@ -19,6 +20,7 @@ const RATING_PROJECTION = [
     "scoreP2",
     "tournament.id",
     "tournament.name",
+    "tournament.gameVersion",
     "type",
     "leg",
     "playedAt",

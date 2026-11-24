@@ -474,6 +474,7 @@ test("tournament creation accepts a null group and rejects an invalid letter", a
         body: {
             format: "league",
             name: "Liga única",
+            gameVersion: "FC 27",
             players: [{ id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Nico" }],
             teams,
         },
@@ -522,6 +523,7 @@ test("tournament creation stores team ids as numbers", async () => {
         body: {
             format: "league",
             name: "Liga",
+            gameVersion: "FC 27",
             players: [{ id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Player" }],
             teams: [
                 {

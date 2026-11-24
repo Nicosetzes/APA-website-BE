@@ -1,30 +1,30 @@
 // Fuerza de equipo para el APA Rating 2.0: el "overall" de Sofifa que tenía cada
 // equipo en la edición del juego con que se jugó el torneo del partido.
 //
-// Los datos salen de `data/teamRatings.json`, un artefacto generado desde los CSV
-// de `data/` con `npm run build:team-ratings`. Se carga con un `require` plano
-// (sin `fs` ni variables de entorno) para que sea el mismo código en dev, CI y
-// Vercel: el empaquetado de Vercel sigue los `require` literales.
-
+// - La edición del juego de cada torneo está en la base: `gameVersion` del
+//   torneo, copiada a la referencia `tournament` de cada partido al crearlo
+//   (`utils/tournamentReference.js`). El lookup la lee de `match.tournament`.
+// - Los overall salen de `data/teamRatings.json`, un artefacto generado desde
+//   `data/team-ratings.csv` con `npm run build:team-ratings`. Se carga con un
+//   `require` plano (sin `fs` ni variables de entorno) para que sea el mismo
+//   código en dev, CI y Vercel: el empaquetado de Vercel sigue los `require`
+//   literales.
 const data = require("../../data/teamRatings.json")
-
 // Los ids pueden venir como número (equipos) o string (torneos, ObjectId):
 // se comparan siempre como string. `null`/`undefined` nunca se vuelven "undefined".
 const toKey = (value) =>
     value === undefined || value === null ? null : String(value)
-
 const toMap = (source, name) => {
     if (!source || typeof source !== "object" || Array.isArray(source)) {
         throw new Error(`teamRatings: "${name}" tiene que ser un objeto`)
     }
     return new Map(Object.entries(source))
 }
-
-const editionOf = (editions, match) => {
-    const tournamentId = toKey(match?.tournament?.id)
-    return tournamentId === null ? null : editions.get(tournamentId) ?? null
+// Edición del juego del torneo del partido, o `null` si no la trae.
+const editionOf = (match) => {
+    const edition = match?.tournament?.gameVersion
+    return typeof edition === "string" && edition.trim() ? edition.trim() : null
 }
-
 const overallOf = (overalls, teamId, edition) => {
     const id = toKey(teamId)
     if (id === null || edition === null) return null
@@ -33,43 +33,49 @@ const overallOf = (overalls, teamId, edition) => {
         ? overall
         : null
 }
-
-// Devuelve `(match) => { t1, t2 } | null`. Solo hay resultado si se conoce la
-// edición del torneo y el overall de los dos equipos; si falta cualquier dato el
+// Ediciones con al menos un overall cargado, de la más nueva a la más vieja
+// según su número de dos dígitos ("FC 27" antes que "FIFA 23").
+const editionNumber = (edition) => Number(/(\d+)\s*$/.exec(edition)?.[1] ?? -1)
+const listGameVersions = (overallByTeamEdition) =>
+    [
+        ...new Set(
+            Object.keys(overallByTeamEdition).map((key) =>
+                key.slice(key.lastIndexOf("|") + 1)
+            )
+        ),
+    ].sort(
+        (a, b) =>
+            editionNumber(b) - editionNumber(a) || (a < b ? -1 : a > b ? 1 : 0)
+    )
+// Devuelve `(match) => { t1, t2 } | null`. Solo hay resultado si el partido
+// trae la edición del juego de su torneo (`tournament.gameVersion`) y se conoce
+// el overall de los dos equipos en esa edición; si falta cualquier dato el
 // partido se calcula como en la 1.0 (sin término de equipo).
-const createTeamStrengthLookup = ({
-    editionByTournament,
-    overallByTeamEdition,
-} = {}) => {
-    const editions = toMap(editionByTournament, "editionByTournament")
+const createTeamStrengthLookup = ({ overallByTeamEdition } = {}) => {
     const overalls = toMap(overallByTeamEdition, "overallByTeamEdition")
-
     return (match) => {
-        const edition = editionOf(editions, match)
+        const edition = editionOf(match)
         const t1 = overallOf(overalls, match?.teamP1?.id, edition)
         const t2 = overallOf(overalls, match?.teamP2?.id, edition)
         return t1 === null || t2 === null ? null : { t1, t2 }
     }
 }
-
 const defaultTeamStrength = createTeamStrengthLookup(data)
-
+// Ediciones que se aceptan al crear un torneo (las que tienen overall cargado).
+const GAME_VERSIONS = Object.freeze(listGameVersions(data.overallByTeamEdition))
 // Cobertura de una lista de partidos: cuántos tienen overall de ambos equipos y
-// qué falta cargar (torneos sin edición y pares equipo|edición sin rating).
+// qué falta cargar (torneos cuyos partidos no traen edición y pares
+// equipo|edición sin rating).
 const summarizeCoverage = (matches, source = data) => {
-    const editions = toMap(source.editionByTournament, "editionByTournament")
     const overalls = toMap(source.overallByTeamEdition, "overallByTeamEdition")
-
     const tournaments = new Map()
     const pairs = new Map()
     let total = 0
     let covered = 0
-
     for (const match of matches) {
         total += 1
         const tournamentId = toKey(match?.tournament?.id)
-        const edition = editionOf(editions, match)
-
+        const edition = editionOf(match)
         if (tournamentId !== null && edition === null) {
             const entry = tournaments.get(tournamentId) ?? {
                 tournamentId,
@@ -79,7 +85,6 @@ const summarizeCoverage = (matches, source = data) => {
             entry.matches += 1
             tournaments.set(tournamentId, entry)
         }
-
         let complete = edition !== null
         for (const team of [match?.teamP1, match?.teamP2]) {
             if (edition === null) break
@@ -103,7 +108,6 @@ const summarizeCoverage = (matches, source = data) => {
         }
         if (complete) covered += 1
     }
-
     return {
         total,
         covered,
@@ -111,9 +115,10 @@ const summarizeCoverage = (matches, source = data) => {
         missingPairs: [...pairs.values()],
     }
 }
-
 module.exports = {
+    GAME_VERSIONS,
     createTeamStrengthLookup,
     defaultTeamStrength,
+    listGameVersions,
     summarizeCoverage,
 }

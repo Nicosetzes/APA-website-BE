@@ -1,9 +1,11 @@
 // Datos de fuerza de equipo para el APA Rating 2.0 (solo tooling).
 //
-// Fuente de verdad: `data/team-ratings.csv` y `data/tournament-editions.csv`.
-// De ahí sale `data/teamRatings.json`, el artefacto que carga el runtime con un
-// `require` plano (ver `service/playerRatings/teamStrength.js`). Este módulo lee
-// los CSV con `fs`, por eso lo usan los scripts y los tests pero nunca el runtime.
+// Fuente de verdad: `data/team-ratings.csv` (overall por equipo y edición del
+// juego). De ahí sale `data/teamRatings.json`, el artefacto que carga el runtime
+// con un `require` plano (ver `service/playerRatings/teamStrength.js`). Este
+// módulo lee el CSV con `fs`, por eso lo usan los scripts y los tests pero nunca
+// el runtime. La edición de cada torneo no está acá: es el campo `gameVersion`
+// del torneo en la base.
 
 const fs = require("fs")
 const path = require("path")
@@ -11,7 +13,6 @@ const prettier = require("prettier")
 
 const DATA_DIR = path.join(__dirname, "..", "..", "data")
 const TEAM_RATINGS_CSV = path.join(DATA_DIR, "team-ratings.csv")
-const TOURNAMENT_EDITIONS_CSV = path.join(DATA_DIR, "tournament-editions.csv")
 const ARTIFACT_PATH = path.join(DATA_DIR, "teamRatings.json")
 
 const TEAM_HEADERS = [
@@ -25,17 +26,6 @@ const TEAM_HEADERS = [
     "midfield",
     "defence",
     "capturedAt",
-]
-const TOURNAMENT_HEADERS = [
-    "tournamentId",
-    "tournamentName",
-    "format",
-    "startedAt",
-    "firstMatchAt",
-    "lastMatchAt",
-    "matches",
-    "inexactDates",
-    "edition",
 ]
 const STAT_COLUMNS = ["overall", "attack", "midfield", "defence"]
 const MIN_STAT = 40
@@ -130,14 +120,8 @@ const parseCsv = (text) => {
     return rows
 }
 
-const readSources = (
-    paths = {
-        teams: TEAM_RATINGS_CSV,
-        tournaments: TOURNAMENT_EDITIONS_CSV,
-    }
-) => ({
+const readSources = (paths = { teams: TEAM_RATINGS_CSV }) => ({
     teamRows: parseCsv(fs.readFileSync(paths.teams, "utf8")),
-    tournamentRows: parseCsv(fs.readFileSync(paths.tournaments, "utf8")),
 })
 
 const isRealDate = (value) => {
@@ -160,9 +144,9 @@ const sameHeaders = (rows, expected) =>
 // estadísticas: se avisa y no entra al artefacto (esos partidos usan la 1.0).
 const isEmptyTeamRow = (row) => STAT_COLUMNS.every((name) => row[name] === "")
 
-// Valida los dos CSV. `errors` impiden generar el artefacto; `warnings` solo
-// avisan (datos que parecen raros pero son posibles).
-const validateSources = ({ teamRows, tournamentRows }) => {
+// Valida el CSV. `errors` impiden generar el artefacto; `warnings` solo avisan
+// (datos que parecen raros pero son posibles).
+const validateSources = ({ teamRows }) => {
     const errors = []
     const warnings = []
 
@@ -173,16 +157,8 @@ const validateSources = ({ teamRows, tournamentRows }) => {
             )}`
         )
     }
-    if (!sameHeaders(tournamentRows, TOURNAMENT_HEADERS)) {
-        errors.push(
-            `tournament-editions.csv: encabezados inesperados, se esperaba ${TOURNAMENT_HEADERS.join(
-                ","
-            )}`
-        )
-    }
     if (errors.length) return { errors, warnings }
 
-    const teamEditions = new Set()
     const seen = new Map()
     for (const row of teamRows) {
         const label = `team-ratings.csv l.${row.line} (${row.teamName}, ${row.edition})`
@@ -232,7 +208,6 @@ const validateSources = ({ teamRows, tournamentRows }) => {
         }
         if (!complete) continue
 
-        teamEditions.add(row.edition)
         const mean =
             (Number(row.attack) + Number(row.midfield) + Number(row.defence)) /
             3
@@ -247,57 +222,19 @@ const validateSources = ({ teamRows, tournamentRows }) => {
         }
     }
 
-    const tournamentIds = new Set()
-    const tournamentEditions = new Set()
-    for (const row of tournamentRows) {
-        const label = `tournament-editions.csv l.${row.line} (${row.tournamentName})`
-        const error = (message) => errors.push(`${label}: ${message}`)
-
-        if (!/^[0-9a-f]{24}$/i.test(row.tournamentId)) {
-            error(`tournamentId inválido: "${row.tournamentId}"`)
-        } else if (tournamentIds.has(row.tournamentId)) {
-            error(`tournamentId duplicado: ${row.tournamentId}`)
-        }
-        tournamentIds.add(row.tournamentId)
-
-        if (!row.edition) {
-            error("sin edición")
-        } else if (!teamEditions.has(row.edition)) {
-            error(
-                `la edición "${row.edition}" no tiene equipos con rating en team-ratings.csv`
-            )
-        } else {
-            tournamentEditions.add(row.edition)
-        }
-    }
-
-    for (const edition of teamEditions) {
-        if (!tournamentEditions.has(edition)) {
-            warnings.push(
-                `la edición "${edition}" tiene equipos pero ningún torneo la usa`
-            )
-        }
-    }
-
     return { errors, warnings }
 }
 
 const byKey = ([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)
 
 // Artefacto que consume el runtime. Claves ordenadas y sin fechas para que
-// regenerarlo sin cambios en los CSV dé exactamente el mismo contenido.
-const buildArtifact = ({ teamRows, tournamentRows }) => {
-    const editionByTournament = tournamentRows
-        .filter((row) => row.edition)
-        .map((row) => [row.tournamentId, row.edition])
+// regenerarlo sin cambios en el CSV dé exactamente el mismo contenido.
+const buildArtifact = ({ teamRows }) => {
     const overallByTeamEdition = teamRows
         .filter((row) => row.overall !== "")
         .map((row) => [`${row.teamId}|${row.edition}`, Number(row.overall)])
 
     return {
-        editionByTournament: Object.fromEntries(
-            editionByTournament.sort(byKey)
-        ),
         overallByTeamEdition: Object.fromEntries(
             overallByTeamEdition.sort(byKey)
         ),
@@ -320,8 +257,6 @@ module.exports = {
     STAT_COLUMNS,
     TEAM_HEADERS,
     TEAM_RATINGS_CSV,
-    TOURNAMENT_EDITIONS_CSV,
-    TOURNAMENT_HEADERS,
     buildArtifact,
     formatArtifact,
     parseCsv,

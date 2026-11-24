@@ -14,6 +14,7 @@ const {
     PENDING_STAGES,
 } = require("../config/assistant")
 const { assertDirectPlayoffGeometry } = require("../service/playoffSeries")
+const { GAME_VERSIONS } = require("../service/playerRatings/teamStrength")
 
 const emptyObject = Joi.object({}).unknown(false)
 
@@ -80,6 +81,12 @@ const tournamentBody = Joi.object({
         otherwise: Joi.forbidden(),
     }),
     name: Joi.string().trim().min(1).max(100).required(),
+    // Edición del juego: solo las que tienen overall cargado en
+    // data/team-ratings.csv, así ningún torneo nuevo queda sin término de equipo.
+    gameVersion: Joi.string()
+        .trim()
+        .valid(...GAME_VERSIONS)
+        .required(),
     players: Joi.array().items(entityReference).min(1).required(),
     teams: Joi.array()
         .items(

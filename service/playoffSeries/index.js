@@ -1,5 +1,6 @@
 const { getPlayoffRoundIdRange } = require("../../config/playoffFormats")
 const { HttpError } = require("../../middleware/httpErrors")
+const { toTournamentReference } = require("../../utils/tournamentReference")
 
 const PLAYOFF_MODES = ["single", "two_legged"]
 const VALID_LEGS = [1, 2, 3]
@@ -482,10 +483,9 @@ const buildLegsForTie = ({
     unitB,
     seriesRevision = 0,
 }) => {
-    const tournamentRef = {
+    const tournamentRef = toTournamentReference(tournament, {
         id: String(tournament._id || tournament.id),
-        name: tournament.name,
-    }
+    })
     const base = {
         type: "playoff",
         tournament: tournamentRef,

@@ -13,42 +13,29 @@ const {
     validateSources,
 } = require("../scripts/lib/teamRatingsData")
 const {
+    GAME_VERSIONS,
     createTeamStrengthLookup,
     defaultTeamStrength,
+    listGameVersions,
     summarizeCoverage,
 } = require("../service/playerRatings/teamStrength")
 
 const TEAM_HEADER =
     "teamId,teamName,edition,matches,tournaments,overall,attack,midfield,defence,capturedAt"
-const TOURNAMENT_HEADER =
-    "tournamentId,tournamentName,format,startedAt,firstMatchAt,lastMatchAt,matches,inexactDates,edition"
-
 const TOURNAMENT_ID = "64697ac9d542ff4ada3038d3"
 
 const teamCsv = (...lines) => [TEAM_HEADER, ...lines].join("\n")
-const tournamentCsv = (...lines) => [TOURNAMENT_HEADER, ...lines].join("\n")
-const tournamentLine = (
-    id = TOURNAMENT_ID,
-    edition = "FIFA 19",
-    name = "Chempions"
-) => `${id},${name},champions_league,2019-07-09,,,10,0,${edition}`
-
-const validate = (teams, tournaments) =>
-    validateSources({
-        teamRows: parseCsv(teams),
-        tournamentRows: parseCsv(tournaments),
-    })
+const validate = (teams) => validateSources({ teamRows: parseCsv(teams) })
 
 const GOOD_TEAM = "157,Bayern Munich,FIFA 19,12,1,85,85,85,85,2019-09-11"
 
-test("el JSON generado coincide con los CSV (si falla: npm run build:team-ratings)", () => {
+test("el JSON generado coincide con el CSV (si falla: npm run build:team-ratings)", () => {
     const expected = buildArtifact(readSources())
     const committed = require("../data/teamRatings.json")
-
     assert.deepEqual(
         committed,
         expected,
-        "data/teamRatings.json está desactualizado respecto de los CSV: correr `npm run build:team-ratings`"
+        "data/teamRatings.json está desactualizado respecto del CSV: correr `npm run build:team-ratings`"
     )
 })
 
@@ -60,7 +47,12 @@ test("el JSON generado tiene el formato de Prettier", () => {
     )
 })
 
-test("los CSV reales no tienen errores de validación", () => {
+test("el JSON solo trae overall por equipo y edición (la edición de cada torneo está en la base)", () => {
+    const data = require("../data/teamRatings.json")
+    assert.deepEqual(Object.keys(data), ["overallByTeamEdition"])
+})
+
+test("el CSV real no tiene errores de validación", () => {
     const { errors } = validateSources(readSources())
     assert.deepEqual(errors, [])
 })
@@ -109,30 +101,17 @@ test("buildArtifact ordena las claves y omite los overall vacíos", () => {
                 "5,Vacio,FIFA 19,1,1,,,,,2019-09-11"
             )
         ),
-        tournamentRows: parseCsv(
-            tournamentCsv(
-                tournamentLine("bbbbbbbbbbbbbbbbbbbbbbbb", "FIFA 19"),
-                tournamentLine("aaaaaaaaaaaaaaaaaaaaaaaa", "FIFA 19")
-            )
-        ),
     })
-
+    assert.deepEqual(Object.keys(artifact), ["overallByTeamEdition"])
     assert.deepEqual(Object.keys(artifact.overallByTeamEdition), [
         "157|FIFA 19",
         "9|FIFA 19",
-    ])
-    assert.deepEqual(Object.keys(artifact.editionByTournament), [
-        "aaaaaaaaaaaaaaaaaaaaaaaa",
-        "bbbbbbbbbbbbbbbbbbbbbbbb",
     ])
     assert.equal(artifact.overallByTeamEdition["157|FIFA 19"], 85)
 })
 
 test("el validador acepta datos correctos", () => {
-    const { errors, warnings } = validate(
-        teamCsv(GOOD_TEAM),
-        tournamentCsv(tournamentLine())
-    )
+    const { errors, warnings } = validate(teamCsv(GOOD_TEAM))
     assert.deepEqual(errors, [])
     assert.deepEqual(warnings, [])
 })
@@ -185,12 +164,8 @@ test("el validador detecta duplicados, rangos, fechas y filas parciales", () => 
             "teamId no entero",
         ],
     ]
-
     for (const [lines, pattern, label] of cases) {
-        const { errors } = validate(
-            teamCsv(...lines),
-            tournamentCsv(tournamentLine())
-        )
+        const { errors } = validate(teamCsv(...lines))
         assert.ok(
             errors.some((error) => pattern.test(error)),
             `${label}: ${JSON.stringify(errors)}`
@@ -200,20 +175,13 @@ test("el validador detecta duplicados, rangos, fechas y filas parciales", () => 
 
 test("una fila totalmente vacía es solo un aviso y no entra al artefacto", () => {
     const teams = teamCsv(GOOD_TEAM, "5,Sin datos,FIFA 19,1,1,,,,,2019-09-11")
-    const { errors, warnings } = validate(
-        teams,
-        tournamentCsv(tournamentLine())
-    )
-
+    const { errors, warnings } = validate(teams)
     assert.deepEqual(errors, [])
     assert.equal(warnings.length, 1)
     assert.match(warnings[0], /Sin datos/)
     assert.deepEqual(
         Object.keys(
-            buildArtifact({
-                teamRows: parseCsv(teams),
-                tournamentRows: parseCsv(tournamentCsv(tournamentLine())),
-            }).overallByTeamEdition
+            buildArtifact({ teamRows: parseCsv(teams) }).overallByTeamEdition
         ),
         ["157|FIFA 19"]
     )
@@ -221,85 +189,40 @@ test("una fila totalmente vacía es solo un aviso y no entra al artefacto", () =
 
 test("el validador avisa si el overall se aleja del promedio de las líneas", () => {
     const { errors, warnings } = validate(
-        teamCsv("157,Bayern Munich,FIFA 19,12,1,85,75,75,75,2019-09-11"),
-        tournamentCsv(tournamentLine())
+        teamCsv("157,Bayern Munich,FIFA 19,12,1,85,75,75,75,2019-09-11")
     )
     assert.deepEqual(errors, [])
     assert.equal(warnings.length, 1)
     assert.match(warnings[0], /lejos del promedio/)
 })
 
-test("el validador exige edición conocida en cada torneo y avisa de ediciones sin torneo", () => {
-    const withoutEdition = validate(
-        teamCsv(GOOD_TEAM),
-        tournamentCsv(tournamentLine(TOURNAMENT_ID, ""))
-    )
-    assert.ok(withoutEdition.errors.some((error) => /sin edición/.test(error)))
-
-    const unknownEdition = validate(
-        teamCsv(GOOD_TEAM),
-        tournamentCsv(tournamentLine(TOURNAMENT_ID, "FC 27"))
-    )
-    assert.ok(
-        unknownEdition.errors.some((error) =>
-            /"FC 27" no tiene equipos/.test(error)
-        )
-    )
-
-    const unusedEdition = validate(
-        teamCsv(
-            GOOD_TEAM,
-            "157,Bayern Munich,FC 25,12,1,86,86,86,86,2025-09-11"
-        ),
-        tournamentCsv(tournamentLine())
-    )
-    assert.deepEqual(unusedEdition.errors, [])
-    assert.ok(
-        unusedEdition.warnings.some((warning) =>
-            /"FC 25" tiene equipos pero ningún torneo/.test(warning)
-        )
-    )
-
-    const duplicated = validate(
-        teamCsv(GOOD_TEAM),
-        tournamentCsv(tournamentLine(), tournamentLine())
-    )
-    assert.ok(
-        duplicated.errors.some((error) => /tournamentId duplicado/.test(error))
-    )
-
-    const badId = validate(
-        teamCsv(GOOD_TEAM),
-        tournamentCsv(tournamentLine("abc"))
-    )
-    assert.ok(badId.errors.some((error) => /tournamentId inválido/.test(error)))
-})
-
 test("el validador detecta encabezados distintos de los esperados", () => {
     const { errors } = validateSources({
         teamRows: parseCsv("teamId,teamName\n1,A"),
-        tournamentRows: parseCsv(tournamentCsv(tournamentLine())),
     })
     assert.ok(errors.some((error) => /encabezados inesperados/.test(error)))
 })
 
 const DATA = {
-    editionByTournament: { [TOURNAMENT_ID]: "FIFA 19" },
     overallByTeamEdition: { "157|FIFA 19": 85, "197|FIFA 19": 77 },
 }
 const lookup = createTeamStrengthLookup(DATA)
 const matchOf = (extra = {}) => ({
-    tournament: { id: TOURNAMENT_ID, name: "Chempions" },
+    tournament: {
+        id: TOURNAMENT_ID,
+        name: "Chempions",
+        gameVersion: "FIFA 19",
+    },
     teamP1: { id: 157, name: "Bayern Munich" },
     teamP2: { id: 197, name: "PSV Eindhoven" },
     ...extra,
 })
 
-test("el lookup devuelve los overall de ambos equipos", () => {
+test("el lookup devuelve los overall de ambos equipos según tournament.gameVersion", () => {
     assert.deepEqual(lookup(matchOf()), { t1: 85, t2: 77 })
 })
 
-test("el lookup compara ids como string: número, string y objeto con toString", () => {
+test("el lookup compara ids de equipo como string y recorta la edición", () => {
     assert.deepEqual(
         lookup(matchOf({ teamP1: { id: "157" }, teamP2: { id: "197" } })),
         { t1: 85, t2: 77 }
@@ -307,7 +230,7 @@ test("el lookup compara ids como string: número, string y objeto con toString",
     assert.deepEqual(
         lookup(
             matchOf({
-                tournament: { id: { toString: () => TOURNAMENT_ID } },
+                tournament: { id: TOURNAMENT_ID, gameVersion: " FIFA 19 " },
             })
         ),
         { t1: 85, t2: 77 }
@@ -316,9 +239,26 @@ test("el lookup compara ids como string: número, string y objeto con toString",
 
 test("el lookup devuelve null si falta cualquier dato", () => {
     assert.equal(
-        lookup(matchOf({ tournament: { id: "ffffffffffffffffffffffff" } })),
+        lookup(matchOf({ tournament: { id: TOURNAMENT_ID } })),
         null,
-        "torneo desconocido"
+        "torneo sin edición"
+    )
+    assert.equal(
+        lookup(
+            matchOf({ tournament: { id: TOURNAMENT_ID, gameVersion: "FC 27" } })
+        ),
+        null,
+        "edición sin overall de estos equipos"
+    )
+    assert.equal(
+        lookup(matchOf({ tournament: { id: TOURNAMENT_ID, gameVersion: "" } })),
+        null,
+        "edición vacía"
+    )
+    assert.equal(
+        lookup(matchOf({ tournament: { id: TOURNAMENT_ID, gameVersion: 19 } })),
+        null,
+        "edición que no es texto"
     )
     assert.equal(
         lookup(matchOf({ teamP2: { id: 999 } })),
@@ -341,7 +281,6 @@ test("el lookup devuelve null si falta cualquier dato", () => {
 
 test("el lookup ignora overall que no son números finitos", () => {
     const strict = createTeamStrengthLookup({
-        editionByTournament: DATA.editionByTournament,
         overallByTeamEdition: {
             "157|FIFA 19": "85",
             "197|FIFA 19": null,
@@ -356,16 +295,33 @@ test("el lookup ignora overall que no son números finitos", () => {
     )
 })
 
-test("el lookup exige objetos para armarse", () => {
-    assert.throws(() => createTeamStrengthLookup(), /editionByTournament/)
+test("el lookup exige un objeto para armarse", () => {
+    assert.throws(() => createTeamStrengthLookup(), /overallByTeamEdition/)
     assert.throws(
-        () =>
-            createTeamStrengthLookup({
-                editionByTournament: {},
-                overallByTeamEdition: [],
-            }),
+        () => createTeamStrengthLookup({ overallByTeamEdition: [] }),
         /overallByTeamEdition/
     )
+})
+
+test("listGameVersions ordena de la edición más nueva a la más vieja, sin repetir", () => {
+    assert.deepEqual(
+        listGameVersions({
+            "1|FIFA 19": 80,
+            "2|FC 27": 80,
+            "3|FIFA 23": 80,
+            "4|FC 27": 80,
+            "5|FC 24": 80,
+        }),
+        ["FC 27", "FC 24", "FIFA 23", "FIFA 19"]
+    )
+})
+
+test("GAME_VERSIONS sale del JSON real y arranca por la edición más nueva", () => {
+    const data = require("../data/teamRatings.json")
+    assert.deepEqual(GAME_VERSIONS, listGameVersions(data.overallByTeamEdition))
+    assert.equal(GAME_VERSIONS[0], "FC 27")
+    assert.ok(GAME_VERSIONS.includes("FIFA 19"))
+    assert.ok(Object.isFrozen(GAME_VERSIONS))
 })
 
 test("summarizeCoverage cuenta partidos cubiertos y lista lo que falta", () => {
@@ -378,7 +334,6 @@ test("summarizeCoverage cuenta partidos cubiertos y lista lo que falta", () => {
         }),
         { teamP1: { id: 157 } },
     ]
-
     const coverage = summarizeCoverage(matches, DATA)
     assert.equal(coverage.total, 5)
     assert.equal(coverage.covered, 2)
@@ -405,7 +360,6 @@ test("el runtime carga el JSON con un require plano, sin fs ni variables de ento
         ),
         "utf8"
     )
-
     assert.ok(source.includes('require("../../data/teamRatings.json")'))
     assert.ok(!/require\(["'](node:)?fs["']\)/.test(source))
     assert.ok(!source.includes("process.env"))
@@ -417,27 +371,26 @@ test("el lookup por defecto resuelve un par real tomado del JSON", () => {
     const data = require("../data/teamRatings.json")
     const [key, overall] = Object.entries(data.overallByTeamEdition)[0]
     const [teamId, edition] = key.split("|")
-    const tournamentId = Object.entries(data.editionByTournament).find(
-        ([, value]) => value === edition
-    )[0]
-
     const result = defaultTeamStrength({
-        tournament: { id: tournamentId },
+        tournament: { id: TOURNAMENT_ID, gameVersion: edition },
         teamP1: { id: Number(teamId) },
         teamP2: { id: String(teamId) },
     })
     assert.deepEqual(result, { t1: overall, t2: overall })
 })
 
-test("todos los torneos del CSV tienen edición en el JSON y viceversa", () => {
-    const { tournamentRows } = readSources()
-    const data = require("../data/teamRatings.json")
-    assert.equal(
-        Object.keys(data.editionByTournament).length,
-        tournamentRows.length
-    )
-    for (const row of tournamentRows) {
-        assert.equal(data.editionByTournament[row.tournamentId], row.edition)
+test("el lookup por defecto conoce los 25 equipos de FC 27", () => {
+    const fc27 = [
+        42, 529, 541, 50, 40, 530, 49, 33, 47, 66, 52, 34, 65, 746, 55, 531,
+        543, 533, 45, 63, 51, 35, 548, 36, 538,
+    ]
+    for (const id of fc27) {
+        const result = defaultTeamStrength({
+            tournament: { id: TOURNAMENT_ID, gameVersion: "FC 27" },
+            teamP1: { id },
+            teamP2: { id: 42 },
+        })
+        assert.ok(result, `falta el overall FC 27 del equipo ${id}`)
     }
 })
 

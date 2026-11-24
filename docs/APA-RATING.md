@@ -63,9 +63,10 @@ El término de equipo solo entra al puntaje esperado. El intercambio sigue siend
 
 ### Datos de fuerza de equipo
 
--   **Fuente de verdad:** `data/team-ratings.csv` (una fila por equipo y edición del juego: overall, ataque, medio, defensa, `capturedAt`) y `data/tournament-editions.csv` (qué edición del juego se usó en cada torneo). Hoy solo se usa `overall`; las otras tres columnas quedan guardadas para futuras versiones.
--   **Artefacto generado:** `data/teamRatings.json`, que sale de los CSV con `npm run build:team-ratings` (valida antes de escribir). El motor lo carga con un `require` plano, así que dev, tests y producción (Vercel) usan exactamente el mismo código y los mismos datos; no se leen CSV en runtime. Un test falla si el JSON está desactualizado respecto de los CSV.
--   **Control de calidad:** `npm run check:team-ratings` valida columnas, rangos (enteros de 40 a 99), fechas, duplicados, que cada torneo tenga edición y que el JSON esté sincronizado. Avisa si el overall se aleja más de 4 del promedio de las tres líneas. Con `-- --uri-env MONGO_URI_PROD` además lee (solo lectura) los partidos reales e informa torneos sin edición y pares equipo/edición sin rating.
+-   **Fuente de verdad de los overall:** `data/team-ratings.csv` (una fila por equipo y edición del juego: overall, ataque, medio, defensa, `capturedAt`). Hoy solo se usa `overall`; las otras tres columnas quedan guardadas para futuras versiones.
+-   **Edición de cada torneo:** el campo `gameVersion` del torneo en la base (por ejemplo `FC 27`). Se elige al crear el torneo (el FE propone la más nueva), solo se aceptan ediciones con overall cargado en el CSV y no se puede cambiar después. Al crear cada partido (fixture, play-in, playoff) se copia a su referencia `tournament.gameVersion`, y el motor la lee de ahí. Hasta el 2026-11-24 esto vivía en `data/tournament-editions.csv`; la migración `007-tournament-game-version` pasó esos 19 torneos a la base y el CSV se borró.
+-   **Artefacto generado:** `data/teamRatings.json` (`overallByTeamEdition`), que sale del CSV con `npm run build:team-ratings` (valida antes de escribir). El motor lo carga con un `require` plano, así que dev, tests y producción (Vercel) usan exactamente el mismo código y los mismos datos; no se leen CSV en runtime. Un test falla si el JSON está desactualizado respecto del CSV. Las ediciones que acepta la creación de torneos salen de este mismo JSON.
+-   **Control de calidad:** `npm run check:team-ratings` valida columnas, rangos (enteros de 40 a 99), fechas, duplicados y que el JSON esté sincronizado. Avisa si el overall se aleja más de 4 del promedio de las tres líneas. Con `-- --uri-env MONGO_URI_PROD` además lee (solo lectura) los partidos reales e informa torneos cuyos partidos no traen `tournament.gameVersion` y pares equipo/edición sin rating.
 -   **Qué valores se cargan:** la última sub-versión de Sofifa de cada edición del juego, con su fecha en `capturedAt` (una por fila).
 -   **Excepciones conocidas:**
     -   Lokomotiv Moscow, FIFA 22: `capturedAt` 2022-03-31. El equipo salió del juego por el conflicto Rusia-Ucrania, así que se usó la última sub-versión que lo incluía.
@@ -75,15 +76,18 @@ El término de equipo solo entra al puntaje esperado. El intercambio sigue siend
 
 ### Agregar un torneo o una edición nueva
 
-Hacerlo **antes del primer partido** del torneo nuevo:
+**Torneo nuevo de una edición ya cargada:** no hay que tocar nada en el repo. Se elige la versión del juego al crearlo en el FE y queda guardada en el torneo y en sus partidos.
 
-1. Definir la edición del juego en `data/tournament-editions.csv` para el nuevo `tournamentId` (columna `edition`, por ejemplo `FC 26`).
-2. Agregar a `data/team-ratings.csv` los equipos de esa edición que todavía no estén, con la última sub-versión de Sofifa y su `capturedAt`.
+**Edición nueva del juego** (hacerlo antes de crear el primer torneo con ella):
+
+1. Agregar a `data/team-ratings.csv` los equipos de esa edición (columna `edition`, por ejemplo `FC 28`), con la última sub-versión de Sofifa y su `capturedAt`. Los `teamId` son los de los partidos ya jugados (los mismos ids en todas las ediciones).
+2. Agregar la edición primera en `GAME_VERSIONS` de `src/utils/gameVersions.js` en el FE, así queda elegida por defecto.
 3. Correr `npm run build:team-ratings`.
 4. Correr `npm run check:team-ratings` (y, si se quiere, `npm run check:team-ratings -- --uri-env MONGO_URI_PROD` para ver torneos sin edición y pares sin rating en la base real).
-5. Commitear los CSV y `data/teamRatings.json` juntos.
+5. Commitear el CSV y `data/teamRatings.json` juntos y desplegar BE y FE.
+6. Como cambia el JSON cambia el fingerprint: correr `npm run recompute:ratings -- --apply` después del deploy.
 
-Se espera FC 27 en diciembre de 2026. Los datos que falten no rompen nada: esos partidos se calculan como en la 1.0 hasta que se completen.
+FC 27 se cargó el 2026-11-24 con 25 equipos (Premier League y LaLiga). Un equipo que no esté en el CSV no rompe nada: sus partidos se calculan como en la 1.0 hasta que se cargue.
 
 ### Qué no considera todavía
 

@@ -116,6 +116,12 @@ const tournamentsSchema = new mongoose.Schema(
             immutable: true,
             required: false,
         },
+        gameVersion: {
+            type: String,
+            trim: true,
+            immutable: true,
+            required: false,
+        },
         cloudinary_id: { type: String, require: false, max: 100 },
         groups: { type: Array, require: false, default: undefined, max: 8 },
         valid: { type: Boolean, require: false },
@@ -128,7 +134,6 @@ const tournamentsSchema = new mongoose.Schema(
             },
         },
         legacy: { type: Boolean, require: false, default: false },
-        // Fechas de inicio y cierre; sin default ni índice (ver utils/playedAt).
         startedAt: { type: Date, required: false },
         startedAtPrecision: {
             type: String,

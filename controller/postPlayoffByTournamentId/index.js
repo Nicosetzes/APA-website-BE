@@ -1,4 +1,5 @@
 const { HttpError } = require("../../middleware/httpErrors")
+const { toTournamentReference } = require("../../utils/tournamentReference")
 const { createPlayoffByTournamentId } = require("./../../dao")
 const { groupBy } = require("es-toolkit/array")
 const {
@@ -90,7 +91,7 @@ const createPostPlayoffByTournamentId = (dependencies = {}) => {
             )
         }
 
-        const { id, name, format, teams } = tournamentData
+        const { format, teams } = tournamentData
         if (!MANUAL_PLAYOFF_FORMATS.has(format)) {
             throw new HttpError(
                 422,
@@ -108,7 +109,7 @@ const createPostPlayoffByTournamentId = (dependencies = {}) => {
             )
         }
 
-        const tournamentReference = { id, name }
+        const tournamentReference = toTournamentReference(tournamentData)
         const regularMatches = await retrieveRegularMatches(tournament)
         const teamsByGroup = groupBy(teams, (entry) => entry.group)
         let playoff

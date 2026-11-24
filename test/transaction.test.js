@@ -139,6 +139,7 @@ test("playoff tournament creation shares one session and responds after commit",
         {
             body: {
                 format: "playoff",
+                gameVersion: "FC 27",
                 name: "Playoff",
                 players: [{ id: "player", name: "Player" }],
                 teams: [{ playoff_id: 1 }, { playoff_id: 1 }],
@@ -147,6 +148,7 @@ test("playoff tournament creation shares one session and responds after commit",
         response
     )
 
+    assert.equal(calls[0][1].gameVersion, "FC 27")
     assert.equal(calls[0][2].session, session)
     assert.equal(calls[1][1], createdTournament)
     assert.equal(calls[1][3].session, session)

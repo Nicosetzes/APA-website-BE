@@ -5,13 +5,13 @@
  *   npm run check:team-ratings -- --uri-env MONGO_URI_PROD
  *
  * Sin opciones es offline (no usa base de datos): valida `data/team-ratings.csv`
- * y `data/tournament-editions.csv` y que `data/teamRatings.json` esté
- * sincronizado con ellos. Termina con código 1 si hay errores; los avisos no
- * fallan.
+ * y que `data/teamRatings.json` esté sincronizado con él. Termina con código 1
+ * si hay errores; los avisos no fallan.
  *
  * Con `--uri-env <VARIABLE>` además se conecta SOLO PARA LEER a la base cuya
- * URI está en esa variable de entorno (nunca se imprime) y lista los torneos sin
- * edición y los pares (equipo, edición) usados en partidos que no tienen rating.
+ * URI está en esa variable de entorno (nunca se imprime) y lista los torneos
+ * cuyos partidos no traen edición del juego (`tournament.gameVersion`) y los
+ * pares (equipo, edición) usados en partidos que no tienen rating.
  */
 
 const fs = require("fs")
@@ -95,7 +95,7 @@ const checkArtifactSync = (sources) => {
     }
     return isDeepStrictEqual(committed, buildArtifact(sources))
         ? null
-        : "data/teamRatings.json está desactualizado respecto de los CSV: correr `npm run build:team-ratings`"
+        : "data/teamRatings.json está desactualizado respecto del CSV: correr `npm run build:team-ratings`"
 }
 
 const parseArguments = (argv) => {
@@ -142,7 +142,7 @@ const checkCoverage = async (uriEnv) => {
             `  partidos con overall de ambos equipos: ${coverage.covered} de ${coverage.total} (${share}%)`
         )
         console.log(
-            `  torneos sin edición: ${coverage.tournamentsWithoutEdition.length}`
+            `  torneos con partidos sin edición (tournament.gameVersion): ${coverage.tournamentsWithoutEdition.length}`
         )
         for (const entry of coverage.tournamentsWithoutEdition) {
             console.log(
@@ -171,9 +171,7 @@ const run = async () => {
     const sources = readSources()
     const { errors, warnings } = validateSources(sources)
 
-    console.log(
-        `team-ratings.csv: ${sources.teamRows.length} filas; tournament-editions.csv: ${sources.tournamentRows.length} torneos\n`
-    )
+    console.log(`team-ratings.csv: ${sources.teamRows.length} filas\n`)
     printEditionSummary(sources.teamRows)
 
     const syncError = checkArtifactSync(sources)

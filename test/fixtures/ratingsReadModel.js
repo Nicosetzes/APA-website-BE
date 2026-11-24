@@ -26,27 +26,35 @@ const NEWCOMER = { id: "newcomer", name: "Recién llegado" }
 
 // Un torneo con edición conocida, dos equipos con overall en esa edición y un
 // equipo / torneo sin dato, leídos de data/teamRatings.json para ejercitar el
-// lookup REAL (no uno inyectado).
+// lookup REAL (no uno inyectado). La edición viaja en la referencia del torneo
+// de cada partido (`tournament.gameVersion`), como la guarda la API.
+const REAL_TOURNAMENT_ID = "625e0f191b3f1ce6b5ee4756"
+const REAL_EDITION = "FIFA 22"
 const realTeamIds = () => {
-    const { editionByTournament, overallByTeamEdition } = teamRatingsData
-    for (const [tournamentId, edition] of Object.entries(editionByTournament)) {
-        const teams = Object.keys(overallByTeamEdition)
-            .filter((key) => key.endsWith(`|${edition}`))
-            .map((key) => key.slice(0, key.lastIndexOf("|")))
-        if (teams.length >= 2) {
-            return {
-                tournamentId,
-                edition,
-                teamA: { id: teams[0], name: `Equipo ${teams[0]}` },
-                teamB: { id: teams[1], name: `Equipo ${teams[1]}` },
-                // Id de equipo sin overall en ninguna edición.
-                teamWithoutOverall: { id: "9999999", name: "Sin overall" },
-                // Torneo sin edición cargada.
-                tournamentWithoutEdition: "ffffffffffffffffffffffff",
-            }
-        }
+    const teams = Object.keys(teamRatingsData.overallByTeamEdition)
+        .filter((key) => key.endsWith(`|${REAL_EDITION}`))
+        .map((key) => key.slice(0, key.lastIndexOf("|")))
+    if (teams.length < 2) {
+        throw new Error(
+            `data/teamRatings.json no tiene 2 equipos en ${REAL_EDITION}`
+        )
     }
-    throw new Error("data/teamRatings.json no tiene una edición con 2 equipos")
+    return {
+        tournamentId: REAL_TOURNAMENT_ID,
+        edition: REAL_EDITION,
+        // Referencia lista para `match.tournament`.
+        tournament: {
+            id: REAL_TOURNAMENT_ID,
+            name: "Torneo real",
+            gameVersion: REAL_EDITION,
+        },
+        teamA: { id: teams[0], name: `Equipo ${teams[0]}` },
+        teamB: { id: teams[1], name: `Equipo ${teams[1]}` },
+        // Id de equipo sin overall en ninguna edición.
+        teamWithoutOverall: { id: "9999999", name: "Sin overall" },
+        // Torneo sin edición cargada.
+        tournamentWithoutEdition: "ffffffffffffffffffffffff",
+    }
 }
 
 // Historial sintético: 18 partidos entre Ana, Beto y Caro (cada uno supera los
@@ -80,7 +88,7 @@ const syntheticHistory = () => {
         if (n % 3 === 0) {
             extra.teamP1 = real.teamA
             extra.teamP2 = real.teamB
-            extra.tournament = { id: real.tournamentId, name: "Torneo real" }
+            extra.tournament = { ...real.tournament }
         }
         matches.push(
             match(

@@ -5427,7 +5427,7 @@ components:
                     $ref: "#/components/schemas/User"
         CreateTournamentRequest:
             type: object
-            required: [format, name, players, teams]
+            required: [format, gameVersion, name, players, teams]
             additionalProperties: false
             properties:
                 cloudinary_id:
@@ -5449,6 +5449,17 @@ components:
                     type: string
                     enum: [single, two_legged]
                     description: Sólo se acepta para format playoff; si falta se persiste single
+                gameVersion:
+                    type: string
+                    example: FC 27
+                    description: >-
+                        Edición del juego con que se juega el torneo. Sólo se
+                        aceptan las ediciones con overall cargado en
+                        `data/team-ratings.csv` (hoy FC 27, FC 26, FC 25, FC 24,
+                        FIFA 23, FIFA 22, FIFA 21 y FIFA 19). No se puede
+                        cambiar después: define el overall de cada equipo en el
+                        APA Rating y se copia a `tournament.gameVersion` de cada
+                        partido.
                 name:
                     type: string
                     minLength: 1
@@ -5507,6 +5518,12 @@ components:
                     type: string
                     enum: [single, two_legged]
                     description: Ausente en torneos históricos; sólo aplica a playoff
+                gameVersion:
+                    type: string
+                    example: FC 27
+                    description: >-
+                        Edición del juego (inmutable). Los torneos históricos la
+                        tienen desde la migración 007-tournament-game-version.
                 schemaVersion:
                     type: integer
                     enum: [1]

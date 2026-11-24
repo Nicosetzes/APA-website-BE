@@ -360,7 +360,7 @@ test("dorado: dos partidos con el mismo playedAt se ordenan por _id, en el perí
 // Dos equipos de la misma edición con overall distinto (el término de equipo
 // solo mueve el esperado si difieren).
 const teamsWithDifferentOverall = () => {
-    const { tournamentId, edition } = realTeamIds()
+    const { tournament, edition } = realTeamIds()
     const teams = Object.entries(teamRatingsData.overallByTeamEdition)
         .filter(([key]) => key.endsWith(`|${edition}`))
         .map(([key, overall]) => ({
@@ -371,7 +371,7 @@ const teamsWithDifferentOverall = () => {
     const teamB = teams.find((team) => team.overall !== teamA.overall)
     assert.ok(teamB, "no hay dos equipos con overall distinto")
     return {
-        tournamentId,
+        tournament,
         teamA: { id: teamA.id, name: `Equipo ${teamA.id}` },
         teamB: { id: teamB.id, name: `Equipo ${teamB.id}` },
     }
@@ -446,12 +446,12 @@ test("dorado: sin sorpresa si el favorito siempre gana, y con el término de equ
         match(2, P("a"), 0, P("b"), 2, "2026-03-02T10:00:00Z", {
             teamP1: real.teamA,
             teamP2: real.teamB,
-            tournament: { id: real.tournamentId, name: "Torneo real" },
+            tournament: { ...real.tournament },
         }),
         match(3, P("a"), 0, P("b"), 2, "2026-03-02T12:00:00Z", {
             teamP1: real.teamB,
             teamP2: real.teamA,
-            tournament: { id: real.tournamentId, name: "Torneo real" },
+            tournament: { ...real.tournament },
         }),
     ]
     const docs = storedDocsFrom(withTeams)

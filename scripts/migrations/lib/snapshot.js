@@ -47,6 +47,7 @@ const TOURNAMENT_PROJECTION = toProjection([
     "name",
     "format",
     "playoffMode",
+    "gameVersion",
     "legacy",
     "ongoing",
     "valid",

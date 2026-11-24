@@ -1,4 +1,5 @@
 const { HttpError } = require("../../middleware/httpErrors")
+const { toTournamentReference } = require("../../utils/tournamentReference")
 const {
     originateFixtureByTournamentId,
     retrieveTournamentById,
@@ -24,8 +25,8 @@ const createPostFixtureByTournamentId = (dependencies = {}) => {
             )
         }
 
-        const { id, name, players, groups, format, teams } = tournamentData
-        const tournamentReference = { id, name }
+        const { players, groups, format, teams } = tournamentData
+        const tournamentReference = toTournamentReference(tournamentData)
         let teamsForFixture
         let playersForFixture
 
