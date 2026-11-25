@@ -1,5 +1,5 @@
 const matchesModel = require("./../models/matches.js")
-const { getArgentinaDayRange } = require("../../utils/argentinaDay")
+const { getArgentinaRecapDayRange } = require("../../utils/argentinaDay")
 
 const PROJECTION = [
     "tournament.id",
@@ -24,7 +24,7 @@ const PROJECTION = [
 ].join(" ")
 
 const findMatchesPlayedOnDate = async (date) => {
-    const { start, end } = getArgentinaDayRange(date)
+    const { start, end } = getArgentinaRecapDayRange(date)
 
     return matchesModel
         .find(

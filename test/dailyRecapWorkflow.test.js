@@ -15,18 +15,25 @@ const promptOf = () =>
     nodeNamed("Write Recap").parameters.messages.messageValues[0].message
 
 // --- Arnés: evalúa el jsCode de un nodo Code sin n8n ---------------------------
-// Día argentino fijo: 2026-10-27 va de 03:00Z a 02:59:59.999Z del día siguiente.
+// Fecha de reporte fija: 2026-10-27 va de las 06:00 ART (09:00Z) a las
+// 05:59:59.999 ART del día siguiente.
 const DATE = "2026-10-27"
-const DAY_START = Date.parse(`${DATE}T03:00:00Z`)
-const DAY_END = DAY_START + 24 * 3600 * 1000 - 1
+const CALENDAR_DAY_START = Date.parse(`${DATE}T03:00:00Z`)
+const DAY_START = CALENDAR_DAY_START + 6 * 3600 * 1000
+const DAY_END = DAY_START + 24 * 3600 * 1000
 
-const dayHandle = {
-    startOf: () => ({ toMillis: () => DAY_START }),
-    endOf: () => ({ toMillis: () => DAY_END }),
-    toFormat: () => DATE,
+const dateHandle = {
+    plus: ({ days = 0, hours = 0 }) => ({
+        toMillis: () =>
+            CALENDAR_DAY_START + days * 24 * 3600 * 1000 + hours * 3600 * 1000,
+    }),
 }
-const NOW = { minus: () => dayHandle }
-const DateTimeStub = { fromISO: () => dayHandle }
+const NOW = {
+    setZone: () => ({
+        minus: () => ({ toFormat: () => DATE }),
+    }),
+}
+const DateTimeStub = { fromISO: () => dateHandle }
 
 const asItems = (list) => list.map((json) => ({ json }))
 
@@ -691,6 +698,57 @@ const simpleMatch = (overrides = {}) =>
         deltaP1: 2,
         ...overrides,
     })
+
+const matchAt = (playedAt, id) => {
+    const match = simpleMatch({ id })
+    match.playedAt = new Date(playedAt).toISOString()
+    return match
+}
+
+test("the workflow runs at 07:00 Argentina time and fetches both calendar dates", () => {
+    const schedule = nodeNamed("Daily Check").parameters.rule.interval[0]
+    assert.equal(schedule.triggerAtHour, 7)
+    assert.equal(schedule.triggerAtMinute, 0)
+    assert.equal(workflow.settings.timezone, "America/Argentina/Buenos_Aires")
+
+    const parameters = Object.fromEntries(
+        nodeNamed("Fetch Matches").parameters.queryParameters.parameters.map(
+            ({ name, value }) => [name, value]
+        )
+    )
+    assert.equal(
+        parameters.dateFrom,
+        '={{ $now.setZone("America/Argentina/Buenos_Aires").minus({ days: 1 }).toFormat("yyyy-MM-dd") }}'
+    )
+    assert.equal(
+        parameters.dateTo,
+        '={{ $now.setZone("America/Argentina/Buenos_Aires").toFormat("yyyy-MM-dd") }}'
+    )
+})
+
+test("the report includes both sides of midnight and cuts over at 06:00", () => {
+    const beforeMidnight = Date.parse("2026-10-28T02:59:59.999Z")
+    const midnight = Date.parse("2026-10-28T03:00:00.000Z")
+    const matches = [
+        matchAt(DAY_START - 1, "before-start"),
+        matchAt(DAY_START, "at-start"),
+        matchAt(beforeMidnight, "before-midnight"),
+        matchAt(midnight, "at-midnight"),
+        matchAt(DAY_END - 1, "before-end"),
+        matchAt(DAY_END, "at-end"),
+    ]
+
+    const times = dayStatsOf(matches).tournaments[0].matches.map(
+        ({ time }) => time
+    )
+
+    assert.deepEqual(times, [
+        new Date(DAY_START).toISOString(),
+        new Date(beforeMidnight).toISOString(),
+        new Date(midnight).toISOString(),
+        new Date(DAY_END - 1).toISOString(),
+    ])
+})
 
 test("the biggest swing carries a size computed in code and no scale leaks", () => {
     const sizeOf = (deltaP1) =>

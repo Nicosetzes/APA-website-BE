@@ -8,6 +8,13 @@ const getArgentinaDayRange = (date) => {
     return { start, end: new Date(start.getTime() + DAY_MS) }
 }
 
+const getArgentinaRecapDayRange = (date) => {
+    const calendarDay = getArgentinaDayRange(date)
+    const start = new Date(calendarDay.start.getTime() + 6 * 60 * 60 * 1000)
+
+    return { start, end: new Date(start.getTime() + DAY_MS) }
+}
+
 // Día argentino (UTC-3 fijo, sin horario de verano) de un instante, como
 // `YYYY-MM-DD`. A las 02:59Z todavía es el día anterior; a las 03:00Z empieza el
 // siguiente.
@@ -26,6 +33,7 @@ const shiftArgentinaDate = (date, days) => {
 
 module.exports = {
     getArgentinaDayRange,
+    getArgentinaRecapDayRange,
     getArgentinaToday,
     shiftArgentinaDate,
 }

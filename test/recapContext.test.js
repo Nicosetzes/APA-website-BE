@@ -140,7 +140,7 @@ test("recap context returns rules, slim standings and the bracket per tournament
             ]
             // Antes del día el orden era el inverso.
             const isStartOfDay =
-                playedBefore.toISOString() === "2026-10-11T03:00:00.000Z"
+                playedBefore.toISOString() === "2026-10-11T09:00:00.000Z"
             return {
                 standings: [
                     {
@@ -204,8 +204,8 @@ test("recap context returns rules, slim standings and the bracket per tournament
     assert.deepEqual(cup.rules.stages, ["playoff"])
     assert.deepEqual(cup.standings, [])
     assert.deepEqual(calls.standings, [
-        ["t-league", "2026-10-12T03:00:00.000Z"],
-        ["t-league", "2026-10-11T03:00:00.000Z"],
+        ["t-league", "2026-10-12T09:00:00.000Z"],
+        ["t-league", "2026-10-11T09:00:00.000Z"],
     ])
     assert.equal(cup.bracket.length, 1)
     assert.equal(cup.bracket[0].playoffId, 31)
@@ -381,7 +381,7 @@ const withApp = async (callback) => {
     }
 }
 
-test("GET /api/recaps/context is routed before :date and queries the Argentina day", async (t) => {
+test("GET /api/recaps/context is routed before :date and queries the recap day", async (t) => {
     let filter
     t.mock.method(matchesModel, "distinct", async (field, query) => {
         filter = { field, query }
@@ -404,10 +404,10 @@ test("GET /api/recaps/context is routed before :date and queries the Argentina d
     assert.equal(filter.field, "tournament.id")
     assert.equal(filter.query.played, true)
     assert.deepEqual(filter.query.valid, { $ne: false })
-    // 11/10 00:00 ART = 03:00 UTC; el día siguiente cierra el rango.
+    // El reporte del 11/10 empieza a las 06:00 ART (09:00 UTC).
     assert.deepEqual(filter.query.playedAt, {
-        $gte: new Date("2026-10-11T03:00:00.000Z"),
-        $lt: new Date("2026-10-12T03:00:00.000Z"),
+        $gte: new Date("2026-10-11T09:00:00.000Z"),
+        $lt: new Date("2026-10-12T09:00:00.000Z"),
     })
 })
 
@@ -658,10 +658,10 @@ test("recap context adds matchInsights per tournament from one day-wide read", a
             calls.timeline += 1
             return {
                 events: [
-                    // 02:59:59Z del 21: es del día anterior en Argentina.
-                    insightEvent("before", "2026-10-21T02:59:59Z"),
-                    // 03:00:00Z del 21: primer instante del día (entra).
-                    insightEvent("league-1", "2026-10-21T03:00:00Z"),
+                    // 08:59:59Z del 21: todavía pertenece al reporte anterior.
+                    insightEvent("before", "2026-10-21T08:59:59Z"),
+                    // 09:00:00Z del 21: 06:00 ART, primer instante del reporte.
+                    insightEvent("league-1", "2026-10-21T09:00:00Z"),
                     insightEvent("cup-1", "2026-10-21T20:00:00Z", {
                         type: "playoff",
                         scoreP1: 1,
@@ -675,16 +675,16 @@ test("recap context adds matchInsights per tournament from one day-wide read", a
                         scoreP2: 1,
                         resultP1: 0.5,
                     }),
-                    // 02:59:59Z del 22: último instante del día (entra).
-                    insightEvent("league-2", "2026-10-22T02:59:59Z", {
+                    // 08:59:59Z del 22: último instante del reporte (entra).
+                    insightEvent("league-2", "2026-10-22T08:59:59Z", {
                         scoreP1: 0,
                         scoreP2: 7,
                         resultP1: 0,
                         expectedP1: 0.79,
                         delta: -9.5,
                     }),
-                    // 03:00:00Z del 22: ya es el día siguiente.
-                    insightEvent("after", "2026-10-22T03:00:00Z"),
+                    // 09:00:00Z del 22: empieza el reporte siguiente.
+                    insightEvent("after", "2026-10-22T09:00:00Z"),
                 ],
             }
         },
@@ -746,8 +746,8 @@ test("recap context adds matchInsights per tournament from one day-wide read", a
             playedAt,
         ]),
         [
-            ["league-1", "2026-10-21T03:00:00.000Z"],
-            ["league-2", "2026-10-22T02:59:59.000Z"],
+            ["league-1", "2026-10-21T09:00:00.000Z"],
+            ["league-2", "2026-10-22T08:59:59.000Z"],
         ]
     )
     const [, upset] = byName.Liga.matchInsights
@@ -838,7 +838,7 @@ test("recap context fails instead of hiding a ratings read error", async () => {
     )
 })
 
-test("findMatchesPlayedOnDate queries played, valid matches of the Argentina day once", async (t) => {
+test("findMatchesPlayedOnDate queries played, valid matches of the recap day once", async (t) => {
     const calls = { find: [], lean: 0 }
     t.mock.method(matchesModel, "find", (filter, projection) => {
         calls.find.push({ filter, projection })
@@ -859,8 +859,8 @@ test("findMatchesPlayedOnDate queries played, valid matches of the Argentina day
         played: true,
         valid: { $ne: false },
         playedAt: {
-            $gte: new Date("2026-10-11T03:00:00.000Z"),
-            $lt: new Date("2026-10-12T03:00:00.000Z"),
+            $gte: new Date("2026-10-11T09:00:00.000Z"),
+            $lt: new Date("2026-10-12T09:00:00.000Z"),
         },
     })
     for (const field of [

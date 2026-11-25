@@ -5,7 +5,7 @@ const {
 const {
     describeTournamentFormat,
 } = require("../../config/tournamentFormatRules")
-const { getArgentinaDayRange } = require("../../utils/argentinaDay")
+const { getArgentinaRecapDayRange } = require("../../utils/argentinaDay")
 const {
     getNextPlayoffRound,
     getPlayoffRoundForId,
@@ -220,7 +220,7 @@ const createGetRecapContext = (dependencies = {}) => {
 
     return async (req, res) => {
         const { date } = req.query
-        const dayRange = getArgentinaDayRange(date)
+        const dayRange = getArgentinaRecapDayRange(date)
         const tournamentIds = await retrieveTournamentIds(date)
         const sources =
             tournamentIds.length > 0

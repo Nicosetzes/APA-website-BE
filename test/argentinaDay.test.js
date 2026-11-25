@@ -3,6 +3,7 @@ const test = require("node:test")
 
 const {
     getArgentinaDayRange,
+    getArgentinaRecapDayRange,
     getArgentinaToday,
     shiftArgentinaDate,
 } = require("../utils/argentinaDay")
@@ -28,6 +29,15 @@ test("getArgentinaToday defaults to the current instant", () => {
 
     assert.match(today, /^\d{4}-\d{2}-\d{2}$/)
     assert.ok(today >= before)
+})
+
+test("recap day ranges start at 06:00 Argentina time without gaps", () => {
+    const first = getArgentinaRecapDayRange("2026-10-27")
+    const next = getArgentinaRecapDayRange("2026-10-28")
+
+    assert.equal(first.start.toISOString(), "2026-10-27T09:00:00.000Z")
+    assert.equal(first.end.toISOString(), "2026-10-28T09:00:00.000Z")
+    assert.equal(first.end.getTime(), next.start.getTime())
 })
 
 test("shiftArgentinaDate moves calendar days across months and years", () => {

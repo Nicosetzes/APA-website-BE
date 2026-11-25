@@ -1,8 +1,8 @@
 const matchesModel = require("./../models/matches.js")
-const { getArgentinaDayRange } = require("../../utils/argentinaDay")
+const { getArgentinaRecapDayRange } = require("../../utils/argentinaDay")
 
 const findTournamentIdsPlayedOnDate = async (date) => {
-    const { start, end } = getArgentinaDayRange(date)
+    const { start, end } = getArgentinaRecapDayRange(date)
 
     return matchesModel.distinct("tournament.id", {
         valid: { $ne: false },
