@@ -11,6 +11,7 @@ const {
     toIso,
 } = require("./presentation")
 const { getArgentinaToday } = require("../../utils/argentinaDay")
+const { isKnockoutMatch } = require("../../utils/matchPhase")
 const { eventProbability } = require("./eventProbability")
 const { findBiggestUpset } = require("./upsets")
 const { trackPeriodPositions } = require("./leadership")
@@ -198,6 +199,44 @@ const buildTimeline = (events, names) => {
     return { matchesTimeline, entriesById }
 }
 
+const buildPerformanceVsExpected = (entries) => {
+    const aggregate = (filter) => {
+        let matches = 0
+        let actual = 0
+        let expected = 0
+
+        for (const entry of entries) {
+            if (!filter(entry)) continue
+            matches += 1
+            actual += entry.raw.result
+            expected += entry.raw.expected
+        }
+
+        if (matches === 0) {
+            return {
+                matches: 0,
+                actualPercentage: null,
+                expectedPercentage: null,
+                differencePercentagePoints: null,
+            }
+        }
+
+        return {
+            matches,
+            actualPercentage: round((actual / matches) * 100),
+            expectedPercentage: round((expected / matches) * 100),
+            differencePercentagePoints: round(
+                ((actual - expected) / matches) * 100
+            ),
+        }
+    }
+
+    return {
+        all: aggregate(() => true),
+        knockouts: aggregate((entry) => isKnockoutMatch(entry.point)),
+    }
+}
+
 const hasTournamentId = (event) =>
     typeof event.tournamentId === "string" && event.tournamentId !== ""
 
@@ -294,6 +333,7 @@ const buildHistoryPayload = ({
                     ...findExtremes(startRating, entries),
                     matchesInPeriod: entries.length,
                     record,
+                    performanceVsExpected: buildPerformanceVsExpected(entries),
                     position: player.position,
                     previousPosition: previous?.position ?? null,
                     // Positivo: subió lugares en el ranking.
@@ -380,6 +420,7 @@ const buildTournamentHistoryPayload = ({
                     ...findExtremes(first.side.before, entries),
                     matchesInPeriod: entries.length,
                     record,
+                    performanceVsExpected: buildPerformanceVsExpected(entries),
                     position: null,
                     previousPosition: null,
                     positionChange: null,

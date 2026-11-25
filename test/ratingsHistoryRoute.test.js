@@ -109,6 +109,15 @@ test("GET /api/ratings/history es público y responde el historial del período"
         const nico = body.data.players.find((row) => row.player.id === "n")
         assert.equal(nico.player.name, "Nico")
         assert.equal(nico.points.length, 2)
+        assert.deepEqual(Object.keys(nico.summary.performanceVsExpected), [
+            "all",
+            "knockouts",
+        ])
+        assert.equal(nico.summary.performanceVsExpected.all.matches, 2)
+        assert.equal(
+            nico.summary.performanceVsExpected.all.actualPercentage,
+            25
+        )
     })
 })
 

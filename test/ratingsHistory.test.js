@@ -116,6 +116,7 @@ test("historial: forma de la respuesta y orden de las claves", () => {
         "max",
         "matchesInPeriod",
         "record",
+        "performanceVsExpected",
         "position",
         "previousPosition",
         "positionChange",
@@ -323,6 +324,92 @@ test("historial: los empates y los penales (resultP1 0,5) cuentan como punto y e
     }
     assert.equal(payload.data.highlights.biggestUpset, null)
     assert.equal(row(payload, "b").points[1].type, "playoff")
+})
+
+test("historial: rendimiento real y esperado agrega todos los partidos y eliminatorias por jugador", () => {
+    const matches = [
+        match(1, A, 2, B, 0, "2026-03-05T12:00:00Z"),
+        match(2, A, 0, B, 1, "2026-03-05T13:00:00Z", {
+            type: "playin",
+        }),
+        // Una pata de playoff definida por penales conserva resultP1 = 0,5.
+        match(3, A, 1, B, 1, "2026-03-05T14:00:00Z", {
+            type: "playoff",
+            leg: 1,
+            outcome: {
+                penalties: true,
+                teamThatWon: { id: 1 },
+            },
+        }),
+    ]
+    const inputs = inputsFor(matches, WINDOW)
+    const payload = buildHistoryPayload(inputs)
+
+    for (const [id, isP1] of [
+        ["a", true],
+        ["b", false],
+    ]) {
+        const events = inputs.periodEvents
+        const expected = events.reduce(
+            (sum, event) =>
+                sum + (isP1 ? event.expectedP1 : 1 - event.expectedP1),
+            0
+        )
+        const actual = events.reduce(
+            (sum, event) => sum + (isP1 ? event.resultP1 : 1 - event.resultP1),
+            0
+        )
+        const knockoutEvents = events.filter((event) =>
+            ["playin", "playoff"].includes(event.type)
+        )
+        const knockoutExpected = knockoutEvents.reduce(
+            (sum, event) =>
+                sum + (isP1 ? event.expectedP1 : 1 - event.expectedP1),
+            0
+        )
+        const knockoutActual = knockoutEvents.reduce(
+            (sum, event) => sum + (isP1 ? event.resultP1 : 1 - event.resultP1),
+            0
+        )
+        const performance = row(payload, id).summary.performanceVsExpected
+
+        assert.deepEqual(performance.all, {
+            matches: 3,
+            actualPercentage: Math.round((actual / 3) * 1000) / 10,
+            expectedPercentage: Math.round((expected / 3) * 1000) / 10,
+            differencePercentagePoints:
+                Math.round(((actual - expected) / 3) * 1000) / 10,
+        })
+        assert.deepEqual(performance.knockouts, {
+            matches: 2,
+            actualPercentage: Math.round((knockoutActual / 2) * 1000) / 10,
+            expectedPercentage: Math.round((knockoutExpected / 2) * 1000) / 10,
+            differencePercentagePoints:
+                Math.round(((knockoutActual - knockoutExpected) / 2) * 1000) /
+                10,
+        })
+    }
+
+    assert.equal(inputs.periodEvents[2].resultP1, 0.5)
+})
+
+test("historial: sin partidos devuelve rendimiento vacío sin dividir por cero", () => {
+    const performance = row(historyFor(SCENARIO, WINDOW), "d").summary
+        .performanceVsExpected
+    assert.deepEqual(performance, {
+        all: {
+            matches: 0,
+            actualPercentage: null,
+            expectedPercentage: null,
+            differencePercentagePoints: null,
+        },
+        knockouts: {
+            matches: 0,
+            actualPercentage: null,
+            expectedPercentage: null,
+            differencePercentagePoints: null,
+        },
+    })
 })
 
 test("historial: mayor upset ganado y peor derrota por jugador", () => {

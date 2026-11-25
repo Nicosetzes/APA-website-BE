@@ -3462,6 +3462,40 @@ components:
                         clasificación posible: playoff o play-in cuyo torneo no
                         se puede resolver, play-in de Champions o tercera pata
                         de un cruce a dos piernas.
+        RatingHistoryPerformanceMetric:
+            type: object
+            description: >-
+                Promedio por partido expresado como porcentaje. `actualPercentage`
+                usa el resultado real (victoria 1, empate o penales 0,5, derrota
+                0); `expectedPercentage` usa el puntaje esperado previo y
+                `differencePercentagePoints` es real menos esperado.
+            properties:
+                matches:
+                    type: integer
+                    minimum: 0
+                actualPercentage:
+                    type: number
+                    nullable: true
+                    description: "`null` cuando no hay partidos en este ámbito."
+                expectedPercentage:
+                    type: number
+                    nullable: true
+                    description: "`null` cuando no hay partidos en este ámbito."
+                differencePercentagePoints:
+                    type: number
+                    nullable: true
+                    description: "`null` cuando no hay partidos en este ámbito."
+        RatingHistoryPerformanceVsExpected:
+            type: object
+            properties:
+                all:
+                    $ref: "#/components/schemas/RatingHistoryPerformanceMetric"
+                knockouts:
+                    allOf:
+                        - $ref: "#/components/schemas/RatingHistoryPerformanceMetric"
+                    description: >-
+                        Solo eventos `type: playin` o `type: playoff`, incluidas
+                        todas las patas de una serie.
         RatingHistoryPlayer:
             type: object
             properties:
@@ -3518,6 +3552,8 @@ components:
                                     type: integer
                                 losses:
                                     type: integer
+                        performanceVsExpected:
+                            $ref: "#/components/schemas/RatingHistoryPerformanceVsExpected"
                         position:
                             type: integer
                             nullable: true
