@@ -756,13 +756,13 @@ test("the biggest swing carries a size computed in code and no scale leaks", () 
 
     assert.equal(sizeOf(3.99), "small")
     assert.equal(sizeOf(4), "medium")
-    assert.equal(sizeOf(8.99), "medium")
-    assert.equal(sizeOf(9), "huge")
-    assert.equal(sizeOf(-9.46), "huge")
+    assert.equal(sizeOf(6.99), "medium")
+    assert.equal(sizeOf(7), "large")
+    assert.equal(sizeOf(-9.46), "large")
 
     const { elo } = dayStatsOf(DAY_MATCHES)
     assert.equal(elo.biggestSingleMatchSwing.change, -9.46)
-    assert.equal(elo.biggestSingleMatchSwing.size, "huge")
+    assert.equal(elo.biggestSingleMatchSwing.size, "large")
     assert.ok(!("note" in elo))
     assert.ok(!("maxChangePerMatch" in elo))
     assert.doesNotMatch(JSON.stringify(elo), /9-12|1-3|small, \d|12 points/)
@@ -1218,7 +1218,7 @@ test("an active streak that took over stays apart and the others are grouped as 
     const grouped = active.find(({ streakTypes }) => streakTypes.length === 4)
     assert.equal(grouped.player, "Nico")
     assert.equal(grouped.length, 2)
-    assert.equal(recap.elo.biggestSingleMatchSwing.size, "huge")
+    assert.equal(recap.elo.biggestSingleMatchSwing.size, "large")
 })
 
 test("a backend without the new fields still produces a recap without inventing them", async () => {
@@ -1313,6 +1313,31 @@ test("the prompt asks for the new pre-calculated data and the assistant labels",
     // Un solo récord del día: nunca uno por torneo.
     assert.match(prompt, /ONE single "Récord del día" line/)
     assert.match(prompt, /Never one per tournament/)
+})
+
+test("the prompt makes match narration natural without repetitive templates", () => {
+    const prompt = promptOf()
+
+    assert.doesNotMatch(
+        prompt,
+        /rindió por encima de lo esperado|un movimiento mediano|huge ->|Sin sobresaltos|se floreó|se quedó con/i
+    )
+    for (const expected of [
+        "examples of intent, not a list to rotate mechanically",
+        "When favorite and ratingEdge point to the same player, mention only ONE of them",
+        "Do not stack favorite, ratingEdge, overallEdge and a percentage",
+        "Join expectation, result and consequence into one natural thought",
+        "Never put the size in a separate sentence",
+        "small -> suba, baja or variación leve",
+        "medium -> suba, baja or variación moderada",
+        "large -> gran movimiento, salto fuerte or caída fuerte",
+        'The literal heading "Qué significa" is optional',
+        "group them by affinity in ONE natural sentence",
+        "amplió la ventaja",
+        "identify the match briefly",
+    ]) {
+        assert.ok(prompt.includes(expected), `falta en el prompt: ${expected}`)
+    }
 })
 
 test("every field the prompt relies on exists in the data the agent receives", async () => {
