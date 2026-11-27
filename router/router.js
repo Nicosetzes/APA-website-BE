@@ -71,6 +71,7 @@ const {
     getRatingsRecentForm,
     getRatingsReigns,
     getRatingsTournaments,
+    getRatingsUpsets,
     putCompleteTournamentById,
 } = controllers
 
@@ -199,6 +200,7 @@ root.get(
     getRatingsRecentForm
 )
 root.get("/ratings/reigns", validate("getRatingsReigns"), getRatingsReigns)
+root.get("/ratings/upsets", validate("getRatingsUpsets"), getRatingsUpsets)
 root.get(
     "/ratings/tournaments",
     validate("getRatingsTournaments"),

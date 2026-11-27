@@ -15,6 +15,7 @@ const {
 } = require("../config/assistant")
 const { assertDirectPlayoffGeometry } = require("../service/playoffSeries")
 const { GAME_VERSIONS } = require("../service/playerRatings/teamStrength")
+const { UPSET_PENALTIES, UPSET_TYPES } = require("../config/ratingUpsets")
 
 const emptyObject = Joi.object({}).unknown(false)
 
@@ -387,6 +388,22 @@ module.exports = {
     getRatingsTournaments: {
         params: emptyObject,
         query: emptyObject,
+        body: emptyObject,
+    },
+    getRatingsUpsets: {
+        params: emptyObject,
+        query: ratingsPeriodQuery({
+            dateFrom: calendarDate.optional(),
+            dateTo: calendarDate.optional(),
+            tournamentId: mongoId.lowercase().optional(),
+            playerId: Joi.string().trim().min(1).max(100).optional(),
+            type: Joi.string()
+                .valid(...UPSET_TYPES)
+                .optional(),
+            penalties: Joi.string()
+                .valid(...UPSET_PENALTIES)
+                .default("all"),
+        }),
         body: emptyObject,
     },
     getAssistantHeadToHead: {

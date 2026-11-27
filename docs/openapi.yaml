@@ -2097,6 +2097,103 @@ paths:
                                                             $ref: "#/components/schemas/RatingRecentForm"
                 "400":
                     $ref: "#/components/responses/BadRequest"
+    /api/ratings/upsets:
+        get:
+            tags: [Ratings]
+            summary: Ranking global de victorias sorpresivas
+            description: >-
+                Devuelve exclusivamente victorias deportivas en las que la
+                probabilidad previa del ganador era estrictamente menor que la
+                del rival. Para partidos que admiten empate usa la probabilidad
+                de ganar del modelo de resultados; para cruces de partido único
+                usa la probabilidad de avanzar. Nunca presenta `expectedScore`
+                como probabilidad. Las definiciones por penales se incluyen por
+                defecto y se orientan por la tanda, aunque el rating haya contado
+                el partido como empate. Los jugadores provisorios también se
+                incluyen. Ordena por probabilidad cruda ascendente, cambio de
+                rating del ganador descendente y orden estable. Lee una sola vez
+                todo `rating-events` cuando el read model está fresco y cae al
+                timeline vivo con el mismo resultado, sin consultas por partido
+                o torneo. Aplica los filtros antes de devolver un top fijo de
+                diez resultados.
+            parameters:
+                - in: query
+                  name: dateFrom
+                  schema:
+                      type: string
+                      format: date
+                  description: Día argentino inicial, inclusivo. Puede usarse sin `dateTo`.
+                - in: query
+                  name: dateTo
+                  schema:
+                      type: string
+                      format: date
+                  description: Día argentino final, inclusivo. Puede usarse sin `dateFrom`.
+                - in: query
+                  name: tournamentId
+                  schema:
+                      type: string
+                      pattern: "^[a-fA-F0-9]{24}$"
+                - in: query
+                  name: playerId
+                  schema:
+                      type: string
+                      minLength: 1
+                      maxLength: 100
+                  description: Ganador o perdedor involucrado.
+                - in: query
+                  name: type
+                  schema:
+                      type: string
+                      enum: [regular, playin, playoff]
+                - in: query
+                  name: penalties
+                  schema:
+                      type: string
+                      enum: [all, exclude, only]
+                      default: all
+            responses:
+                "200":
+                    description: Ranking global filtrado y opciones globales
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                required: [success, data]
+                                properties:
+                                    success:
+                                        type: boolean
+                                    data:
+                                        type: object
+                                        required:
+                                            [
+                                                total,
+                                                players,
+                                                tournaments,
+                                                upsets,
+                                            ]
+                                        properties:
+                                            total:
+                                                type: integer
+                                                minimum: 0
+                                                description: Resultados después de filtros y antes del límite.
+                                            players:
+                                                type: array
+                                                description: Jugadores disponibles antes de filtros y límite.
+                                                items:
+                                                    $ref: "#/components/schemas/RatingPlayer"
+                                            tournaments:
+                                                type: array
+                                                description: Torneos disponibles antes de filtros y límite.
+                                                items:
+                                                    $ref: "#/components/schemas/RatingUpsetTournament"
+                                            upsets:
+                                                type: array
+                                                maxItems: 10
+                                                items:
+                                                    $ref: "#/components/schemas/RatingGlobalUpset"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
     /api/ratings/tournaments:
         get:
             tags: [Ratings]
@@ -3667,6 +3764,119 @@ components:
                     description: >-
                         Partidos donde el puntaje esperado final del jugador
                         es menor o igual a 0,45.
+        RatingUpsetTournament:
+            type: object
+            required: [id, name]
+            description: Torneo de una sorpresa u opción de filtro.
+            properties:
+                id:
+                    type: string
+                    nullable: true
+                name:
+                    type: string
+                    nullable: true
+        RatingUpsetTeam:
+            type: object
+            required: [id, name]
+            description: >-
+                Equipo orientado como ganador o perdedor. El objeto siempre se
+                incluye; cada campo es `null` si el evento histórico no tenía
+                ese dato. El id permite pedir el escudo sin una consulta por fila.
+            properties:
+                id:
+                    oneOf:
+                        - type: integer
+                        - type: string
+                    nullable: true
+                name:
+                    type: string
+                    nullable: true
+        RatingGlobalUpset:
+            type: object
+            required:
+                - matchId
+                - playedAt
+                - playedAtPrecision
+                - tournamentId
+                - tournament
+                - type
+                - winner
+                - loser
+                - teams
+                - score
+                - penalties
+                - probability
+                - kind
+                - ratingChange
+            description: >-
+                Una victoria deportiva del jugador menos probable. `probability`
+                es la probabilidad previa del ganador de ganar (`win`) o avanzar
+                (`advance`), redondeada a 3 decimales; no es expected score.
+            properties:
+                matchId:
+                    type: string
+                playedAt:
+                    type: string
+                    format: date-time
+                    nullable: true
+                playedAtPrecision:
+                    type: string
+                    enum: [exact, day, month, year, approx]
+                    nullable: true
+                tournamentId:
+                    type: string
+                    nullable: true
+                    description: >-
+                        Id usado por el cliente para unir en memoria la imagen
+                        del catálogo bulk de `/api/tournaments`.
+                tournament:
+                    $ref: "#/components/schemas/RatingUpsetTournament"
+                type:
+                    type: string
+                    nullable: true
+                winner:
+                    $ref: "#/components/schemas/RatingPlayer"
+                loser:
+                    $ref: "#/components/schemas/RatingPlayer"
+                teams:
+                    type: object
+                    required: [winner, loser]
+                    properties:
+                        winner:
+                            $ref: "#/components/schemas/RatingUpsetTeam"
+                        loser:
+                            $ref: "#/components/schemas/RatingUpsetTeam"
+                score:
+                    type: object
+                    required: [winner, loser]
+                    properties:
+                        winner:
+                            type: integer
+                            minimum: 0
+                        loser:
+                            type: integer
+                            minimum: 0
+                penalties:
+                    type: object
+                    nullable: true
+                    required: [winner, loser]
+                    properties:
+                        winner:
+                            type: integer
+                            minimum: 0
+                        loser:
+                            type: integer
+                            minimum: 0
+                probability:
+                    type: number
+                    minimum: 0
+                    maximum: 1
+                kind:
+                    type: string
+                    enum: [win, advance]
+                ratingChange:
+                    type: number
+                    description: Cambio del rating desde la perspectiva del ganador.
         RatingTournament:
             type: object
             description: >-
