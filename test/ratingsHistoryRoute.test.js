@@ -114,10 +114,36 @@ test("GET /api/ratings/history es público y responde el historial del período"
             "knockouts",
         ])
         assert.equal(nico.summary.performanceVsExpected.all.matches, 2)
+        assert.equal(nico.summary.recentForm, undefined)
         assert.equal(
             nico.summary.performanceVsExpected.all.actualPercentage,
             25
         )
+    })
+})
+
+test("GET /api/ratings/recent-form es global, agregado y no acepta filtros", async (t) => {
+    await withApp(t, async (baseUrl) => {
+        const response = await globalThis.fetch(
+            `${baseUrl}/api/ratings/recent-form`
+        )
+        assert.equal(response.status, 200)
+
+        const body = await response.json()
+        const nico = body.data.players.find((row) => row.player.id === "n")
+        assert.equal(body.success, true)
+        assert.equal(nico.recentForm[5].matches, 4)
+        assert.equal(nico.recentForm[10].matches, 4)
+        assert.equal(nico.recentForm[25].matches, 4)
+        assert.equal(nico.points, undefined)
+        assert.equal(nico.summary, undefined)
+
+        for (const query of [RANGE, `tournamentId=${MONGO_ID}`, "extra=1"]) {
+            const invalid = await globalThis.fetch(
+                `${baseUrl}/api/ratings/recent-form?${query}`
+            )
+            assert.equal(invalid.status, 400, query)
+        }
     })
 })
 

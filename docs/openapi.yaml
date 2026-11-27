@@ -2052,6 +2052,48 @@ paths:
                                                     $ref: "#/components/schemas/RatingHistoryTournamentMark"
                 "400":
                     $ref: "#/components/responses/BadRequest"
+    /api/ratings/recent-form:
+        get:
+            tags: [Ratings]
+            summary: Forma reciente global por jugador
+            description: >-
+                Devuelve agregados para los últimos 5, 10 y 25 partidos
+                rateables propios de cada jugador sobre todo el historial
+                disponible. Cada jugador puede cubrir fechas distintas. No
+                acepta filtros de fecha, período ni torneo, y no devuelve
+                eventos por partido. Lee `rating-events` cuando el read model
+                está fresco y cae al cálculo en vivo con el mismo resultado.
+                Una victoria vale 1, un empate o partido definido por penales
+                vale 0,5 y una derrota vale 0. Si un jugador tiene menos
+                partidos que la ventana usa los disponibles; sin partidos las
+                métricas porcentuales y la variación son `null`.
+            responses:
+                "200":
+                    description: Forma reciente global agregada
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                properties:
+                                    success:
+                                        type: boolean
+                                    parameters:
+                                        $ref: "#/components/schemas/RatingParameters"
+                                    data:
+                                        type: object
+                                        properties:
+                                            players:
+                                                type: array
+                                                description: Jugadores en el orden del ranking vigente.
+                                                items:
+                                                    type: object
+                                                    properties:
+                                                        player:
+                                                            $ref: "#/components/schemas/RatingPlayer"
+                                                        recentForm:
+                                                            $ref: "#/components/schemas/RatingRecentForm"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
     /api/ratings/reigns:
         get:
             tags: [Ratings]
@@ -3508,6 +3550,58 @@ components:
                     description: >-
                         Solo eventos `type: playin` o `type: playoff`, incluidas
                         todas las patas de una serie.
+        RatingRecentFormMetric:
+            type: object
+            description: >-
+                Forma sobre los últimos partidos rateables propios del jugador
+                en todo el historial. Si hay menos que el tamaño de la ventana,
+                `matches` conserva internamente la cantidad real. Obtenido,
+                esperado y diferencia usan la escala del Rating APA: victoria
+                1, empate o penales 0,5 y derrota 0.
+            properties:
+                matches:
+                    type: integer
+                    minimum: 0
+                record:
+                    type: object
+                    properties:
+                        wins:
+                            type: integer
+                            minimum: 0
+                        draws:
+                            type: integer
+                            minimum: 0
+                        losses:
+                            type: integer
+                            minimum: 0
+                actualPercentage:
+                    type: number
+                    nullable: true
+                    description: "Promedio obtenido; `null` cuando `matches` es 0."
+                expectedPercentage:
+                    type: number
+                    nullable: true
+                    description: "Promedio esperado; `null` cuando `matches` es 0."
+                differencePercentagePoints:
+                    type: number
+                    nullable: true
+                    description: "Obtenido menos esperado; `null` cuando `matches` es 0."
+                ratingChange:
+                    type: number
+                    nullable: true
+                    description: >-
+                        Suma de los cambios de rating de los partidos de la
+                        ventana; `null` cuando `matches` es 0.
+        RatingRecentForm:
+            type: object
+            description: Ventanas globales de 5, 10 y 25 partidos propios.
+            properties:
+                "5":
+                    $ref: "#/components/schemas/RatingRecentFormMetric"
+                "10":
+                    $ref: "#/components/schemas/RatingRecentFormMetric"
+                "25":
+                    $ref: "#/components/schemas/RatingRecentFormMetric"
         RatingHistoryPlayer:
             type: object
             properties:

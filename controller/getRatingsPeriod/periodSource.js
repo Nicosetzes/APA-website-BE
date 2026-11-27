@@ -29,8 +29,10 @@ const {
 // camino en vivo ya lo trae en los eventos del motor. Sin esa opción el pedido
 // al lector es el de siempre (`{ start, end }`).
 //
-// `allTime` (solo el historial por torneo) lee todo el historial: la ventana es
-// `[0, 9999-12-31)`. El filtro por torneo lo hace quien llama, en memoria.
+// `allTime` lee todo el historial, incluidos los eventos sin fecha. El filtro
+// por torneo, cuando corresponde, lo hace quien llama en memoria. Los límites
+// siguen presentes por compatibilidad con el lector de períodos, pero el lector
+// guardado recibe la marca explícita y no filtra por `time`.
 const ALL_TIME_END = Date.UTC(9999, 11, 31)
 
 const createPeriodSource = (dependencies = {}) => {
@@ -45,7 +47,7 @@ const createPeriodSource = (dependencies = {}) => {
         dependencies.retrieveStoredPeriod ??
         (dependencies.retrieveAllMatches ? undefined : retrieveStoredPeriod)
 
-    const tryStored = async ({ start, end, includeHistory }) => {
+    const tryStored = async ({ start, end, includeHistory, allTime }) => {
         try {
             if (!retrieveStored) return { reason: "not_wired" }
             if (!readModelEnabled()) return { reason: "disabled" }
@@ -53,6 +55,7 @@ const createPeriodSource = (dependencies = {}) => {
                 start,
                 end,
                 ...(includeHistory && { includeHistory: true }),
+                ...(allTime && { allTime: true }),
             })
             if (
                 response?.previous instanceof Map &&
@@ -107,7 +110,12 @@ const createPeriodSource = (dependencies = {}) => {
         const usersPromise = Promise.resolve().then(() => retrieveUsers())
         usersPromise.catch(() => {})
 
-        const stored = await tryStored({ start, end, includeHistory })
+        const stored = await tryStored({
+            start,
+            end,
+            includeHistory,
+            allTime,
+        })
 
         let config = RATING_CONFIG
         let previousRanking
@@ -120,14 +128,19 @@ const createPeriodSource = (dependencies = {}) => {
         } else {
             const timeline = await retrieveRatingsTimeline({ retrieveMatches })
             config = timeline.config
-            previousRanking = rankPlayers(timeline.snapshotAt(start))
-            currentRanking = rankPlayers(timeline.snapshotAt(end))
+            previousRanking = allTime
+                ? []
+                : rankPlayers(timeline.snapshotAt(start))
+            currentRanking = rankPlayers(
+                timeline.snapshotAt(allTime ? null : end)
+            )
             periodEvents = []
             timeline.events.forEach((event, index) => {
                 if (
-                    event.time !== null &&
-                    event.time >= start &&
-                    event.time < end
+                    allTime ||
+                    (event.time !== null &&
+                        event.time >= start &&
+                        event.time < end)
                 ) {
                     periodEvents.push({ ...event, seq: index + 1 })
                 }

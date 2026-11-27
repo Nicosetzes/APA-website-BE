@@ -717,7 +717,10 @@ test("dorado: el modo torneo lee todo el historial de una vez, sin consultas nue
     assert.equal(typeof version, "string")
     assert.equal(start.getTime(), 0)
     assert.equal(end.getTime(), Date.UTC(9999, 11, 31))
-    assert.deepEqual(reads[0].extra, { includeHistory: true })
+    assert.deepEqual(reads[0].extra, {
+        includeHistory: true,
+        allTime: true,
+    })
     assert.ok(
         calls.every((call) =>
             [

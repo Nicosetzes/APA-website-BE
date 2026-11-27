@@ -435,6 +435,16 @@ El `id` (el que el FE usa para pedir el escudo en `/logos/:id`, igual que `/matc
 
 **Pendiente.** Aviso de fechas aproximadas (`playedAtPrecision` ya está en el evento) y upsets con penales (`shootoutWinner` ya está en el evento). Los equipos de cada lado ya se devuelven (`teams`, ver arriba).
 
+### Forma reciente global (`GET /api/ratings/recent-form`)
+
+Alimenta la tab principal **Forma reciente** de `/statistics`. No acepta parámetros: `dateFrom`, `dateTo`, `tournamentId` y cualquier otro query param dan 400. Cada jugador se calcula con sus últimos 5, 10 o 25 partidos rateables propios de todo el historial disponible, por lo que las ventanas de jugadores distintos pueden cubrir fechas diferentes. La tab no comparte ni duplica los filtros de Rating APA.
+
+Responde `{ success, parameters, data: { players } }`. Los jugadores siguen el orden del ranking vigente y cada fila es `{ player, recentForm: { 5, 10, 25 } }`. Cada ventana contiene `{ matches, record, actualPercentage, expectedPercentage, differencePercentagePoints, ratingChange }`. `record` es V/E/D; obtenido, esperado y diferencia usan la escala vigente del Rating APA (victoria 1, empate o partido definido por penales 0,5, derrota 0), y `ratingChange` suma los deltas con signo. Si hay menos de N partidos se usan todos los disponibles. Sin partidos, `matches` y V/E/D son cero y las cuatro métricas numéricas son `null`.
+
+`matches` se conserva en el contrato para distinguir ventanas parciales y estados vacíos, pero la tabla no muestra una columna permanente de partidos: el selector ya comunica 5/10/25 y el FE informa las muestras incompletas fuera de la tabla. La respuesta es agregada y no contiene puntos ni eventos individuales.
+
+El controller usa `createPeriodSource({ allTime: true })`. Intenta primero `rating-events` mediante el read model persistido y sus chequeos de frescura y encadenado; si está apagado, viejo, inconsistente o falla, calcula el historial en vivo. Ambos caminos pasan por `buildRecentFormPayload`, y el log `rating_read_model` usa `endpoint: "ratings_recent_form"`. Con datos persistidos frescos no lee `matches`; el navegador nunca descarga el historial completo.
+
 ### Reinados en el #1 (`GET /api/ratings/reigns`)
 
 Punto 5.7 de `APA-RATING-IDEAS.md`. Un **reinado** es una racha de partidos APA, de cualquier jugador, con el mismo jugador como #1. La lógica vive en `service/playerRatings/leadership.js` (pura) y la usan dos endpoints: `/ratings/reigns` (toda la historia) y `/ratings/history` (posiciones y partidos en el #1 del período).

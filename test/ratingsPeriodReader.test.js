@@ -440,13 +440,19 @@ test("parsePeriodEvent: convierte matchId a string, time a milisegundos y tourna
     ])
 })
 
+test("parsePeriodEvent: conserva time null para el historial global", async () => {
+    const row = await baseRow()
+    row.time = null
+
+    assert.equal(parsePeriodEvent(row).time, null)
+})
+
 test("parsePeriodEvent: lanza con campos malformados", async () => {
     const row = await baseRow()
     const breakers = [
         (r) => (r.seq = Number.NaN),
         (r) => (r.seq = "1"),
         (r) => delete r.matchId,
-        (r) => (r.time = null),
         (r) => (r.time = "2026-01-05"),
         (r) => (r.time = new Date("x")),
         (r) => (r.delta = "x"),

@@ -374,6 +374,11 @@ module.exports = {
         }),
         body: emptyObject,
     },
+    getRatingsRecentForm: {
+        params: emptyObject,
+        query: emptyObject,
+        body: emptyObject,
+    },
     getRatingsReigns: {
         params: emptyObject,
         query: emptyObject,

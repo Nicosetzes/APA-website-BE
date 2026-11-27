@@ -59,6 +59,25 @@ test("findRatingEventsInRange: filtro [start, end), proyección, orden por seq y
     assert.deepEqual(calls[2], { lean: true })
 })
 
+test("findRatingEventsInRange: allTime consulta toda la versión en orden de seq", async () => {
+    const calls = []
+    const model = {
+        find: (filter) => {
+            calls.push(filter)
+            return {
+                sort: () => ({ lean: async () => [] }),
+            }
+        },
+    }
+
+    await findRatingEventsInRange(VERSION, START, END, {
+        model,
+        allTime: true,
+    })
+
+    assert.deepEqual(calls, [{ ratingVersion: VERSION }])
+})
+
 test("findRatingEventsInRange: la proyección trae lo mínimo y deja afuera lo demás", () => {
     const fields = RATING_EVENTS_RANGE_PROJECTION.split(" ")
     for (const field of [

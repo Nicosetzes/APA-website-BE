@@ -8,18 +8,20 @@ const { toPlayerState } = require("./createRetrieveStoredRanking")
 // `{ stale: <razón> }` si no. `previous` y `current` son Maps `id -> estado` con
 // lo único que leen `rankPlayers` y la respuesta (`id`, `name`, `rating`,
 // `matches`): el estado de cada jugador en `start` y en `end`, el MISMO que
-// arma el camino en vivo con `timeline.snapshotAt`. `periodEvents` son los
-// eventos con `start <= time < end` (con `time` en milisegundos y `matchId`
-// como string), la forma que espera el controller. Un dato viejo NUNCA lanza;
-// lanzan las fallas de lectura de los DAOs y los documentos malformados (el que
-// lo usa lo registra como error y calcula en vivo).
+// arma el camino en vivo con `timeline.snapshotAt`. Fuera del modo `allTime`,
+// `periodEvents` contiene `start <= time < end`. En modo `allTime` contiene
+// todos los eventos por `seq`, incluidos los que tienen `time: null`. Cada
+// evento usa milisegundos o `null` en `time` y un string en `matchId`. Un dato
+// viejo NUNCA lanza; lanzan las fallas de lectura de los DAOs y los documentos
+// malformados (el que lo usa lo registra como error y calcula en vivo).
 //
-// Se leen en paralelo cuatro cosas, sin traer nunca la cola posterior a `end`:
+// En períodos se leen en paralelo cuatro cosas, sin traer nunca la cola
+// posterior a `end`:
 //   - frescura (`findRatingSourceStats`) y estado actual (`findRankingPlayerRatings`)
 //   - A: los eventos del período `[start, end)` ordenados por `seq`
 //   - B: por jugador, su primer y su último evento con `time >= end`
-// Sirve para cualquier período, también para uno viejo: el costo no crece con
-// la cantidad de partidos posteriores.
+// En `allTime`, A lee todos los eventos y B queda vacío: así la consistencia se
+// comprueba sobre la cadena completa, incluidos los eventos sin fecha.
 //
 // Regla de reconstrucción. El estado de un jugador en T es el `before`/`games`
 // de su primer evento con `time >= T` y, si no tiene, su estado actual. Es
@@ -30,8 +32,9 @@ const { toPlayerState } = require("./createRetrieveStoredRanking")
 //   - En `end`: `first` de B; si no, el estado actual.
 // Un jugador que debuta dentro o después del período tiene `games === 0` en su
 // primer evento, así que queda con `matches === 0` y `rankPlayers` lo descarta
-// (igual que en vivo). Los eventos sin `time` quedan siempre antes de cualquier
-// corte: no entran ni en A ni en B, pero cuentan en el `games` del siguiente.
+// (igual que en vivo). En períodos, los eventos sin `time` quedan antes del
+// corte y cuentan en `games` aunque no entren en A ni B. En `allTime` sí entran
+// en A, por orden `seq`.
 //
 // Nombre. En `end` se usa el del último evento del período del jugador; si no
 // jugó en el período, el de su primer evento posterior a `end`; si no, el
@@ -100,7 +103,9 @@ const parsePeriodEvent = (doc) => {
     }
     const matchId = String(doc.matchId)
     if (matchId === "") fail(`${where} no tiene matchId`)
-    if (!isValidDate(doc.time)) fail(`${where} no tiene time (Date válida)`)
+    if (doc.time !== null && !isValidDate(doc.time)) {
+        fail(`${where} no tiene time (Date válida o null)`)
+    }
     for (const field of [
         "scoreP1",
         "scoreP2",
@@ -115,7 +120,7 @@ const parsePeriodEvent = (doc) => {
     return {
         seq: doc.seq,
         matchId,
-        time: doc.time.getTime(),
+        time: doc.time === null ? null : doc.time.getTime(),
         tournament: optionalText(doc.tournament, `${where}: tournament`),
         type: optionalText(doc.type, `${where}: type`),
         scoreP1: doc.scoreP1,
@@ -366,13 +371,24 @@ const createRetrieveStoredPeriod = ({
 
     // `start` y `end` en milisegundos; el período es `[start, end)`. Con
     // `includeHistory` los eventos del período traen además nombre e id de
-    // equipo por lado, el tipo de cruce y la tanda de penales (lo usa el
-    // historial; `/api/ratings/period` no lo pide).
-    return async ({ start, end, includeHistory = false } = {}) => {
+    // equipo por lado, el tipo de cruce y la tanda de penales. Con `allTime`
+    // la consulta A trae la cadena completa por `seq`, incluido `time: null`,
+    // y no hace falta consultar un borde posterior.
+    return async ({
+        start,
+        end,
+        includeHistory = false,
+        allTime = false,
+    } = {}) => {
         if (!isFiniteNumber(start) || !isFiniteNumber(end) || start >= end) {
             fail("start y end tienen que ser milisegundos con start < end")
         }
 
+        const eventOptions = {
+            ...(includeHistory && { includeHistory: true }),
+            ...(allTime && { allTime: true }),
+        }
+        const hasEventOptions = Object.keys(eventOptions).length > 0
         const [currentSourceStats, docs, rawEvents, rawBoundary] =
             await Promise.all([
                 findRatingSourceStats(),
@@ -381,9 +397,11 @@ const createRetrieveStoredPeriod = ({
                     config.version,
                     new Date(start),
                     new Date(end),
-                    ...(includeHistory ? [{ includeHistory: true }] : [])
+                    ...(hasEventOptions ? [eventOptions] : [])
                 ),
-                findRatingBoundaryEvents(config.version, new Date(end)),
+                allTime
+                    ? Promise.resolve([])
+                    : findRatingBoundaryEvents(config.version, new Date(end)),
             ])
         const currentFingerprint = await getCurrentFingerprint()
         const freshness = assessFreshness({

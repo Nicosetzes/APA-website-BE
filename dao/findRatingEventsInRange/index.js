@@ -1,13 +1,15 @@
 const ratingEventsModel = require("./../models/ratingEvents.js")
 
 // Consulta A de `GET /api/ratings/period`: los eventos guardados cuyo `time`
-// cae en el período `[start, end)`, en el orden del motor (`seq`). Proyección
+// cae en el período `[start, end)`, en el orden del motor (`seq`). Con
+// `allTime` lee todos los eventos de la versión, incluidos los que tienen
+// `time: null`; ese modo lo usan los endpoints de alcance global. Proyección
 // mínima: lo que hace falta para el récord de cada jugador, la sorpresa del
 // período y el estado de cada jugador en `start` (`before` y `games` de su
 // primer evento), más la huella para detectar un apply parcial. Deja afuera
 // `after`, `team`, `teamOverall`, `teamAdjustment`, `computedAt` y
-// `ratingVersion`. Los eventos sin `time` nunca entran (un `null` no cumple
-// `$gte`). `.lean()`: solo lectura.
+// `ratingVersion`. En un período normal los eventos sin `time` no entran.
+// `.lean()`: solo lectura.
 //
 // `GET /api/ratings/history` pide además lo que el evento guarda del partido
 // (`includeHistory`): nombre, id y overall del equipo de cada lado, el tipo de
@@ -26,7 +28,7 @@ const findRatingEventsInRange = async (
     ratingVersion,
     start,
     end,
-    { model = ratingEventsModel, includeHistory = false } = {}
+    { model = ratingEventsModel, includeHistory = false, allTime = false } = {}
 ) => {
     if (typeof ratingVersion !== "string" || !ratingVersion.trim()) {
         throw new Error("findRatingEventsInRange: falta ratingVersion")
@@ -42,7 +44,9 @@ const findRatingEventsInRange = async (
 
     return model
         .find(
-            { ratingVersion, time: { $gte: start, $lt: end } },
+            allTime
+                ? { ratingVersion }
+                : { ratingVersion, time: { $gte: start, $lt: end } },
             includeHistory
                 ? RATING_EVENTS_HISTORY_PROJECTION
                 : RATING_EVENTS_RANGE_PROJECTION
