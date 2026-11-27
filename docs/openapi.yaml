@@ -2094,6 +2094,63 @@ paths:
                                                             $ref: "#/components/schemas/RatingRecentForm"
                 "400":
                     $ref: "#/components/responses/BadRequest"
+    /api/ratings/tournaments:
+        get:
+            tags: [Ratings]
+            summary: Comparación global de actuaciones jugador-torneo
+            description: >-
+                Devuelve un agregado normalizado de jugadores, torneos
+                históricos con eventos rateables y actuaciones jugador-torneo.
+                No acepta parámetros ni depende del catálogo de torneos
+                activos. Cada actuación suma exclusivamente los eventos cuyo
+                `tournamentId` coincide, aunque haya partidos de otros torneos
+                intercalados. Una victoria vale 1, un empate o partido definido
+                por penales 0,5 y una derrota 0. `ratingChange` es la suma de
+                los deltas con signo de esos eventos. Obtenido, esperado,
+                diferencia y ajuste de equipos usan la misma semántica que
+                `/api/ratings/history`. Las actuaciones con al menos 5 partidos
+                son comparables; las menores se conservan con `comparable:
+                false`. Los rangos incluyen la precisión persistida para que
+                los clientes no presenten como exactas fechas históricas
+                aproximadas. Lee `rating-events` cuando el read model está
+                fresco y cae al cálculo vivo con el mismo resultado, sin
+                consultas por torneo ni por actuación.
+            responses:
+                "200":
+                    description: Actuaciones jugador-torneo agregadas
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                properties:
+                                    success:
+                                        type: boolean
+                                    parameters:
+                                        $ref: "#/components/schemas/RatingParameters"
+                                    data:
+                                        type: object
+                                        properties:
+                                            players:
+                                                type: array
+                                                description: Jugadores con alguna actuación incluida.
+                                                items:
+                                                    $ref: "#/components/schemas/RatingPlayer"
+                                            tournaments:
+                                                type: array
+                                                description: >-
+                                                    Torneos con al menos un evento rateable y
+                                                    `tournamentId`, en el orden de su primer evento.
+                                                items:
+                                                    $ref: "#/components/schemas/RatingTournament"
+                                            performances:
+                                                type: array
+                                                description: >-
+                                                    Actuaciones en orden de primera aparición de
+                                                    cada par torneo-jugador.
+                                                items:
+                                                    $ref: "#/components/schemas/RatingTournamentPerformance"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
     /api/ratings/reigns:
         get:
             tags: [Ratings]
@@ -3568,6 +3625,84 @@ components:
                     description: >-
                         Partidos donde el puntaje esperado final del jugador
                         es menor o igual a 0,45.
+        RatingTournament:
+            type: object
+            description: >-
+                Identidad y rango del torneo según sus eventos de rating. El
+                nombre o las fechas pueden ser `null` en datos históricos
+                incompletos. Una precisión distinta de `exact` limita cómo debe
+                presentarse la fecha; `null` indica que no hay precisión
+                persistida.
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                    nullable: true
+                firstPlayedAt:
+                    type: string
+                    format: date-time
+                    nullable: true
+                firstPlayedAtPrecision:
+                    type: string
+                    enum: [exact, day, month, year, approx]
+                    nullable: true
+                lastPlayedAt:
+                    type: string
+                    format: date-time
+                    nullable: true
+                lastPlayedAtPrecision:
+                    type: string
+                    enum: [exact, day, month, year, approx]
+                    nullable: true
+        RatingTournamentPerformance:
+            type: object
+            description: >-
+                Agregado de un jugador en un torneo. Obtenido, esperado y
+                diferencia usan la escala del Rating APA: victoria 1, empate o
+                penales 0,5 y derrota 0. Todos los números se calculan solo con
+                eventos que tienen el `tournamentId` indicado.
+            properties:
+                tournamentId:
+                    type: string
+                playerId:
+                    type: string
+                matches:
+                    type: integer
+                    minimum: 1
+                record:
+                    type: object
+                    properties:
+                        wins:
+                            type: integer
+                            minimum: 0
+                        draws:
+                            type: integer
+                            minimum: 0
+                        losses:
+                            type: integer
+                            minimum: 0
+                ratingChange:
+                    type: number
+                    description: Suma de deltas con signo producidos por el torneo.
+                actualPercentage:
+                    type: number
+                expectedPercentage:
+                    type: number
+                differencePercentagePoints:
+                    type: number
+                    description: Obtenido menos esperado.
+                teamAdjustmentPercentagePoints:
+                    type: number
+                    nullable: true
+                    description: >-
+                        Pronóstico final menos pronóstico basado solo en ratings,
+                        promediado sobre todos los partidos. `null` si ninguno
+                        tiene los dos overalls; 0 si hay datos y el efecto neto
+                        es neutro.
+                comparable:
+                    type: boolean
+                    description: Verdadero desde 5 partidos del jugador en el torneo.
         RatingRecentFormMetric:
             type: object
             description: >-

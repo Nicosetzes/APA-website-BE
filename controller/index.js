@@ -51,6 +51,7 @@ const getRatingsPeriod = require("./getRatingsPeriod")
 const getRatingsHistory = require("./getRatingsHistory")
 const getRatingsRecentForm = require("./getRatingsRecentForm")
 const getRatingsReigns = require("./getRatingsReigns")
+const getRatingsTournaments = require("./getRatingsTournaments")
 
 module.exports = {
     getAllTimeFaceToFace,
@@ -106,5 +107,6 @@ module.exports = {
     getRatingsHistory,
     getRatingsRecentForm,
     getRatingsReigns,
+    getRatingsTournaments,
     putCompleteTournamentById,
 }

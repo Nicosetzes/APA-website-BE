@@ -131,7 +131,7 @@ Ranking de referencia con los 1.710 partidos (rating 2.0; entre paréntesis el q
 
 ### Endpoints
 
-Los mismos de la 1.0 (`GET /api/ratings` y `GET /api/ratings/period`). `parameters` suma `teamStrengthWeight` y `parameters.version` pasa a `"2.0"`. El "esperaba" del mayor batacazo (`winnerExpectedScore`) ahora incluye el término de equipo. Cada evento del motor expone además `p1.teamOverall`, `p2.teamOverall` y `teamAdjustment`. Suma `GET /api/ratings/history` (ver [Historial](#historial-get-apiratingshistory)) y `GET /api/ratings/reigns` (ver [Reinados en el #1](#reinados-en-el-1-get-apiratingsreigns)).
+Los mismos de la 1.0 (`GET /api/ratings` y `GET /api/ratings/period`). `parameters` suma `teamStrengthWeight` y `parameters.version` pasa a `"2.0"`. El "esperaba" del mayor batacazo (`winnerExpectedScore`) ahora incluye el término de equipo. Cada evento del motor expone además `p1.teamOverall`, `p2.teamOverall` y `teamAdjustment`. Suma `GET /api/ratings/history` (ver [Historial](#historial-get-apiratingshistory)), `GET /api/ratings/tournaments` (ver [Comparación de torneos](#comparación-de-torneos-get-apiratingstournaments)) y `GET /api/ratings/reigns` (ver [Reinados en el #1](#reinados-en-el-1-get-apiratingsreigns)).
 
 ### Prob. de éxito en playoffs
 
@@ -444,6 +444,20 @@ Responde `{ success, parameters, data: { players } }`. Los jugadores siguen el o
 `matches` se conserva en el contrato para distinguir ventanas parciales y estados vacíos, pero la tabla no muestra una columna permanente de partidos: el selector ya comunica 5/10/25 y el FE informa las muestras incompletas fuera de la tabla. La respuesta es agregada y no contiene puntos ni eventos individuales.
 
 El controller usa `createPeriodSource({ allTime: true })`. Intenta primero `rating-events` mediante el read model persistido y sus chequeos de frescura y encadenado; si está apagado, viejo, inconsistente o falla, calcula el historial en vivo. Ambos caminos pasan por `buildRecentFormPayload`, y el log `rating_read_model` usa `endpoint: "ratings_recent_form"`. Con datos persistidos frescos no lee `matches`; el navegador nunca descarga el historial completo.
+
+### Comparación de torneos (`GET /api/ratings/tournaments`)
+
+Alimenta la tab principal **Torneos** de `/statistics`, dedicada a comparar actuaciones históricas jugador-torneo. No analiza un torneo aislado ni reemplaza el selector por `tournamentId` de **Rating APA**. No acepta parámetros: cualquier query param da 400.
+
+Responde `{ success, parameters, data: { players, tournaments, performances } }`. La respuesta está normalizada: `players` contiene `{ id, name }`; `tournaments`, `{ id, name, firstPlayedAt, firstPlayedAtPrecision, lastPlayedAt, lastPlayedAtPrecision }`; y cada actuación referencia ambos ids y trae `{ tournamentId, playerId, matches, record, ratingChange, actualPercentage, expectedPercentage, differencePercentagePoints, teamAdjustmentPercentagePoints, comparable }`. Solo aparecen torneos históricos que tienen al menos un evento rateable con `tournamentId`; no se consulta ni se filtra por el catálogo de torneos activos. Los eventos sin id de torneo se omiten. El nombre o el rango pueden ser `null` en datos históricos incompletos. La precisión (`exact`, `day`, `month`, `year` o `approx`) acompaña cada extremo para que el cliente no afirme un día exacto cuando el dato no lo permite.
+
+Cada actuación agrupa **solo** eventos con el mismo `tournamentId`, aunque haya partidos de otros torneos entre el primero y el último. `ratingChange` suma los deltas orientados al jugador de esos eventos, por lo que nunca incluye variaciones externas. `record` usa el criterio del rating: victoria, empate y derrota por marcador; una definición por penales conserva resultado 0,5 y cuenta como empate. Obtenido es `sum(result) / matches * 100`; esperado, `sum(expected) / matches * 100`; diferencia, obtenido menos esperado. P1 usa `resultP1`, `expectedP1` y `delta`; P2 usa `1 - resultP1`, `1 - expectedP1` y `-delta`.
+
+El ajuste de equipos conserva la semántica de `summary.performanceVsExpected` del historial: pronóstico final menos pronóstico recalculado solo con los ratings previos, promediado sobre todos los partidos de la actuación. Los partidos sin un par de overalls aportan cero. Si ninguno tiene ambos overalls, `teamAdjustmentPercentagePoints` es `null`; si hay cobertura y los efectos se cancelan, es `0`. Todos los porcentajes y el cambio de rating se redondean a un decimal.
+
+`comparable` es `true` desde 5 partidos de ese jugador en ese torneo. Las muestras menores no se eliminan: quedan con `comparable: false` para que el cliente pueda mostrarlas sin incluirlas en los resúmenes de mejor y peor torneo.
+
+El controller usa `createPeriodSource({ allTime: true, includeHistory: true })`, con `endpoint: "ratings_tournaments"` en el log. El read model fresco hace una sola lectura global de la cadena de `rating-events`, con sus chequeos de frescura, huella y encadenado, y no consulta `matches` ni el catálogo de torneos. Si el read model está apagado, viejo, inconsistente o falla, calcula la misma respuesta desde el timeline vivo. No hay consultas por torneo, jugador ni actuación y el navegador recibe solo agregados, no el historial completo.
 
 ### Reinados en el #1 (`GET /api/ratings/reigns`)
 

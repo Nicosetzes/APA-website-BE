@@ -384,6 +384,11 @@ module.exports = {
         query: emptyObject,
         body: emptyObject,
     },
+    getRatingsTournaments: {
+        params: emptyObject,
+        query: emptyObject,
+        body: emptyObject,
+    },
     getAssistantHeadToHead: {
         params: emptyObject,
         query: Joi.object({
