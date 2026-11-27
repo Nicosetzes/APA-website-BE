@@ -3,9 +3,10 @@ const {
     buildGlobalUpsetsPayload,
 } = require("../../service/playerRatings/globalUpsets")
 
-// GET /api/ratings/upsets: ranking global de victorias sorpresivas. Lee una
-// sola vez todo el historial rateable, desde el read model fresco o desde el
-// timeline vivo, y aplica filtros y límite en memoria.
+// GET /api/ratings/upsets: ranking de victorias sorpresivas globales o desde
+// la perspectiva a favor/en contra de un jugador. Lee una sola vez todo el
+// historial rateable, desde el read model fresco o desde el timeline vivo, y
+// aplica filtros y límite en memoria.
 const createGetRatingsUpsets = (dependencies = {}) => {
     const readPeriod = createPeriodSource(dependencies)
 

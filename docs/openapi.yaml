@@ -2100,11 +2100,15 @@ paths:
     /api/ratings/upsets:
         get:
             tags: [Ratings]
-            summary: Ranking global de victorias sorpresivas
+            summary: Ranking de victorias sorpresivas por perspectiva
             description: >-
-                Devuelve exclusivamente victorias deportivas en las que la
-                probabilidad previa del ganador era estrictamente menor que la
-                del rival. Para partidos que admiten empate usa la probabilidad
+                Devuelve victorias deportivas en las que la probabilidad previa
+                del ganador era estrictamente menor que la del rival. Sin
+                `playerId` devuelve el ranking global; con `playerId` y
+                `perspective=for`, solo victorias del jugador seleccionado;
+                `perspective=against` lista sus derrotas ante un rival menos
+                probable y requiere `playerId`. Para partidos que admiten
+                empate usa la probabilidad
                 de ganar del modelo de resultados; para cruces de partido único
                 usa la probabilidad de avanzar. Nunca presenta `expectedScore`
                 como probabilidad. Las definiciones por penales se incluyen por
@@ -2140,7 +2144,19 @@ paths:
                       type: string
                       minLength: 1
                       maxLength: 100
-                  description: Ganador o perdedor involucrado.
+                  description: >-
+                      Jugador de la perspectiva. Con `perspective=for` debe ser
+                      el ganador; con `against`, el perdedor.
+                - in: query
+                  name: perspective
+                  schema:
+                      type: string
+                      enum: [for, against]
+                      default: for
+                  description: >-
+                      `for` devuelve victorias sorpresivas globales o ganadas por
+                      `playerId`. `against` requiere `playerId` y devuelve sus
+                      derrotas ante un rival que tenía menor probabilidad previa.
                 - in: query
                   name: type
                   schema:

@@ -81,7 +81,6 @@ const toCandidate = (event, names) => {
                     ? null
                     : new Date(event.time).getTime(),
             tournamentId: event.tournamentId ?? null,
-            playerIds: [String(winner.id), String(loser.id)],
             hasShootout: outcome.hasShootout,
         },
         row: {
@@ -166,6 +165,7 @@ const buildGlobalUpsetsPayload = ({
     dateTo,
     tournamentId,
     playerId,
+    perspective = "for",
     type,
     penalties = "all",
 }) => {
@@ -188,9 +188,13 @@ const buildGlobalUpsetsPayload = ({
             ({ raw }) => to === null || (raw.time !== null && raw.time < to)
         )
         .filter(({ raw }) => !tournamentId || raw.tournamentId === tournamentId)
-        .filter(
-            ({ raw }) => !playerId || raw.playerIds.includes(String(playerId))
-        )
+        .filter(({ row }) => {
+            if (!playerId) return true
+            const selectedPlayerId = String(playerId)
+            return perspective === "against"
+                ? String(row.loser.id) === selectedPlayerId
+                : String(row.winner.id) === selectedPlayerId
+        })
         .filter(({ row }) => !type || row.type === type)
         .filter(
             ({ raw }) =>

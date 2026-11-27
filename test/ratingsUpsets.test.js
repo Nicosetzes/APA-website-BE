@@ -188,19 +188,22 @@ test("mantiene los objetos de equipo cuando faltan ids o nombres históricos", (
 })
 
 test("incluye penales como victoria deportiva y los orienta por la tanda", () => {
-    const result = payload([
-        event({
-            seq: 1,
-            type: "playoff",
-            expectedP1: 0.8,
-            resultP1: 0.5,
-            delta: -6,
-            scoreP1: 1,
-            scoreP2: 1,
-            shootoutP1: 3,
-            shootoutP2: 5,
-        }),
-    ])
+    const result = payload(
+        [
+            event({
+                seq: 1,
+                type: "playoff",
+                expectedP1: 0.8,
+                resultP1: 0.5,
+                delta: -6,
+                scoreP1: 1,
+                scoreP2: 1,
+                shootoutP1: 3,
+                shootoutP2: 5,
+            }),
+        ],
+        { playerId: "a", perspective: "against" }
+    )
 
     assert.equal(result.data.total, 1)
     assert.deepEqual(result.data.upsets[0].penalties, { winner: 5, loser: 3 })
@@ -308,6 +311,54 @@ test("mantiene un registro por matchId y no expone el evento completo", () => {
     assert.equal("p1" in row, false)
 })
 
+test("orienta el filtro de jugador a favor y en contra sin duplicar partidos", () => {
+    const events = [
+        event({
+            seq: 1,
+            matchId: "a-wins",
+            p1: side("a"),
+            p2: side("b"),
+            expectedP1: 0.2,
+            resultP1: 1,
+            delta: 16,
+        }),
+        event({
+            seq: 2,
+            matchId: "a-loses",
+            p1: side("a"),
+            p2: side("c"),
+            expectedP1: 0.8,
+            resultP1: 0,
+            delta: -18,
+        }),
+        event({
+            seq: 3,
+            matchId: "unrelated",
+            p1: side("c"),
+            p2: side("d"),
+        }),
+    ]
+
+    const inFavor = payload(events, { playerId: "a", perspective: "for" })
+    const against = payload(events, {
+        playerId: "a",
+        perspective: "against",
+    })
+
+    assert.deepEqual(
+        inFavor.data.upsets.map(({ matchId }) => matchId),
+        ["a-wins"]
+    )
+    assert.deepEqual(
+        against.data.upsets.map(({ matchId }) => matchId),
+        ["a-loses"]
+    )
+    assert.equal(against.data.upsets[0].winner.id, "c")
+    assert.equal(against.data.upsets[0].loser.id, "a")
+    assert.equal(against.data.upsets[0].probability, 0.13)
+    assert.equal(against.data.upsets[0].ratingChange, 18)
+})
+
 test("aplica todos los filtros antes del límite y conserva opciones globales", () => {
     const events = [
         event({ seq: 1, time: Date.parse("2026-01-02T02:59:00Z") }),
@@ -371,6 +422,7 @@ test("el schema valida filtros y rechaza el parámetro limit retirado", () => {
     const valid = requestSchemas.getRatingsUpsets.query.validate({})
     assert.equal(valid.error, undefined)
     assert.deepEqual(valid.value, {
+        perspective: "for",
         penalties: "all",
     })
     assert.equal(
@@ -400,6 +452,8 @@ test("el schema valida filtros y rechaza el parámetro limit retirado", () => {
         { dateFrom: "2026-02-30" },
         { tournamentId: "bad" },
         { playerId: "" },
+        { perspective: "against" },
+        { playerId: "a", perspective: "sideways" },
         { type: "knockout" },
         { penalties: "yes" },
         { limit: 10 },
@@ -591,6 +645,8 @@ test("GET /api/ratings/upsets es público y rechaza queries inválidas", async (
             "extra=1",
             "dateFrom=2026-02-02&dateTo=2026-02-01",
             "penalties=bad",
+            "perspective=against",
+            "perspective=sideways&playerId=a",
             "limit=10",
         ]) {
             const invalid = await globalThis.fetch(
