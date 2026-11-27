@@ -2044,6 +2044,17 @@ paths:
                                                         nullable: true
                                                         additionalProperties: true
                                                         description: Igual que en `/api/ratings/period`
+                                            ratingTransfers:
+                                                type: array
+                                                description: >-
+                                                    Saldos netos dirigidos entre pares de
+                                                    jugadores dentro del período o torneo.
+                                                    Cada cruce se agrega con valores sin
+                                                    redondear y `points` se redondea al final.
+                                                    Si se filtra con `players`, ambos extremos
+                                                    deben estar seleccionados.
+                                                items:
+                                                    $ref: "#/components/schemas/RatingHistoryTransfer"
                                             tournaments:
                                                 type: array
                                                 description: >-
@@ -3450,6 +3461,25 @@ components:
                     type: string
                     format: date-time
                     description: Fecha del partido (`playedAt`)
+        RatingHistoryTransfer:
+            type: object
+            description: >-
+                Celda dirigida de la matriz. `points` es el saldo neto que el
+                jugador de `fromPlayerId` obtuvo del de `toPlayerId`; el cruce
+                inverso tiene el mismo `matches` y saldo opuesto. Solo se
+                incluyen pares con al menos un partido rateable.
+            properties:
+                fromPlayerId:
+                    type: string
+                toPlayerId:
+                    type: string
+                points:
+                    type: number
+                    description: Saldo agregado y redondeado a 1 decimal
+                matches:
+                    type: integer
+                    minimum: 1
+                    description: Partidos rateables que forman el cruce
         RatingHistoryTournamentMark:
             type: object
             description: >-

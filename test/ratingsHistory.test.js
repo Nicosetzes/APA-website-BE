@@ -8,6 +8,7 @@ const { rankPlayers } = require("../service/playerRatings")
 const { outcomeProbabilities } = require("../service/playerRatings/outcomes")
 const {
     buildHistoryPayload,
+    buildRatingTransfers,
     buildTournamentHistoryPayload,
     buildTournamentMarks,
     findPlayerUpsets,
@@ -103,6 +104,7 @@ test("historial: forma de la respuesta y orden de las claves", () => {
         "players",
         "matchesTimeline",
         "highlights",
+        "ratingTransfers",
         "tournaments",
     ])
     assert.equal(payload.data.matchesInPeriod, 3)
@@ -183,6 +185,78 @@ test("historial: rating después = before ± delta, delta con signo del jugador 
         assert.equal(p1Point.type, "regular")
         assert.ok(p1Point.t.endsWith("Z"))
     }
+})
+
+test("historial: transferencias suman el delta crudo, son antisimétricas y cuentan cruces", () => {
+    const inputs = inputsFor(SCENARIO, WINDOW)
+    const payload = buildHistoryPayload(inputs)
+    const transfers = payload.data.ratingTransfers
+    const transfer = (fromPlayerId, toPlayerId) =>
+        transfers.find(
+            (item) =>
+                item.fromPlayerId === fromPlayerId &&
+                item.toPlayerId === toPlayerId
+        )
+
+    // El A-B anterior al período no entra; dentro del período jugaron una vez.
+    const aFromB = transfer("a", "b")
+    const bFromA = transfer("b", "a")
+    assert.equal(aFromB.matches, 1)
+    assert.equal(bFromA.matches, 1)
+    assert.equal(aFromB.points, -bFromA.points)
+
+    // El empate B-C también es rateable y forma parte del cruce.
+    assert.equal(transfer("b", "c").matches, 1)
+    assert.equal(transfer("c", "b").matches, 1)
+
+    for (const item of transfers) {
+        const opposite = transfer(item.toPlayerId, item.fromPlayerId)
+        assert.ok(opposite)
+        assert.equal(item.matches, opposite.matches)
+        assert.equal(item.points, -opposite.points)
+    }
+})
+
+test("historial: transferencias redondean después de sumar", () => {
+    const events = [
+        { p1: { id: "a" }, p2: { id: "b" }, delta: 0.06 },
+        { p1: { id: "a" }, p2: { id: "b" }, delta: 0.06 },
+    ]
+
+    assert.deepEqual(buildRatingTransfers(events), [
+        {
+            fromPlayerId: "a",
+            toPlayerId: "b",
+            points: 0.1,
+            matches: 2,
+        },
+        {
+            fromPlayerId: "b",
+            toPlayerId: "a",
+            points: -0.1,
+            matches: 2,
+        },
+    ])
+})
+
+test("historial: el filtro de jugadores recorta ambos extremos de las transferencias", () => {
+    const payload = historyFor(SCENARIO, WINDOW, {
+        playerIds: ["a", "b"],
+    })
+
+    assert.deepEqual(
+        payload.data.ratingTransfers.map(
+            ({ fromPlayerId, toPlayerId, matches }) => [
+                fromPlayerId,
+                toPlayerId,
+                matches,
+            ]
+        ),
+        [
+            ["a", "b", 1],
+            ["b", "a", 1],
+        ]
+    )
 })
 
 test("historial: la cadena de puntos empalma con start y end", () => {
@@ -348,6 +422,11 @@ test("historial: rendimiento real y esperado agrega todos los partidos y elimina
     ]
     const inputs = inputsFor(matches, WINDOW)
     const payload = buildHistoryPayload(inputs)
+
+    assert.deepEqual(
+        payload.data.ratingTransfers.map(({ matches: count }) => count),
+        [3, 3]
+    )
 
     for (const [id, isP1] of [
         ["a", true],
@@ -1224,6 +1303,7 @@ test("torneo: forma de la respuesta, x del torneo y fechas argentinas", () => {
         "players",
         "matchesTimeline",
         "highlights",
+        "ratingTransfers",
         "tournaments",
     ])
     assert.deepEqual(payload.scope, {
@@ -1252,6 +1332,33 @@ test("torneo: forma de la respuesta, x del torneo y fechas argentinas", () => {
     for (const player of payload.data.players) {
         assert.ok(player.points.every((point) => point.x >= 1 && point.x <= 4))
         assert.equal(player.summary.matchesInPeriod, player.points.length)
+    }
+})
+
+test("torneo: las transferencias usan exclusivamente eventos del torneo", () => {
+    const payload = tournamentFor(T1)
+    const transfers = payload.data.ratingTransfers
+
+    assert.equal(transfers.length, 6)
+    assert.equal(
+        transfers.reduce((total, transfer) => total + transfer.matches, 0),
+        8
+    )
+    assert.ok(
+        transfers.every(
+            ({ fromPlayerId, toPlayerId }) =>
+                ["a", "b", "c"].includes(fromPlayerId) &&
+                ["a", "b", "c"].includes(toPlayerId)
+        )
+    )
+    for (const transfer of transfers) {
+        const opposite = transfers.find(
+            (item) =>
+                item.fromPlayerId === transfer.toPlayerId &&
+                item.toPlayerId === transfer.fromPlayerId
+        )
+        assert.equal(transfer.matches, opposite.matches)
+        assert.equal(transfer.points, -opposite.points)
     }
 })
 
@@ -1371,9 +1478,11 @@ test("torneo: el filtro players recorta la lista pero no el eje", () => {
     )
     assert.equal(payload.data.matchesInPeriod, 4)
     assert.equal(payload.data.matchesTimeline.length, 4)
+    assert.deepEqual(payload.data.ratingTransfers, [])
 
     const none = tournamentFor(T1, { playerIds: ["nadie"] })
     assert.deepEqual(none.data.players, [])
+    assert.deepEqual(none.data.ratingTransfers, [])
     assert.equal(none.data.matchesTimeline.length, 4)
 })
 

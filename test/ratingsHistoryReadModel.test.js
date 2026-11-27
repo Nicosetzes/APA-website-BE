@@ -331,6 +331,7 @@ test("dorado: el payload tiene el orden de claves del contrato y los apodos de u
         "players",
         "matchesTimeline",
         "highlights",
+        "ratingTransfers",
         "tournaments",
     ])
     assert.deepEqual(stored.scope, { type: "period", tournament: null })
@@ -436,6 +437,14 @@ test("players: filtra la lista sin alterar x ni matchesTimeline, y ignora ids in
             all.stored.data.matchesInPeriod
         )
         assert.deepEqual(stored.data.highlights, all.stored.data.highlights)
+        assert.deepEqual(
+            stored.data.ratingTransfers,
+            all.stored.data.ratingTransfers.filter(
+                ({ fromPlayerId, toPlayerId }) =>
+                    players.includes(fromPlayerId) &&
+                    players.includes(toPlayerId)
+            )
+        )
         // Los x de cada punto siguen siendo los del período completo.
         for (const row of stored.data.players) {
             const full = all.stored.data.players.find(

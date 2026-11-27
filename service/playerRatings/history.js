@@ -213,6 +213,54 @@ const buildTimeline = (events, names, scale) => {
     return { matchesTimeline, entriesById }
 }
 
+// Saldo neto dirigido entre cada par dentro de los eventos del ámbito. Cada
+// partido suma `delta` para P1 y `-delta` para P2; se redondea recién después
+// de acumular para no arrastrar el redondeo de los puntos del historial.
+const buildRatingTransfers = (events, playerIds = null) => {
+    const selected = playerIds?.length ? new Set(playerIds) : null
+    const transfers = new Map()
+
+    const add = (fromPlayerId, toPlayerId, points) => {
+        if (
+            selected &&
+            (!selected.has(fromPlayerId) || !selected.has(toPlayerId))
+        ) {
+            return
+        }
+        if (!transfers.has(fromPlayerId)) {
+            transfers.set(fromPlayerId, new Map())
+        }
+        const byOpponent = transfers.get(fromPlayerId)
+        const current = byOpponent.get(toPlayerId) ?? { points: 0, matches: 0 }
+        current.points += points
+        current.matches += 1
+        byOpponent.set(toPlayerId, current)
+    }
+
+    for (const event of events) {
+        add(event.p1.id, event.p2.id, event.delta)
+        add(event.p2.id, event.p1.id, -event.delta)
+    }
+
+    const rows = []
+    for (const [fromPlayerId, byOpponent] of transfers) {
+        for (const [toPlayerId, transfer] of byOpponent) {
+            rows.push({
+                fromPlayerId,
+                toPlayerId,
+                points: round(transfer.points) || 0,
+                matches: transfer.matches,
+            })
+        }
+    }
+
+    return rows.sort(
+        (a, b) =>
+            String(a.fromPlayerId).localeCompare(String(b.fromPlayerId)) ||
+            String(a.toPlayerId).localeCompare(String(b.toPlayerId))
+    )
+}
+
 const buildPerformanceVsExpected = (entries) => {
     const aggregate = (filter) => {
         let matches = 0
@@ -397,6 +445,7 @@ const buildHistoryPayload = ({
             highlights: {
                 biggestUpset: findBiggestUpset(events, names),
             },
+            ratingTransfers: buildRatingTransfers(events, playerIds),
             tournaments: buildTournamentMarks(events),
         },
     }
@@ -505,6 +554,7 @@ const buildTournamentHistoryPayload = ({
             highlights: {
                 biggestUpset: findBiggestUpset(events, names),
             },
+            ratingTransfers: buildRatingTransfers(events, playerIds),
             tournaments,
         },
     }
@@ -512,6 +562,7 @@ const buildTournamentHistoryPayload = ({
 
 module.exports = {
     buildHistoryPayload,
+    buildRatingTransfers,
     buildTournamentHistoryPayload,
     buildTournamentMarks,
     findPlayerUpsets,

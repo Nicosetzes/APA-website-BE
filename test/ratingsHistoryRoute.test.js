@@ -117,6 +117,13 @@ test("GET /api/ratings/history es público y responde el historial del período"
             "underdog",
         ])
         assert.equal(nico.summary.performanceVsExpected.all.matches, 2)
+        assert.ok(body.data.ratingTransfers.length > 0)
+        assert.ok(
+            body.data.ratingTransfers.every(
+                ({ points, matches }) =>
+                    Number.isFinite(points) && Number.isInteger(matches)
+            )
+        )
         assert.equal(nico.summary.recentForm, undefined)
         assert.equal(
             nico.summary.performanceVsExpected.all.actualPercentage,
@@ -272,6 +279,13 @@ test("GET /api/ratings/history con tournamentId responde el historial del torneo
         assert.equal(nico.player.name, "Nico")
         assert.equal(nico.points.length, 3)
         assert.equal(nico.summary.position, null)
+        assert.equal(
+            body.data.ratingTransfers.reduce(
+                (total, transfer) => total + transfer.matches,
+                0
+            ),
+            body.data.matchesInPeriod * 2
+        )
 
         // El id se acepta en mayúsculas y la respuesta lo devuelve en minúsculas.
         const upper = await fetchTournament(
@@ -293,6 +307,7 @@ test("GET /api/ratings/history con tournamentId responde el historial del torneo
             filtered.data.players.map((row) => row.player.id),
             ["s"]
         )
+        assert.deepEqual(filtered.data.ratingTransfers, [])
         assert.equal(filtered.data.matchesInPeriod, 4)
     })
 })
@@ -332,6 +347,7 @@ test("GET /api/ratings/history acepta players con uno o varios ids y filtra la l
             one.players.map((row) => row.player.id),
             ["n"]
         )
+        assert.deepEqual(one.ratingTransfers, [])
 
         const two = await fetchPlayers("&players=n&players=l")
         assert.deepEqual(two.players.map((row) => row.player.id).sort(), [
