@@ -256,6 +256,11 @@ const buildPerformanceVsExpected = (entries) => {
     return {
         all: aggregate(() => true),
         knockouts: aggregate((entry) => isKnockoutMatch(entry.point)),
+        favorite: aggregate((entry) => entry.raw.expected >= 0.55),
+        even: aggregate(
+            (entry) => entry.raw.expected > 0.45 && entry.raw.expected < 0.55
+        ),
+        underdog: aggregate((entry) => entry.raw.expected <= 0.45),
     }
 }
 

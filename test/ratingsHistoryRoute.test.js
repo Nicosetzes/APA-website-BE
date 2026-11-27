@@ -112,6 +112,9 @@ test("GET /api/ratings/history es público y responde el historial del período"
         assert.deepEqual(Object.keys(nico.summary.performanceVsExpected), [
             "all",
             "knockouts",
+            "favorite",
+            "even",
+            "underdog",
         ])
         assert.equal(nico.summary.performanceVsExpected.all.matches, 2)
         assert.equal(nico.summary.recentForm, undefined)

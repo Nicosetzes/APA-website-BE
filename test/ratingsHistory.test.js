@@ -399,6 +399,67 @@ test("historial: rendimiento real y esperado agrega todos los partidos y elimina
     assert.equal(inputs.periodEvents[2].resultP1, 0.5)
 })
 
+test("historial: favorito, parejo y no favorito cubren los límites sin solaparse", () => {
+    const tournamentId = "a".repeat(24)
+    const matches = [
+        match(1, A, 1, B, 0, "2026-03-05T12:00:00Z"),
+        match(2, A, 1, B, 1, "2026-03-05T13:00:00Z"),
+        match(3, A, 0, B, 1, "2026-03-05T14:00:00Z"),
+        match(4, A, 2, B, 2, "2026-03-05T15:00:00Z"),
+    ].map((item) => ({
+        ...item,
+        tournament: { id: tournamentId, name: "Copa" },
+    }))
+    const inputs = inputsFor(matches, WINDOW)
+    const expectedP1 = [0.45, 0.4501, 0.5499, 0.55]
+    const events = inputs.periodEvents.map((event, index) => ({
+        ...event,
+        expectedP1: expectedP1[index],
+    }))
+    const payloads = [
+        buildHistoryPayload({ ...inputs, periodEvents: events }),
+        buildTournamentHistoryPayload({
+            config: inputs.config,
+            names: inputs.names,
+            tournamentId,
+            tournamentEvents: events,
+        }),
+    ]
+
+    for (const payload of payloads) {
+        const a = row(payload, "a").summary.performanceVsExpected
+        const b = row(payload, "b").summary.performanceVsExpected
+
+        assert.deepEqual(Object.keys(a), [
+            "all",
+            "knockouts",
+            "favorite",
+            "even",
+            "underdog",
+        ])
+        for (const performance of [a, b]) {
+            assert.equal(performance.favorite.matches, 1)
+            assert.equal(performance.even.matches, 2)
+            assert.equal(performance.underdog.matches, 1)
+            assert.equal(
+                performance.favorite.matches +
+                    performance.even.matches +
+                    performance.underdog.matches,
+                performance.all.matches
+            )
+            assert.equal(performance.favorite.expectedPercentage, 55)
+            assert.equal(performance.even.expectedPercentage, 50)
+            assert.equal(performance.underdog.expectedPercentage, 45)
+        }
+        assert.equal(a.underdog.actualPercentage, 100)
+        assert.equal(a.even.actualPercentage, 25)
+        assert.equal(a.favorite.actualPercentage, 50)
+        assert.equal(b.favorite.actualPercentage, 0)
+        assert.equal(b.even.actualPercentage, 75)
+        assert.equal(b.underdog.actualPercentage, 50)
+    }
+})
+
 test("historial: integra el ajuste de equipos en el rendimiento esperado", () => {
     const matches = [
         match(1, A, 1, B, 0, "2026-03-05T12:00:00Z", {
@@ -483,31 +544,24 @@ test("historial: distingue overalls ausentes de un ajuste neutro en período y t
 
     for (const payload of payloads(() => null)) {
         for (const player of payload.data.players) {
-            assert.equal(
-                player.summary.performanceVsExpected.all
-                    .teamAdjustmentPercentagePoints,
-                null
-            )
-            assert.equal(
-                player.summary.performanceVsExpected.knockouts
-                    .teamAdjustmentPercentagePoints,
-                null
-            )
+            for (const metric of Object.values(
+                player.summary.performanceVsExpected
+            )) {
+                assert.equal(metric.teamAdjustmentPercentagePoints, null)
+            }
         }
     }
 
     for (const payload of payloads(() => ({ t1: 80, t2: 80 }))) {
         for (const player of payload.data.players) {
-            assert.equal(
-                player.summary.performanceVsExpected.all
-                    .teamAdjustmentPercentagePoints,
-                0
-            )
-            assert.equal(
-                player.summary.performanceVsExpected.knockouts
-                    .teamAdjustmentPercentagePoints,
-                0
-            )
+            for (const metric of Object.values(
+                player.summary.performanceVsExpected
+            )) {
+                assert.equal(
+                    metric.teamAdjustmentPercentagePoints,
+                    metric.matches > 0 ? 0 : null
+                )
+            }
         }
     }
 })
@@ -524,6 +578,27 @@ test("historial: sin partidos devuelve rendimiento vacío sin dividir por cero",
             differencePercentagePoints: null,
         },
         knockouts: {
+            matches: 0,
+            actualPercentage: null,
+            expectedPercentage: null,
+            teamAdjustmentPercentagePoints: null,
+            differencePercentagePoints: null,
+        },
+        favorite: {
+            matches: 0,
+            actualPercentage: null,
+            expectedPercentage: null,
+            teamAdjustmentPercentagePoints: null,
+            differencePercentagePoints: null,
+        },
+        even: {
+            matches: 0,
+            actualPercentage: null,
+            expectedPercentage: null,
+            teamAdjustmentPercentagePoints: null,
+            differencePercentagePoints: null,
+        },
+        underdog: {
             matches: 0,
             actualPercentage: null,
             expectedPercentage: null,

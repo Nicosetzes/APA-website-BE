@@ -3550,6 +3550,24 @@ components:
                     description: >-
                         Solo eventos `type: playin` o `type: playoff`, incluidas
                         todas las patas de una serie.
+                favorite:
+                    allOf:
+                        - $ref: "#/components/schemas/RatingHistoryPerformanceMetric"
+                    description: >-
+                        Partidos donde el puntaje esperado final del jugador
+                        es mayor o igual a 0,55.
+                even:
+                    allOf:
+                        - $ref: "#/components/schemas/RatingHistoryPerformanceMetric"
+                    description: >-
+                        Partidos donde el puntaje esperado final del jugador
+                        es mayor a 0,45 y menor a 0,55.
+                underdog:
+                    allOf:
+                        - $ref: "#/components/schemas/RatingHistoryPerformanceMetric"
+                    description: >-
+                        Partidos donde el puntaje esperado final del jugador
+                        es menor o igual a 0,45.
         RatingRecentFormMetric:
             type: object
             description: >-
