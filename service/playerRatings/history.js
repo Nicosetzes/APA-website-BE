@@ -13,6 +13,7 @@ const {
 const { getArgentinaToday } = require("../../utils/argentinaDay")
 const { isKnockoutMatch } = require("../../utils/matchPhase")
 const { eventProbability } = require("./eventProbability")
+const { expectedScore } = require("./index")
 const { findBiggestUpset } = require("./upsets")
 const { trackPeriodPositions } = require("./leadership")
 
@@ -42,12 +43,16 @@ const isCount = (value) => Number.isInteger(value) && value >= 0
 // Punto de un jugador en un partido. `rating` es el valor DESPUÉS del partido;
 // `raw` guarda los números sin redondear para calcular mínimo, máximo y
 // sorpresas sin arrastrar el redondeo de la respuesta.
-const toPoint = ({ event, x, side, opponent, isP1, names }) => {
+const toPoint = ({ event, x, side, opponent, isP1, names, scale }) => {
     const sign = isP1 ? 1 : -1
     const delta = sign * event.delta
     const rating = side.before + delta
     const expected = isP1 ? event.expectedP1 : 1 - event.expectedP1
+    const ratingExpected = expectedScore(side.before, opponent.before, scale)
     const result = isP1 ? event.resultP1 : 1 - event.resultP1
+    const teamAdjusted =
+        Number.isFinite(side.teamOverall) &&
+        Number.isFinite(opponent.teamOverall)
     // Victoria o avance según el tipo de partido: lo trae el evento (`kind`).
     // Un evento sin ese dato resuelve solo los `regular`; el resto, `null`.
     const kind = event.kind ?? (event.type === "regular" ? "win" : null)
@@ -63,7 +68,15 @@ const toPoint = ({ event, x, side, opponent, isP1, names }) => {
     const hasShootout = isCount(event.shootoutP1) && isCount(event.shootoutP2)
 
     return {
-        raw: { rating, delta, expected, result, probability },
+        raw: {
+            rating,
+            delta,
+            expected,
+            ratingExpected,
+            result,
+            probability,
+            teamAdjusted,
+        },
         point: {
             seq: event.seq,
             x,
@@ -170,7 +183,7 @@ const findExtremes = (startRating, entries) => {
 // recibidos (ya ordenados), no solo los de cada jugador, para que las líneas de
 // todos compartan el eje. Cada entrada trae además el lado del evento (`side`)
 // para leer el estado del jugador antes del partido.
-const buildTimeline = (events, names) => {
+const buildTimeline = (events, names, scale) => {
     const entriesById = new Map()
     const matchesTimeline = []
     events.forEach((event, index) => {
@@ -190,6 +203,7 @@ const buildTimeline = (events, names) => {
                     opponent,
                     isP1,
                     names,
+                    scale,
                 }),
                 side,
             })
@@ -234,6 +248,53 @@ const buildPerformanceVsExpected = (entries) => {
     return {
         all: aggregate(() => true),
         knockouts: aggregate((entry) => isKnockoutMatch(entry.point)),
+    }
+}
+
+const buildTeamImpact = (entries) => {
+    const covered = entries.filter((entry) => entry.raw.teamAdjusted)
+    const matches = covered.length
+    if (matches === 0) {
+        return {
+            matches: 0,
+            totalMatches: entries.length,
+            sampleQuality: null,
+            playerRatingExpectedPercentage: null,
+            teamAdjustmentPercentagePoints: null,
+            finalExpectedPercentage: null,
+            actualPercentage: null,
+            differencePercentagePoints: null,
+        }
+    }
+
+    let ratingExpected = 0
+    let finalExpected = 0
+    let actual = 0
+    for (const entry of covered) {
+        ratingExpected += entry.raw.ratingExpected
+        finalExpected += entry.raw.expected
+        actual += entry.raw.result
+    }
+
+    const playerRatingExpectedPercentage = (ratingExpected / matches) * 100
+    const finalExpectedPercentage = (finalExpected / matches) * 100
+    const actualPercentage = (actual / matches) * 100
+    const sampleQuality =
+        matches < 20 ? "small" : matches < 50 ? "acceptable" : "stable"
+
+    return {
+        matches,
+        totalMatches: entries.length,
+        sampleQuality,
+        playerRatingExpectedPercentage: round(playerRatingExpectedPercentage),
+        teamAdjustmentPercentagePoints: round(
+            finalExpectedPercentage - playerRatingExpectedPercentage
+        ),
+        finalExpectedPercentage: round(finalExpectedPercentage),
+        actualPercentage: round(actualPercentage),
+        differencePercentagePoints: round(
+            actualPercentage - finalExpectedPercentage
+        ),
     }
 }
 
@@ -295,7 +356,11 @@ const buildHistoryPayload = ({
     // Orden del motor.
     const events = [...periodEvents].sort((a, b) => a.seq - b.seq)
 
-    const { matchesTimeline, entriesById } = buildTimeline(events, names)
+    const { matchesTimeline, entriesById } = buildTimeline(
+        events,
+        names,
+        config.scale
+    )
 
     // Posiciones partido a partido y partidos en el #1: siempre sobre todos
     // los jugadores, aunque se pida un subconjunto (`players`).
@@ -334,6 +399,7 @@ const buildHistoryPayload = ({
                     matchesInPeriod: entries.length,
                     record,
                     performanceVsExpected: buildPerformanceVsExpected(entries),
+                    teamImpact: buildTeamImpact(entries),
                     position: player.position,
                     previousPosition: previous?.position ?? null,
                     // Positivo: subió lugares en el ranking.
@@ -384,7 +450,11 @@ const buildTournamentHistoryPayload = ({
     playerIds = null,
 }) => {
     const events = [...tournamentEvents].sort((a, b) => a.seq - b.seq)
-    const { matchesTimeline, entriesById } = buildTimeline(events, names)
+    const { matchesTimeline, entriesById } = buildTimeline(
+        events,
+        names,
+        config.scale
+    )
     const selected = playerIds?.length ? new Set(playerIds) : null
 
     const rows = []
@@ -421,6 +491,7 @@ const buildTournamentHistoryPayload = ({
                     matchesInPeriod: entries.length,
                     record,
                     performanceVsExpected: buildPerformanceVsExpected(entries),
+                    teamImpact: buildTeamImpact(entries),
                     position: null,
                     previousPosition: null,
                     positionChange: null,
@@ -477,6 +548,7 @@ const buildTournamentHistoryPayload = ({
 
 module.exports = {
     buildHistoryPayload,
+    buildTeamImpact,
     buildTournamentHistoryPayload,
     buildTournamentMarks,
     findPlayerUpsets,

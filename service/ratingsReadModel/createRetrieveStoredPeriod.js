@@ -77,6 +77,9 @@ const parseSide = (side, where) => {
         // un evento viejo, sin equipo o con un dato inválido no suma la clave.
         ...(isNonEmptyString(side.team) ? { team: side.team } : {}),
         ...(isValidTeamId(side.teamId) ? { teamId: side.teamId } : {}),
+        ...(isFiniteNumber(side.teamOverall)
+            ? { teamOverall: side.teamOverall }
+            : {}),
     }
 }
 

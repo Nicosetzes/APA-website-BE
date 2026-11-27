@@ -8,6 +8,7 @@ const { rankPlayers } = require("../service/playerRatings")
 const { outcomeProbabilities } = require("../service/playerRatings/outcomes")
 const {
     buildHistoryPayload,
+    buildTeamImpact,
     buildTournamentHistoryPayload,
     buildTournamentMarks,
     findPlayerUpsets,
@@ -25,8 +26,12 @@ const E = P("e")
 
 // Los mismos insumos que arma el controller (`periodSource`), a partir de los
 // partidos: rankings en `start` y `end`, eventos del período con `seq`.
-const inputsFor = (matches, { dateFrom, dateTo }) => {
-    const timeline = buildRatingsTimeline(matches, { teamStrength: null })
+const inputsFor = (
+    matches,
+    { dateFrom, dateTo },
+    options = { teamStrength: null }
+) => {
+    const timeline = buildRatingsTimeline(matches, options)
     const start = getArgentinaDayRange(dateFrom).start.getTime()
     const end = getArgentinaDayRange(dateTo).end.getTime()
     const periodEvents = []
@@ -117,6 +122,7 @@ test("historial: forma de la respuesta y orden de las claves", () => {
         "matchesInPeriod",
         "record",
         "performanceVsExpected",
+        "teamImpact",
         "position",
         "previousPosition",
         "positionChange",
@@ -391,6 +397,104 @@ test("historial: rendimiento real y esperado agrega todos los partidos y elimina
     }
 
     assert.equal(inputs.periodEvents[2].resultP1, 0.5)
+})
+
+test("historial: impacto de equipos descompone rating puro, ajuste, pronóstico y resultado", () => {
+    const matches = [
+        match(1, A, 1, B, 0, "2026-03-05T12:00:00Z", {
+            withTeams: true,
+        }),
+        match(2, A, 0, B, 1, "2026-03-05T13:00:00Z", {
+            withTeams: false,
+        }),
+        match(3, A, 1, B, 1, "2026-03-05T14:00:00Z", {
+            withTeams: true,
+        }),
+    ]
+    const teamStrength = (item) => (item.withTeams ? { t1: 84, t2: 76 } : null)
+    const inputs = inputsFor(matches, WINDOW, { teamStrength })
+    const payload = buildHistoryPayload(inputs)
+
+    for (const [id, isP1] of [
+        ["a", true],
+        ["b", false],
+    ]) {
+        const covered = inputs.periodEvents.filter(
+            (event) => event.p1.teamOverall !== null
+        )
+        const ratingExpected = covered.reduce((sum, event) => {
+            const own = isP1 ? event.p1.before : event.p2.before
+            const opponent = isP1 ? event.p2.before : event.p1.before
+            return (
+                sum + 1 / (1 + 10 ** ((opponent - own) / inputs.config.scale))
+            )
+        }, 0)
+        const finalExpected = covered.reduce(
+            (sum, event) =>
+                sum + (isP1 ? event.expectedP1 : 1 - event.expectedP1),
+            0
+        )
+        const actual = covered.reduce(
+            (sum, event) => sum + (isP1 ? event.resultP1 : 1 - event.resultP1),
+            0
+        )
+        const metric = row(payload, id).summary.teamImpact
+        const percentage = (value) => Math.round(value * 1000) / 10
+
+        assert.deepEqual(metric, {
+            matches: 2,
+            totalMatches: 3,
+            sampleQuality: "small",
+            playerRatingExpectedPercentage: percentage(ratingExpected / 2),
+            teamAdjustmentPercentagePoints: percentage(
+                (finalExpected - ratingExpected) / 2
+            ),
+            finalExpectedPercentage: percentage(finalExpected / 2),
+            actualPercentage: percentage(actual / 2),
+            differencePercentagePoints: percentage(
+                (actual - finalExpected) / 2
+            ),
+        })
+    }
+
+    assert.equal(
+        row(payload, "a").summary.teamImpact.teamAdjustmentPercentagePoints,
+        -row(payload, "b").summary.teamImpact.teamAdjustmentPercentagePoints
+    )
+})
+
+test("historial: impacto de equipos informa cobertura vacía y calidad por tamaño", () => {
+    const empty = row(historyFor(SCENARIO, WINDOW), "a").summary.teamImpact
+    assert.deepEqual(empty, {
+        matches: 0,
+        totalMatches: 2,
+        sampleQuality: null,
+        playerRatingExpectedPercentage: null,
+        teamAdjustmentPercentagePoints: null,
+        finalExpectedPercentage: null,
+        actualPercentage: null,
+        differencePercentagePoints: null,
+    })
+
+    const entry = {
+        raw: {
+            teamAdjusted: true,
+            ratingExpected: 0.5,
+            expected: 0.6,
+            result: 1,
+        },
+    }
+    for (const [matches, quality] of [
+        [19, "small"],
+        [20, "acceptable"],
+        [49, "acceptable"],
+        [50, "stable"],
+    ]) {
+        assert.equal(
+            buildTeamImpact(Array(matches).fill(entry)).sampleQuality,
+            quality
+        )
+    }
 })
 
 test("historial: sin partidos devuelve rendimiento vacío sin dividir por cero", () => {
@@ -872,6 +976,53 @@ const tournamentFor = (
         ),
         ...extra,
     })
+
+test("torneo: impacto de equipos usa solo los partidos del torneo", () => {
+    const matches = [
+        match(
+            1,
+            A,
+            1,
+            B,
+            0,
+            "2026-03-01T12:00:00Z",
+            inTournament(T1, "Copa A")
+        ),
+        match(
+            2,
+            A,
+            0,
+            B,
+            1,
+            "2026-03-02T12:00:00Z",
+            inTournament(T2, "Copa B")
+        ),
+    ]
+    const timeline = buildRatingsTimeline(matches, {
+        teamStrength: () => ({ t1: 84, t2: 76 }),
+    })
+    const tournamentEvents = timeline.events
+        .map((event, index) => ({ ...event, seq: index + 1 }))
+        .filter((event) => event.tournamentId === T1)
+    const payload = buildTournamentHistoryPayload({
+        config: timeline.config,
+        names: new Map(),
+        tournamentId: T1,
+        tournamentEvents,
+    })
+
+    assert.equal(payload.scope.type, "tournament")
+    assert.equal(payload.data.matchesInPeriod, 1)
+    for (const player of payload.data.players) {
+        assert.equal(player.summary.teamImpact.matches, 1)
+        assert.equal(player.summary.teamImpact.totalMatches, 1)
+        assert.equal(player.summary.teamImpact.sampleQuality, "small")
+        assert.notEqual(
+            player.summary.teamImpact.playerRatingExpectedPercentage,
+            player.summary.teamImpact.finalExpectedPercentage
+        )
+    }
+})
 
 test("marcas: agrupa por torneo con fromX/toX/matches/fromT/toT, intercaladas y ordenadas", () => {
     const payload = historyFor(TOURNAMENTS_SCENARIO, ALL)
