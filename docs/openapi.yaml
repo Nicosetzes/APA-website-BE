@@ -3467,8 +3467,12 @@ components:
             description: >-
                 Promedio por partido expresado como porcentaje. `actualPercentage`
                 usa el resultado real (victoria 1, empate o penales 0,5, derrota
-                0); `expectedPercentage` usa el puntaje esperado previo y
-                `differencePercentagePoints` es real menos esperado.
+                0); `expectedPercentage` usa el pronóstico final previo;
+                `teamAdjustmentPercentagePoints` es el pronóstico final menos
+                el esperado basado solo en ratings de jugadores, promediado
+                sobre todos los partidos del ámbito (los partidos sin overalls
+                aportan cero), y `differencePercentagePoints` es real menos
+                pronóstico final.
             properties:
                 matches:
                     type: integer
@@ -3481,6 +3485,14 @@ components:
                     type: number
                     nullable: true
                     description: "`null` cuando no hay partidos en este ámbito."
+                teamAdjustmentPercentagePoints:
+                    type: number
+                    nullable: true
+                    description: >-
+                        Ajuste medio por equipos; `null` si no hay partidos o
+                        si ninguno tiene overalls disponibles para ambos
+                        equipos. Si al menos uno tiene datos, el promedio usa
+                        todos los partidos del ámbito.
                 differencePercentagePoints:
                     type: number
                     nullable: true
@@ -3496,49 +3508,6 @@ components:
                     description: >-
                         Solo eventos `type: playin` o `type: playoff`, incluidas
                         todas las patas de una serie.
-        RatingHistoryTeamImpact:
-            type: object
-            description: >-
-                Descomposición agregada sobre los partidos del ámbito que
-                tienen overall para ambos equipos. No agrega datos por partido:
-                compara el esperado por rating puro de jugadores con el
-                pronóstico final ajustado por equipos y con el resultado real.
-            properties:
-                matches:
-                    type: integer
-                    minimum: 0
-                    description: Partidos con fuerza de ambos equipos disponible.
-                totalMatches:
-                    type: integer
-                    minimum: 0
-                    description: Todos los partidos del jugador en el ámbito.
-                sampleQuality:
-                    type: string
-                    enum: [small, acceptable, stable]
-                    nullable: true
-                    description: >-
-                        `small` con menos de 20 partidos, `acceptable` entre 20
-                        y 49, `stable` desde 50; `null` sin partidos cubiertos.
-                playerRatingExpectedPercentage:
-                    type: number
-                    nullable: true
-                    description: Esperado usando solo los ratings de jugadores.
-                teamAdjustmentPercentagePoints:
-                    type: number
-                    nullable: true
-                    description: Pronóstico final menos esperado por rating puro.
-                finalExpectedPercentage:
-                    type: number
-                    nullable: true
-                    description: Pronóstico final, incluido el ajuste por equipos.
-                actualPercentage:
-                    type: number
-                    nullable: true
-                    description: Resultado real; los penales cuentan 0,5.
-                differencePercentagePoints:
-                    type: number
-                    nullable: true
-                    description: Resultado real menos pronóstico final.
         RatingHistoryPlayer:
             type: object
             properties:
@@ -3597,8 +3566,6 @@ components:
                                     type: integer
                         performanceVsExpected:
                             $ref: "#/components/schemas/RatingHistoryPerformanceVsExpected"
-                        teamImpact:
-                            $ref: "#/components/schemas/RatingHistoryTeamImpact"
                         position:
                             type: integer
                             nullable: true

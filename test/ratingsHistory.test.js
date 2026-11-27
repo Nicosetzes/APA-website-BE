@@ -8,7 +8,6 @@ const { rankPlayers } = require("../service/playerRatings")
 const { outcomeProbabilities } = require("../service/playerRatings/outcomes")
 const {
     buildHistoryPayload,
-    buildTeamImpact,
     buildTournamentHistoryPayload,
     buildTournamentMarks,
     findPlayerUpsets,
@@ -122,7 +121,6 @@ test("historial: forma de la respuesta y orden de las claves", () => {
         "matchesInPeriod",
         "record",
         "performanceVsExpected",
-        "teamImpact",
         "position",
         "previousPosition",
         "positionChange",
@@ -383,6 +381,7 @@ test("historial: rendimiento real y esperado agrega todos los partidos y elimina
             matches: 3,
             actualPercentage: Math.round((actual / 3) * 1000) / 10,
             expectedPercentage: Math.round((expected / 3) * 1000) / 10,
+            teamAdjustmentPercentagePoints: null,
             differencePercentagePoints:
                 Math.round(((actual - expected) / 3) * 1000) / 10,
         })
@@ -390,6 +389,7 @@ test("historial: rendimiento real y esperado agrega todos los partidos y elimina
             matches: 2,
             actualPercentage: Math.round((knockoutActual / 2) * 1000) / 10,
             expectedPercentage: Math.round((knockoutExpected / 2) * 1000) / 10,
+            teamAdjustmentPercentagePoints: null,
             differencePercentagePoints:
                 Math.round(((knockoutActual - knockoutExpected) / 2) * 1000) /
                 10,
@@ -399,7 +399,7 @@ test("historial: rendimiento real y esperado agrega todos los partidos y elimina
     assert.equal(inputs.periodEvents[2].resultP1, 0.5)
 })
 
-test("historial: impacto de equipos descompone rating puro, ajuste, pronóstico y resultado", () => {
+test("historial: integra el ajuste de equipos en el rendimiento esperado", () => {
     const matches = [
         match(1, A, 1, B, 0, "2026-03-05T12:00:00Z", {
             withTeams: true,
@@ -409,91 +409,106 @@ test("historial: impacto de equipos descompone rating puro, ajuste, pronóstico 
         }),
         match(3, A, 1, B, 1, "2026-03-05T14:00:00Z", {
             withTeams: true,
+            type: "playoff",
         }),
     ]
     const teamStrength = (item) => (item.withTeams ? { t1: 84, t2: 76 } : null)
     const inputs = inputsFor(matches, WINDOW, { teamStrength })
     const payload = buildHistoryPayload(inputs)
+    const percentage = (value) => Math.round(value * 1000) / 10
 
     for (const [id, isP1] of [
         ["a", true],
         ["b", false],
     ]) {
-        const covered = inputs.periodEvents.filter(
-            (event) => event.p1.teamOverall !== null
-        )
-        const ratingExpected = covered.reduce((sum, event) => {
+        const ratingExpected = (event) => {
             const own = isP1 ? event.p1.before : event.p2.before
             const opponent = isP1 ? event.p2.before : event.p1.before
-            return (
-                sum + 1 / (1 + 10 ** ((opponent - own) / inputs.config.scale))
+            return 1 / (1 + 10 ** ((opponent - own) / inputs.config.scale))
+        }
+        const finalExpected = (event) =>
+            isP1 ? event.expectedP1 : 1 - event.expectedP1
+        const adjustment = (events) =>
+            percentage(
+                events.reduce(
+                    (sum, event) =>
+                        sum + finalExpected(event) - ratingExpected(event),
+                    0
+                ) / events.length
             )
-        }, 0)
-        const finalExpected = covered.reduce(
-            (sum, event) =>
-                sum + (isP1 ? event.expectedP1 : 1 - event.expectedP1),
-            0
+        const performance = row(payload, id).summary.performanceVsExpected
+        const knockouts = inputs.periodEvents.filter((event) =>
+            ["playin", "playoff"].includes(event.type)
         )
-        const actual = covered.reduce(
-            (sum, event) => sum + (isP1 ? event.resultP1 : 1 - event.resultP1),
-            0
-        )
-        const metric = row(payload, id).summary.teamImpact
-        const percentage = (value) => Math.round(value * 1000) / 10
 
-        assert.deepEqual(metric, {
-            matches: 2,
-            totalMatches: 3,
-            sampleQuality: "small",
-            playerRatingExpectedPercentage: percentage(ratingExpected / 2),
-            teamAdjustmentPercentagePoints: percentage(
-                (finalExpected - ratingExpected) / 2
-            ),
-            finalExpectedPercentage: percentage(finalExpected / 2),
-            actualPercentage: percentage(actual / 2),
-            differencePercentagePoints: percentage(
-                (actual - finalExpected) / 2
-            ),
-        })
+        assert.equal(
+            performance.all.teamAdjustmentPercentagePoints,
+            adjustment(inputs.periodEvents)
+        )
+        assert.equal(
+            performance.knockouts.teamAdjustmentPercentagePoints,
+            adjustment(knockouts)
+        )
     }
 
     assert.equal(
-        row(payload, "a").summary.teamImpact.teamAdjustmentPercentagePoints,
-        -row(payload, "b").summary.teamImpact.teamAdjustmentPercentagePoints
+        row(payload, "a").summary.performanceVsExpected.all
+            .teamAdjustmentPercentagePoints,
+        -row(payload, "b").summary.performanceVsExpected.all
+            .teamAdjustmentPercentagePoints
     )
 })
 
-test("historial: impacto de equipos informa cobertura vacía y calidad por tamaño", () => {
-    const empty = row(historyFor(SCENARIO, WINDOW), "a").summary.teamImpact
-    assert.deepEqual(empty, {
-        matches: 0,
-        totalMatches: 2,
-        sampleQuality: null,
-        playerRatingExpectedPercentage: null,
-        teamAdjustmentPercentagePoints: null,
-        finalExpectedPercentage: null,
-        actualPercentage: null,
-        differencePercentagePoints: null,
-    })
-
-    const entry = {
-        raw: {
-            teamAdjusted: true,
-            ratingExpected: 0.5,
-            expected: 0.6,
-            result: 1,
-        },
+test("historial: distingue overalls ausentes de un ajuste neutro en período y torneo", () => {
+    const tournamentId = "a".repeat(24)
+    const matches = [
+        match(1, A, 1, B, 0, "2026-03-05T12:00:00Z", {
+            type: "playoff",
+            tournament: { id: tournamentId, name: "Copa" },
+            withTeams: true,
+        }),
+    ]
+    const payloads = (teamStrength) => {
+        const inputs = inputsFor(matches, WINDOW, { teamStrength })
+        return [
+            buildHistoryPayload(inputs),
+            buildTournamentHistoryPayload({
+                config: inputs.config,
+                names: inputs.names,
+                tournamentId,
+                tournamentEvents: inputs.periodEvents,
+            }),
+        ]
     }
-    for (const [matches, quality] of [
-        [19, "small"],
-        [20, "acceptable"],
-        [49, "acceptable"],
-        [50, "stable"],
-    ]) {
-        assert.equal(
-            buildTeamImpact(Array(matches).fill(entry)).sampleQuality,
-            quality
-        )
+
+    for (const payload of payloads(() => null)) {
+        for (const player of payload.data.players) {
+            assert.equal(
+                player.summary.performanceVsExpected.all
+                    .teamAdjustmentPercentagePoints,
+                null
+            )
+            assert.equal(
+                player.summary.performanceVsExpected.knockouts
+                    .teamAdjustmentPercentagePoints,
+                null
+            )
+        }
+    }
+
+    for (const payload of payloads(() => ({ t1: 80, t2: 80 }))) {
+        for (const player of payload.data.players) {
+            assert.equal(
+                player.summary.performanceVsExpected.all
+                    .teamAdjustmentPercentagePoints,
+                0
+            )
+            assert.equal(
+                player.summary.performanceVsExpected.knockouts
+                    .teamAdjustmentPercentagePoints,
+                0
+            )
+        }
     }
 })
 
@@ -505,12 +520,14 @@ test("historial: sin partidos devuelve rendimiento vacío sin dividir por cero",
             matches: 0,
             actualPercentage: null,
             expectedPercentage: null,
+            teamAdjustmentPercentagePoints: null,
             differencePercentagePoints: null,
         },
         knockouts: {
             matches: 0,
             actualPercentage: null,
             expectedPercentage: null,
+            teamAdjustmentPercentagePoints: null,
             differencePercentagePoints: null,
         },
     })
@@ -977,7 +994,7 @@ const tournamentFor = (
         ...extra,
     })
 
-test("torneo: impacto de equipos usa solo los partidos del torneo", () => {
+test("torneo: el ajuste de equipos usa solo los partidos del torneo", () => {
     const matches = [
         match(
             1,
@@ -1014,13 +1031,13 @@ test("torneo: impacto de equipos usa solo los partidos del torneo", () => {
     assert.equal(payload.scope.type, "tournament")
     assert.equal(payload.data.matchesInPeriod, 1)
     for (const player of payload.data.players) {
-        assert.equal(player.summary.teamImpact.matches, 1)
-        assert.equal(player.summary.teamImpact.totalMatches, 1)
-        assert.equal(player.summary.teamImpact.sampleQuality, "small")
+        assert.equal(player.summary.performanceVsExpected.all.matches, 1)
         assert.notEqual(
-            player.summary.teamImpact.playerRatingExpectedPercentage,
-            player.summary.teamImpact.finalExpectedPercentage
+            player.summary.performanceVsExpected.all
+                .teamAdjustmentPercentagePoints,
+            0
         )
+        assert.equal(player.summary.teamImpact, undefined)
     }
 })
 

@@ -50,7 +50,7 @@ const toPoint = ({ event, x, side, opponent, isP1, names, scale }) => {
     const expected = isP1 ? event.expectedP1 : 1 - event.expectedP1
     const ratingExpected = expectedScore(side.before, opponent.before, scale)
     const result = isP1 ? event.resultP1 : 1 - event.resultP1
-    const teamAdjusted =
+    const hasTeamOveralls =
         Number.isFinite(side.teamOverall) &&
         Number.isFinite(opponent.teamOverall)
     // Victoria o avance según el tipo de partido: lo trae el evento (`kind`).
@@ -75,7 +75,7 @@ const toPoint = ({ event, x, side, opponent, isP1, names, scale }) => {
             ratingExpected,
             result,
             probability,
-            teamAdjusted,
+            hasTeamOveralls,
         },
         point: {
             seq: event.seq,
@@ -218,12 +218,16 @@ const buildPerformanceVsExpected = (entries) => {
         let matches = 0
         let actual = 0
         let expected = 0
+        let ratingExpected = 0
+        let hasTeamOveralls = false
 
         for (const entry of entries) {
             if (!filter(entry)) continue
             matches += 1
             actual += entry.raw.result
             expected += entry.raw.expected
+            ratingExpected += entry.raw.ratingExpected
+            hasTeamOveralls ||= entry.raw.hasTeamOveralls
         }
 
         if (matches === 0) {
@@ -231,6 +235,7 @@ const buildPerformanceVsExpected = (entries) => {
                 matches: 0,
                 actualPercentage: null,
                 expectedPercentage: null,
+                teamAdjustmentPercentagePoints: null,
                 differencePercentagePoints: null,
             }
         }
@@ -239,6 +244,9 @@ const buildPerformanceVsExpected = (entries) => {
             matches,
             actualPercentage: round((actual / matches) * 100),
             expectedPercentage: round((expected / matches) * 100),
+            teamAdjustmentPercentagePoints: hasTeamOveralls
+                ? round(((expected - ratingExpected) / matches) * 100)
+                : null,
             differencePercentagePoints: round(
                 ((actual - expected) / matches) * 100
             ),
@@ -248,53 +256,6 @@ const buildPerformanceVsExpected = (entries) => {
     return {
         all: aggregate(() => true),
         knockouts: aggregate((entry) => isKnockoutMatch(entry.point)),
-    }
-}
-
-const buildTeamImpact = (entries) => {
-    const covered = entries.filter((entry) => entry.raw.teamAdjusted)
-    const matches = covered.length
-    if (matches === 0) {
-        return {
-            matches: 0,
-            totalMatches: entries.length,
-            sampleQuality: null,
-            playerRatingExpectedPercentage: null,
-            teamAdjustmentPercentagePoints: null,
-            finalExpectedPercentage: null,
-            actualPercentage: null,
-            differencePercentagePoints: null,
-        }
-    }
-
-    let ratingExpected = 0
-    let finalExpected = 0
-    let actual = 0
-    for (const entry of covered) {
-        ratingExpected += entry.raw.ratingExpected
-        finalExpected += entry.raw.expected
-        actual += entry.raw.result
-    }
-
-    const playerRatingExpectedPercentage = (ratingExpected / matches) * 100
-    const finalExpectedPercentage = (finalExpected / matches) * 100
-    const actualPercentage = (actual / matches) * 100
-    const sampleQuality =
-        matches < 20 ? "small" : matches < 50 ? "acceptable" : "stable"
-
-    return {
-        matches,
-        totalMatches: entries.length,
-        sampleQuality,
-        playerRatingExpectedPercentage: round(playerRatingExpectedPercentage),
-        teamAdjustmentPercentagePoints: round(
-            finalExpectedPercentage - playerRatingExpectedPercentage
-        ),
-        finalExpectedPercentage: round(finalExpectedPercentage),
-        actualPercentage: round(actualPercentage),
-        differencePercentagePoints: round(
-            actualPercentage - finalExpectedPercentage
-        ),
     }
 }
 
@@ -399,7 +360,6 @@ const buildHistoryPayload = ({
                     matchesInPeriod: entries.length,
                     record,
                     performanceVsExpected: buildPerformanceVsExpected(entries),
-                    teamImpact: buildTeamImpact(entries),
                     position: player.position,
                     previousPosition: previous?.position ?? null,
                     // Positivo: subió lugares en el ranking.
@@ -491,7 +451,6 @@ const buildTournamentHistoryPayload = ({
                     matchesInPeriod: entries.length,
                     record,
                     performanceVsExpected: buildPerformanceVsExpected(entries),
-                    teamImpact: buildTeamImpact(entries),
                     position: null,
                     previousPosition: null,
                     positionChange: null,
@@ -548,7 +507,6 @@ const buildTournamentHistoryPayload = ({
 
 module.exports = {
     buildHistoryPayload,
-    buildTeamImpact,
     buildTournamentHistoryPayload,
     buildTournamentMarks,
     findPlayerUpsets,

@@ -511,6 +511,8 @@ test("period: la consulta A sin includeHistory usa la proyección de siempre y l
         assert.ok(!("team" in event.p2))
         assert.ok(!("teamId" in event.p1))
         assert.ok(!("teamId" in event.p2))
+        assert.ok(!("teamOverall" in event.p1))
+        assert.ok(!("teamOverall" in event.p2))
         assert.ok(!("kind" in event))
         assert.ok(!("shootoutP1" in event))
         assert.ok(!("shootoutP2" in event))
