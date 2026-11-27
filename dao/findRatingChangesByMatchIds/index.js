@@ -1,12 +1,13 @@
 const ratingEventsModel = require("./../models/ratingEvents.js")
 const { toObjectIds } = require("../findRatingEventsByMatchIds")
 
-// Variación de rating guardada de los partidos pedidos: solo el `delta` (puntos
-// que pasan hacia el jugador 1; el jugador 2 recibe lo opuesto) y la huella, para
-// detectar un apply parcial entre colecciones. `.lean()`. Es una consulta aparte
-// de `findRatingEventsByMatchIds` para no tocar su proyección, que es la que
-// lee la predicción.
-const RATING_CHANGES_PROJECTION = "matchId delta fingerprint -_id"
+// Datos agregables de rating de los partidos pedidos. `delta` alimenta la
+// variación por partido; expected/result y los ids permiten comparar esperado
+// contra real en un cara a cara sin enviar eventos al cliente. La huella detecta
+// un apply parcial entre colecciones. `.lean()`. Es una consulta aparte de
+// `findRatingEventsByMatchIds` para no tocar la proyección de predicciones.
+const RATING_CHANGES_PROJECTION =
+    "matchId delta expectedP1 resultP1 p1.id p2.id fingerprint -_id"
 
 const findRatingChangesByMatchIds = async (
     ratingVersion,

@@ -146,7 +146,9 @@ const streakOf = (rows, players) => {
 }
 
 const toRatingChange = (decorated, row) => {
-    const change = decorated?.ratingChange
+    // Los consumidores históricos pasan el partido decorado; el detalle público
+    // puede pasar directamente el cambio obtenido por la lectura agregada.
+    const change = decorated?.ratingChange ?? decorated
 
     if (!change || !Number.isFinite(change.p1) || !Number.isFinite(change.p2))
         return null
@@ -156,7 +158,7 @@ const toRatingChange = (decorated, row) => {
         : { playerA: change.p2, playerB: change.p1 }
 }
 
-const toLastMatch = ({ row, decorated, tournament, players }) => {
+const toLastMatch = ({ row, ratingChange, tournament, players }) => {
     const { raw } = row
     const winner = row.result === "draw" ? null : players[row.result].name
 
@@ -185,7 +187,7 @@ const toLastMatch = ({ row, decorated, tournament, players }) => {
         },
         winner,
         shootout: shootoutOf(row, players.playerA, players.playerB),
-        ratingChange: toRatingChange(decorated, row),
+        ratingChange: toRatingChange(ratingChange, row),
     })
 }
 
@@ -197,6 +199,7 @@ const buildHeadToHeadResponse = ({
     recent,
     now,
     filters = {},
+    ratingComparison,
     notes = [],
 }) => {
     const {
@@ -264,6 +267,7 @@ const buildHeadToHeadResponse = ({
         firstMatchOn: dated.length ? dated.at(-1).playedOn : null,
         lastMatchOn: dated.length ? dated[0].playedOn : null,
         excluded,
+        ...(ratingComparison && { ratingComparison }),
         filters: {
             stage,
             tournamentId,
@@ -295,7 +299,10 @@ const retrieveHeadToHead = async (filters, dependencies = {}) => {
         findHeadToHeadMatchesForAssistant
     const findTournaments =
         dependencies.findTournamentsForAssistant || findTournamentsForAssistant
-    // El cambio de rating es un adorno: sin esta dependencia no se informa.
+    // El agregado de rating es opcional: sin read model fresco el historial se
+    // arma igual y simplemente no incluye la comparación. `addRatingChanges`
+    // conserva el contrato previo que usa el endpoint del asistente.
+    const loadRatingData = dependencies.loadRatingData
     const addRatingChanges =
         dependencies.addRatingChanges || (async (matches) => matches)
     const now = dependencies.now?.() ?? new Date()
@@ -358,13 +365,25 @@ const retrieveHeadToHead = async (filters, dependencies = {}) => {
 
     rows.sort((a, b) => comparePlayedAtDesc(a.raw, b.raw))
 
+    const ratingData = loadRatingData
+        ? await loadRatingData({
+              matches: rows.map((row) => row.raw),
+              playerA: players.playerA.id,
+              playerB: players.playerB.id,
+          })
+        : null
+
     const recentRows = rows.slice(0, effectiveLimit)
-    const decorated = Array.from(
-        (await addRatingChanges(recentRows.map((row) => row.raw))) || []
-    )
-    const decoratedById = new Map(
-        decorated.map((match) => [String(match._id), match])
-    )
+    let ratingChanges =
+        ratingData?.changes instanceof Map ? ratingData.changes : new Map()
+    if (!loadRatingData) {
+        const decorated = Array.from(
+            (await addRatingChanges(recentRows.map((row) => row.raw))) || []
+        )
+        ratingChanges = new Map(
+            decorated.map((match) => [String(match._id), match])
+        )
+    }
 
     const tournamentIds = [
         ...new Set(
@@ -383,7 +402,7 @@ const retrieveHeadToHead = async (filters, dependencies = {}) => {
     const recent = recentRows.map((row) =>
         toLastMatch({
             row,
-            decorated: decoratedById.get(String(row.raw._id)),
+            ratingChange: ratingChanges.get(String(row.raw._id)),
             tournament: tournamentsById.get(String(row.raw.tournament?.id)),
             players,
         })
@@ -401,6 +420,7 @@ const retrieveHeadToHead = async (filters, dependencies = {}) => {
             ...(dateFrom ? { dateFrom } : {}),
             ...(dateTo ? { dateTo } : {}),
         },
+        ratingComparison: ratingData?.comparison,
     })
 }
 

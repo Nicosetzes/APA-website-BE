@@ -459,6 +459,16 @@ El ajuste de equipos conserva la semántica de `summary.performanceVsExpected` d
 
 El controller usa `createPeriodSource({ allTime: true, includeHistory: true })`, con `endpoint: "ratings_tournaments"` en el log. El read model fresco hace una sola lectura global de la cadena de `rating-events`, con sus chequeos de frescura, huella y encadenado, y no consulta `matches` ni el catálogo de torneos. Si el read model está apagado, viejo, inconsistente o falla, calcula la misma respuesta desde el timeline vivo. No hay consultas por torneo, jugador ni actuación y el navegador recibe solo agregados, no el historial completo.
 
+### Esperado contra real en Mano a mano (`GET /api/statistics/head-to-head/:playerA/:playerB`)
+
+El detalle existente de la tab **Mano a mano** suma `ratingComparison` cuando el read model persistido está disponible y fresco. El bloque contiene `playerA` y `playerB`; cada lado expone `{ matches, actualPercentage, expectedPercentage, differencePercentagePoints }`. `matches` es el denominador propio de la comparación y puede ser menor que `record.matches`: el récord general conserva todos los partidos válidos del cruce, mientras que esta métrica usa solo los que tienen evento de Rating APA.
+
+La escala es la del motor: victoria 1, empate o definición por penales 0,5 y derrota 0. Obtenido es `sum(result) / matches * 100`; esperado es `sum(expected) / matches * 100`; diferencia es obtenido menos esperado en puntos porcentuales. P1 usa `resultP1` y `expectedP1`; P2 usa sus complementos `1 - resultP1` y `1 - expectedP1`. Los porcentajes se redondean a un decimal. Sin eventos utilizables, el conteo es 0 y los porcentajes son `null`.
+
+La consulta parte de los ids de los partidos que ya devolvió el detalle después de aplicar exactamente `stage`, `tournamentId`, `dateFrom` y `dateTo`. Luego lee en un solo query por el índice existente `(ratingVersion, matchId)` una proyección mínima de `rating-events`: ids de lados, esperado, resultado, delta y huella. No hay una consulta por partido ni se envían eventos al navegador. La misma lectura sigue alimentando la variación de Rating de los partidos recientes.
+
+Como el cambio de rating que ya adornaba este endpoint, la comparación no tiene fallback vivo. Si el read model está apagado, stale, incompleto o falla, `ratingComparison` se omite y el historial completo del cruce sigue respondiendo. Un evento ausente reduce solo el conteo de la comparación y no elimina el partido del récord general.
+
 ### Reinados en el #1 (`GET /api/ratings/reigns`)
 
 Punto 5.7 de `APA-RATING-IDEAS.md`. Un **reinado** es una racha de partidos APA, de cualquier jugador, con el mismo jugador como #1. La lógica vive en `service/playerRatings/leadership.js` (pura) y la usan dos endpoints: `/ratings/reigns` (toda la historia) y `/ratings/history` (posiciones y partidos en el #1 del período).

@@ -1,4 +1,5 @@
 const { RATING_CONFIG } = require("../../config/ratings")
+const { round } = require("../playerRatings/presentation")
 const { assessFreshness } = require("../ratingsStore/freshness")
 
 // Variación de rating por partido, leída de los ratings persistidos (los mismos
@@ -22,6 +23,67 @@ const roundPoints = (value) => {
     return rounded === 0 ? 0 : rounded
 }
 
+const emptyPerformance = () => ({
+    matches: 0,
+    actualPercentage: null,
+    expectedPercentage: null,
+    differencePercentagePoints: null,
+})
+
+const presentPerformance = ({ matches, actual, expected }) =>
+    matches === 0
+        ? emptyPerformance()
+        : {
+              matches,
+              actualPercentage: round((actual / matches) * 100),
+              expectedPercentage: round((expected / matches) * 100),
+              differencePercentagePoints: round(
+                  ((actual - expected) / matches) * 100
+              ),
+          }
+
+// Los eventos están en perspectiva P1. Solo suma eventos válidos del par y
+// orienta explícitamente expected/result hacia los dos jugadores solicitados.
+const buildHeadToHeadRatingComparison = (events, playerA, playerB) => {
+    const totals = {
+        playerA: { matches: 0, actual: 0, expected: 0 },
+        playerB: { matches: 0, actual: 0, expected: 0 },
+    }
+
+    for (const event of events) {
+        if (
+            !Number.isFinite(event.expectedP1) ||
+            !Number.isFinite(event.resultP1) ||
+            event.expectedP1 < 0 ||
+            event.expectedP1 > 1 ||
+            event.resultP1 < 0 ||
+            event.resultP1 > 1
+        ) {
+            continue
+        }
+
+        const p1 = String(event.p1?.id)
+        const p2 = String(event.p2?.id)
+        const aIsP1 = p1 === playerA && p2 === playerB
+        const aIsP2 = p1 === playerB && p2 === playerA
+        if (!aIsP1 && !aIsP2) continue
+
+        const actualA = aIsP1 ? event.resultP1 : 1 - event.resultP1
+        const expectedA = aIsP1 ? event.expectedP1 : 1 - event.expectedP1
+        totals.playerA.matches += 1
+        totals.playerA.actual += actualA
+        totals.playerA.expected += expectedA
+        totals.playerB.matches += 1
+        totals.playerB.actual += 1 - actualA
+        totals.playerB.expected += 1 - expectedA
+    }
+
+    return {
+        playerA: presentPerformance(totals.playerA),
+        playerB: presentPerformance(totals.playerB),
+    }
+}
+
 const createRetrieveRatingChanges = ({
     findRatingSourceStats,
     findPlayerRatings,
@@ -40,9 +102,23 @@ const createRetrieveRatingChanges = ({
         }
     }
 
-    return async ({ matchIds = [] } = {}) => {
+    return async ({ matchIds = [], playerA, playerB } = {}) => {
         const requiredIds = [...new Set(matchIds.map(String))]
-        if (requiredIds.length === 0) return { changes: new Map() }
+        const hasPair = playerA !== undefined && playerB !== undefined
+        const normalizedPlayerA = hasPair ? String(playerA) : null
+        const normalizedPlayerB = hasPair ? String(playerB) : null
+        if (requiredIds.length === 0) {
+            return {
+                changes: new Map(),
+                ...(hasPair && {
+                    comparison: buildHeadToHeadRatingComparison(
+                        [],
+                        normalizedPlayerA,
+                        normalizedPlayerB
+                    ),
+                }),
+            }
+        }
 
         const [currentSourceStats, players, events] = await Promise.all([
             findRatingSourceStats(),
@@ -76,8 +152,21 @@ const createRetrieveRatingChanges = ({
                 ratingVersion: config.version,
             })
         }
-        return { changes }
+        return {
+            changes,
+            ...(hasPair && {
+                comparison: buildHeadToHeadRatingComparison(
+                    events,
+                    normalizedPlayerA,
+                    normalizedPlayerB
+                ),
+            }),
+        }
     }
 }
 
-module.exports = { createRetrieveRatingChanges, roundPoints }
+module.exports = {
+    buildHeadToHeadRatingComparison,
+    createRetrieveRatingChanges,
+    roundPoints,
+}

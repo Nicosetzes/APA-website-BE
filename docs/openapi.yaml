@@ -468,6 +468,9 @@ paths:
                         application/json:
                             schema:
                                 type: object
+                                properties:
+                                    ratingComparison:
+                                        $ref: "#/components/schemas/HeadToHeadRatingComparison"
                                 additionalProperties: true
                 "400":
                     $ref: "#/components/responses/BadRequest"
@@ -3561,6 +3564,45 @@ components:
                         clasificación posible: playoff o play-in cuyo torneo no
                         se puede resolver, play-in de Champions o tercera pata
                         de un cruce a dos piernas.
+        HeadToHeadRatingMetric:
+            type: object
+            required:
+                - matches
+                - actualPercentage
+                - expectedPercentage
+                - differencePercentagePoints
+            description: >-
+                Agregado del jugador sobre los partidos rateables disponibles
+                del cruce filtrado. Los porcentajes son `null` cuando matches
+                es 0.
+            properties:
+                matches:
+                    type: integer
+                    minimum: 0
+                actualPercentage:
+                    type: number
+                    nullable: true
+                expectedPercentage:
+                    type: number
+                    nullable: true
+                differencePercentagePoints:
+                    type: number
+                    nullable: true
+                    description: Obtenido menos esperado, en puntos porcentuales.
+        HeadToHeadRatingComparison:
+            type: object
+            required: [playerA, playerB]
+            description: >-
+                Comparación esperada-real orientada a los jugadores del detalle.
+                Solo existe si el read model de rating está disponible y fresco.
+                Usa exclusivamente eventos de los partidos incluidos por los
+                filtros stage, tournamentId, dateFrom y dateTo. El empate y las
+                definiciones por penales valen 0,5.
+            properties:
+                playerA:
+                    $ref: "#/components/schemas/HeadToHeadRatingMetric"
+                playerB:
+                    $ref: "#/components/schemas/HeadToHeadRatingMetric"
         RatingHistoryPerformanceMetric:
             type: object
             description: >-

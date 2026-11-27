@@ -2,6 +2,10 @@ const assert = require("node:assert/strict")
 const test = require("node:test")
 
 const {
+    buildHeadToHeadRatingComparison,
+} = require("../service/ratingsReadModel/createRetrieveRatingChanges")
+const retrieveHeadToHead = require("../service/retrieveHeadToHead")
+const {
     buildHeadToHeadSummary,
 } = require("../service/retrieveHeadToHeadSummary")
 const {
@@ -156,8 +160,206 @@ test("detail controller forwards path and query filters", async () => {
             dateTo: "2026-12-31",
             limit: 8,
         },
-        { addRatingChanges: undefined },
+        { loadRatingData: undefined },
     ])
     assert.equal(res.statusCode, 200)
     assert.equal(res.body, expected)
+})
+
+test("rating comparison orients expected and result for both sides", () => {
+    const comparison = buildHeadToHeadRatingComparison(
+        [
+            {
+                p1: { id: "1" },
+                p2: { id: "2" },
+                expectedP1: 0.7,
+                resultP1: 1,
+            },
+            {
+                p1: { id: "2" },
+                p2: { id: "1" },
+                expectedP1: 0.6,
+                resultP1: 0.5,
+            },
+            {
+                p1: { id: "1" },
+                p2: { id: "2" },
+                expectedP1: 0.4,
+                resultP1: 0.5,
+            },
+            {
+                p1: { id: "1" },
+                p2: { id: "3" },
+                expectedP1: 0.9,
+                resultP1: 1,
+            },
+        ],
+        "1",
+        "2"
+    )
+
+    assert.deepEqual(comparison, {
+        playerA: {
+            matches: 3,
+            actualPercentage: 66.7,
+            expectedPercentage: 50,
+            differencePercentagePoints: 16.7,
+        },
+        playerB: {
+            matches: 3,
+            actualPercentage: 33.3,
+            expectedPercentage: 50,
+            differencePercentagePoints: -16.7,
+        },
+    })
+})
+
+test("rating comparison has its own zero denominator when no event is usable", () => {
+    const comparison = buildHeadToHeadRatingComparison(
+        [
+            {
+                p1: { id: "1" },
+                p2: { id: "2" },
+                expectedP1: null,
+                resultP1: 1,
+            },
+        ],
+        "1",
+        "2"
+    )
+
+    const empty = {
+        matches: 0,
+        actualPercentage: null,
+        expectedPercentage: null,
+        differencePercentagePoints: null,
+    }
+    assert.deepEqual(comparison, { playerA: empty, playerB: empty })
+})
+
+test("detail aggregation uses only matches returned by every active filter", async () => {
+    let matchFilters
+    let ratingInput
+    const ratingComparison = {
+        playerA: {
+            matches: 1,
+            actualPercentage: 100,
+            expectedPercentage: 60,
+            differencePercentagePoints: 40,
+        },
+        playerB: {
+            matches: 1,
+            actualPercentage: 0,
+            expectedPercentage: 40,
+            differencePercentagePoints: -40,
+        },
+    }
+    const result = await retrieveHeadToHead(
+        {
+            playerA: "1",
+            playerB: "2",
+            stage: "playoff",
+            tournamentId: "tournament-1",
+            dateFrom: "2026-01-01",
+            dateTo: "2026-01-31",
+            limit: 5,
+        },
+        {
+            findAllUsers: async () => users.slice(0, 2),
+            findHeadToHeadMatchesForAssistant: async (filters) => {
+                matchFilters = filters
+                return [
+                    {
+                        _id: "filtered-match",
+                        playerP1: { id: "2" },
+                        playerP2: { id: "1" },
+                        scoreP1: 0,
+                        scoreP2: 1,
+                        playedAt: new Date("2026-01-15T15:00:00Z"),
+                        playedAtPrecision: "exact",
+                        type: "playoff",
+                        valid: true,
+                    },
+                ]
+            },
+            findTournamentsForAssistant: async () => [],
+            loadRatingData: async (input) => {
+                ratingInput = input
+                return {
+                    changes: new Map(),
+                    comparison: ratingComparison,
+                }
+            },
+            now: () => new Date("2026-02-01T00:00:00Z"),
+        }
+    )
+
+    assert.deepEqual(matchFilters, {
+        playerA: "1",
+        playerB: "2",
+        stage: "playoff",
+        tournamentId: "tournament-1",
+        dateFrom: "2026-01-01",
+        dateTo: "2026-01-31",
+    })
+    assert.deepEqual(ratingInput, {
+        matches: [
+            {
+                _id: "filtered-match",
+                playerP1: { id: "2" },
+                playerP2: { id: "1" },
+                scoreP1: 0,
+                scoreP2: 1,
+                playedAt: new Date("2026-01-15T15:00:00Z"),
+                playedAtPrecision: "exact",
+                type: "playoff",
+                valid: true,
+            },
+        ],
+        playerA: "1",
+        playerB: "2",
+    })
+    assert.equal(result.record.matches, 1)
+    assert.deepEqual(result.ratingComparison, ratingComparison)
+})
+
+test("detail controller loads one filtered aggregate and keeps history on stale rating data", async () => {
+    const calls = []
+    const controller = createGetHeadToHeadDetail({
+        readModelEnabled: () => true,
+        retrieveRatingChanges: async (input) => {
+            calls.push(input)
+            return { stale: "source_changed" }
+        },
+        retrieveHeadToHead: async (_filters, { loadRatingData }) => {
+            const ratingData = await loadRatingData({
+                matches: [{ _id: "match-1" }, { _id: "match-2" }],
+                playerA: "1",
+                playerB: "2",
+            })
+            return { record: { matches: 2 }, ratingData }
+        },
+        logger: { info() {}, warn() {} },
+    })
+    const res = response()
+
+    await controller(
+        {
+            params: { playerA: "1", playerB: "2" },
+            query: { stage: "regular", dateFrom: "2026-01-01" },
+        },
+        res
+    )
+
+    assert.deepEqual(calls, [
+        {
+            matchIds: ["match-1", "match-2"],
+            playerA: "1",
+            playerB: "2",
+        },
+    ])
+    assert.deepEqual(res.body, {
+        record: { matches: 2 },
+        ratingData: null,
+    })
 })

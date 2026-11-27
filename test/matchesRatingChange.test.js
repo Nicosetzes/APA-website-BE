@@ -33,6 +33,10 @@ const leanChanges = (events) =>
     events.map((event) => ({
         matchId: new mongoose.Types.ObjectId(String(event.matchId)),
         delta: event.delta,
+        expectedP1: event.expectedP1,
+        resultP1: event.resultP1,
+        p1: { id: event.p1.id },
+        p2: { id: event.p2.id },
         fingerprint: event.fingerprint,
     }))
 
@@ -96,6 +100,36 @@ test("retriever: lo guardado fresco devuelve el delta de cada partido con p2 = -
         assert.equal(change.ratingVersion, VERSION)
         assert.ok(!Object.is(change.p2, -0))
     }
+})
+
+test("retriever: agrega solo los eventos pedidos y orienta el par", async () => {
+    const { docs, retrieve } = setup()
+    const pairEvents = docs.events.filter(
+        (event) =>
+            [event.p1.id, event.p2.id].includes("a") &&
+            [event.p1.id, event.p2.id].includes("b")
+    )
+    const requested = pairEvents.slice(0, 2)
+
+    const result = await retrieve({
+        matchIds: requested.map((event) => String(event.matchId)),
+        playerA: "a",
+        playerB: "b",
+    })
+
+    assert.equal(result.changes.size, 2)
+    assert.equal(result.comparison.playerA.matches, 2)
+    assert.equal(result.comparison.playerB.matches, 2)
+    assert.equal(
+        result.comparison.playerA.actualPercentage +
+            result.comparison.playerB.actualPercentage,
+        100
+    )
+    assert.equal(
+        result.comparison.playerA.expectedPercentage +
+            result.comparison.playerB.expectedPercentage,
+        100
+    )
 })
 
 test("retriever: sin ids no lee nada", async () => {
@@ -297,7 +331,10 @@ test("findRatingChangesByMatchIds: filtro, proyección mínima y .lean()", async
             (id) => id instanceof mongoose.Types.ObjectId
         )
     )
-    assert.equal(calls[0][1], "matchId delta fingerprint -_id")
+    assert.equal(
+        calls[0][1],
+        "matchId delta expectedP1 resultP1 p1.id p2.id fingerprint -_id"
+    )
 })
 
 test("findRatingChangesByMatchIds: sin ids válidos no consulta y sin versión lanza", async () => {
